@@ -599,8 +599,22 @@ public final class MainActivity extends Activity {
         }
 
         private void showPointer(float x, float y) {
-            pointerX = x;
-            pointerY = y;
+            float screenWidth = getWidth();
+            float screenHeight = getHeight();
+            int virtualWidth = portraitMode ? baseHeight : baseWidth;
+            int virtualHeight = portraitMode ? baseWidth : baseHeight;
+            if (screenWidth > 0f && screenHeight > 0f && portraitMode) {
+                float virtualX = y * virtualWidth / screenHeight;
+                float virtualY = virtualHeight - 1f - x * virtualHeight / screenWidth;
+                pointerX = (virtualHeight - 1f - virtualY) * screenWidth / virtualHeight;
+                pointerY = virtualX * screenHeight / virtualWidth;
+            } else if (screenWidth > 0f && screenHeight > 0f) {
+                pointerX = x;
+                pointerY = y;
+            } else {
+                pointerX = x;
+                pointerY = y;
+            }
             pointerVisible = true;
             handler.removeCallbacks(hidePointer);
             handler.postDelayed(hidePointer, 1800);
@@ -654,6 +668,7 @@ public final class MainActivity extends Activity {
             if (!forwarding || !pointerVisible) return;
             canvas.save();
             canvas.translate(pointerX, pointerY);
+            if (portraitMode) canvas.rotate(-90f);
             canvas.drawPath(pointerShape, outlinePaint);
             canvas.drawPath(pointerShape, pointerPaint);
             canvas.restore();
