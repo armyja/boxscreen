@@ -1,15 +1,16 @@
 package com.armyja.boxscreen;
 
-import android.content.ComponentName;
 import android.content.Context;
 import android.content.ContextWrapper;
 import android.hardware.display.DisplayManager;
 import android.hardware.display.VirtualDisplay;
 import android.hardware.input.InputManager;
-import android.os.Binder;
 import android.os.Parcel;
 import android.os.RemoteException;
 import android.util.Log;
+import android.view.Display;
+import android.view.InputEvent;
+import android.view.MotionEvent;
 import android.view.Surface;
 
 import java.lang.reflect.Constructor;
@@ -19,9 +20,6 @@ import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.io.ByteArrayOutputStream;
-import java.io.BufferedReader;
-import java.io.InputStreamReader;
-import java.io.IOException;
 
 /** Runs inside Shizuku's shell-UID UserService process. */
 public final class PrivilegedDisplayService extends IDisplayService.Stub {
@@ -33,11 +31,6 @@ public final class PrivilegedDisplayService extends IDisplayService.Stub {
     private VirtualDisplay virtualDisplay;
     private Surface outputSurface;
     private String mouseAssociationDescriptor;
-    private volatile boolean edgeSwitchRunning;
-    private volatile Process mouseEventProcess;
-    private Thread mouseEventThread;
-
-
     public PrivilegedDisplayService(Context context) {
         baseContext = context;
     }
@@ -96,8 +89,6 @@ public final class PrivilegedDisplayService extends IDisplayService.Stub {
 
     @Override
     public void releaseDisplay() {
-        stopMouseEdgeSwitch();
-        clearMouseAssociation();
         if (virtualDisplay != null) {
             virtualDisplay.release();
             virtualDisplay = null;
@@ -109,38 +100,67 @@ public final class PrivilegedDisplayService extends IDisplayService.Stub {
     }
 
     @Override
-    public boolean setMouseDisplay(String inputDescriptor, boolean bindToVirtualDisplay) {
+    public boolean setMouseDisplay(String inputDescriptor, int displayId) {
         if (inputDescriptor == null || inputDescriptor.isEmpty()) {
             throw new IllegalArgumentException("Mouse descriptor is empty");
-        }
-        if (bindToVirtualDisplay && (virtualDisplay == null || virtualDisplay.getDisplay() == null)) {
-            throw new IllegalStateException("Virtual display is not running");
         }
         try {
             InputManager inputManager = (InputManager) baseContext.getSystemService(Context.INPUT_SERVICE);
             if (inputManager == null) throw new IllegalStateException("InputManager is unavailable");
-            if (bindToVirtualDisplay) {
-                if (mouseAssociationDescriptor != null
-                        && !mouseAssociationDescriptor.equals(inputDescriptor)) clearMouseAssociation();
-                Method add = InputManager.class.getDeclaredMethod("addUniqueIdAssociationByDescriptor",
-                        String.class, String.class);
-                add.setAccessible(true);
-                Method getUniqueId = android.view.Display.class.getDeclaredMethod("getUniqueId");
-                getUniqueId.setAccessible(true);
-                String displayUniqueId = (String) getUniqueId.invoke(virtualDisplay.getDisplay());
-                add.invoke(inputManager, inputDescriptor, displayUniqueId);
-                mouseAssociationDescriptor = inputDescriptor;
-                return true;
+            if (displayId < 0) {
+                Method remove = InputManager.class.getDeclaredMethod(
+                        "removeUniqueIdAssociationByDescriptor", String.class);
+                remove.setAccessible(true);
+                remove.invoke(inputManager, inputDescriptor);
+                if (inputDescriptor.equals(mouseAssociationDescriptor)) mouseAssociationDescriptor = null;
+                return false;
             }
-            Method remove = InputManager.class.getDeclaredMethod("removeUniqueIdAssociationByDescriptor",
-                    String.class);
-            remove.setAccessible(true);
-            remove.invoke(inputManager, inputDescriptor);
-            if (inputDescriptor.equals(mouseAssociationDescriptor)) mouseAssociationDescriptor = null;
-            return false;
+            DisplayManager manager = createShellDisplayManager();
+            Display target = manager.getDisplay(displayId);
+            if (target == null) throw new IllegalStateException("Target display is unavailable");
+            Method getUniqueId = Display.class.getDeclaredMethod("getUniqueId");
+            getUniqueId.setAccessible(true);
+            String uniqueId = (String) getUniqueId.invoke(target);
+            if (uniqueId == null || uniqueId.isEmpty()) {
+                throw new IllegalStateException("Target display has no unique ID");
+            }
+            if (mouseAssociationDescriptor != null
+                    && !mouseAssociationDescriptor.equals(inputDescriptor)) clearMouseAssociation();
+            Method add = InputManager.class.getDeclaredMethod(
+                    "addUniqueIdAssociationByDescriptor", String.class, String.class);
+            add.setAccessible(true);
+            add.invoke(inputManager, inputDescriptor, uniqueId);
+            mouseAssociationDescriptor = inputDescriptor;
+            return true;
         } catch (ReflectiveOperationException e) {
             Throwable cause = e.getCause() == null ? e : e.getCause();
             throw new IllegalStateException("Unable to route mouse: " + cause.getMessage(), cause);
+        }
+    }
+
+    @Override
+    public boolean injectMouseEvent(MotionEvent event, int displayId) {
+        if (event == null || virtualDisplay == null || virtualDisplay.getDisplay() == null
+                || displayId != virtualDisplay.getDisplay().getDisplayId()) {
+            return false;
+        }
+        MotionEvent forwarded = MotionEvent.obtain(event);
+        try {
+            Method setDisplayId = InputEvent.class.getDeclaredMethod("setDisplayId", int.class);
+            setDisplayId.setAccessible(true);
+            setDisplayId.invoke(forwarded, displayId);
+            InputManager inputManager = (InputManager) baseContext.getSystemService(Context.INPUT_SERVICE);
+            if (inputManager == null) throw new IllegalStateException("InputManager is unavailable");
+            Method inject = InputManager.class.getDeclaredMethod("injectInputEvent", InputEvent.class, int.class);
+            inject.setAccessible(true);
+            Object accepted = inject.invoke(inputManager, forwarded, 0);
+            return Boolean.TRUE.equals(accepted);
+        } catch (ReflectiveOperationException e) {
+            Throwable cause = e.getCause() == null ? e : e.getCause();
+            Log.e("BoxScreen", "mouse event injection failed: " + cause.getMessage(), cause);
+            return false;
+        } finally {
+            forwarded.recycle();
         }
     }
 
@@ -154,95 +174,6 @@ public final class PrivilegedDisplayService extends IDisplayService.Stub {
             remove.invoke(inputManager, mouseAssociationDescriptor);
         } catch (Exception ignored) { }
         mouseAssociationDescriptor = null;
-    }
-
-    @Override
-    public void startMouseEdgeSwitch(String descriptor, int mainWidth, int mainHeight) {
-        if (virtualDisplay == null || virtualDisplay.getDisplay() == null)
-            throw new IllegalStateException("Virtual display is not running");
-        if (descriptor == null || descriptor.isEmpty() || mainWidth < 1 || mainHeight < 1)
-            throw new IllegalArgumentException("Invalid mouse or screen size");
-        stopMouseEdgeSwitch();
-        setMouseDisplay(descriptor, false);
-        mouseAssociationDescriptor = descriptor;
-        final int virtualWidth = virtualDisplay.getDisplay().getMode().getPhysicalWidth();
-        final int virtualHeight = virtualDisplay.getDisplay().getMode().getPhysicalHeight();
-        final String path = findInputPath(descriptor);
-        edgeSwitchRunning = true;
-        mouseEventThread = new Thread(() -> monitorMouse(descriptor, path, mainWidth, mainHeight,
-                virtualWidth, virtualHeight), "BoxScreen-mouse-edge");
-        mouseEventThread.setDaemon(true);
-        mouseEventThread.start();
-    }
-
-    @Override
-    public void stopMouseEdgeSwitch() {
-        edgeSwitchRunning = false;
-        Process process = mouseEventProcess;
-        mouseEventProcess = null;
-        if (process != null) process.destroyForcibly();
-        clearMouseAssociation();
-    }
-
-    private String findInputPath(String descriptor) {
-        String dump = run(new String[]{"/system/bin/dumpsys", "input"});
-        String[] lines = dump.split("\\n");
-        for (int i = 0; i < lines.length; i++) {
-            if (!lines[i].contains("Descriptor: " + descriptor)) continue;
-            for (int j = i - 1; j >= Math.max(0, i - 6); j--) {
-                String line = lines[j].trim();
-                if (line.startsWith("Path: /dev/input/")) return line.substring("Path: ".length());
-            }
-        }
-        throw new IllegalStateException("Cannot find mouse input node");
-    }
-
-    private void monitorMouse(String descriptor, String path, int mainWidth, int mainHeight, int virtualWidth, int virtualHeight) {
-        int x = mainWidth / 2, y = mainHeight / 2, dx = 0, dy = 0;
-        boolean onVirtual = false;
-        try {
-            Process process = new ProcessBuilder("/system/bin/getevent", "-lt", path)
-                    .redirectErrorStream(true).start();
-            mouseEventProcess = process;
-            try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
-                String line;
-                while (edgeSwitchRunning && (line = reader.readLine()) != null) {
-                    String[] parts = line.trim().split("\\s+");
-                    if (parts.length < 3) continue;
-                    String axis = parts[parts.length - 2];
-                    if ("REL_X".equals(axis)) dx += signedHex(parts[parts.length - 1]);
-                    else if ("REL_Y".equals(axis)) dy += signedHex(parts[parts.length - 1]);
-                    else if ("SYN_REPORT".equals(axis)) {
-                        int w = onVirtual ? virtualWidth : mainWidth;
-                        int h = onVirtual ? virtualHeight : mainHeight;
-                        x = Math.max(0, Math.min(w - 1, x + dx));
-                        y = Math.max(0, Math.min(h - 1, y + dy));
-                        if (!onVirtual && y <= 1 && dy < 0) {
-                            setMouseDisplay(descriptor, true);
-                            onVirtual = true; x = virtualWidth / 2; y = virtualHeight - 2;
-                            Log.i("BoxScreen", "mouse crossed main top edge to virtual display");
-                        } else if (onVirtual && y >= h - 2 && dy > 0) {
-                            setMouseDisplay(descriptor, false);
-                            onVirtual = false; x = mainWidth / 2; y = 1;
-                            Log.i("BoxScreen", "mouse crossed virtual bottom edge to main display");
-                        }
-                        dx = 0; dy = 0;
-                    }
-                }
-            }
-        } catch (Exception e) {
-            if (edgeSwitchRunning) Log.e("BoxScreen", "mouse edge monitor failed: " + e.getMessage(), e);
-        } finally {
-            mouseEventProcess = null;
-            if (edgeSwitchRunning) edgeSwitchRunning = false;
-        }
-    }
-
-    private static int signedHex(String value) {
-        try {
-            long parsed = Long.parseLong(value, 16);
-            return (int) (parsed >= 0x80000000L ? parsed - 0x100000000L : parsed);
-        } catch (NumberFormatException ignored) { return 0; }
     }
 
     @Override

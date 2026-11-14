@@ -13,9 +13,15 @@ import android.os.Handler;
 import android.os.Bundle;
 import android.os.IBinder;
 import android.os.RemoteException;
+import android.graphics.Canvas;
+import android.graphics.Matrix;
+import android.graphics.Paint;
+import android.graphics.Path;
 import android.util.Log;
 import android.view.Display;
 import android.view.Gravity;
+import android.view.MotionEvent;
+import android.view.PointerIcon;
 import android.view.SurfaceHolder;
 import android.graphics.SurfaceTexture;
 import android.view.TextureView;
@@ -92,6 +98,7 @@ public final class MainActivity extends Activity {
     private boolean mouseBound;
     private String boundMouseDescriptor;
     private TextureView outputSurface;
+    private MousePointerView mousePointerView;
     private Presentation presentation;
     private IDisplayService displayService;
     private Shizuku.UserServiceArgs shizukuServiceArgs;
@@ -193,7 +200,7 @@ public final class MainActivity extends Activity {
         content.addView(start, margins(0, 8, 0, 8));
         start.setOnClickListener(v -> requestShizukuAndStart());
 
-        mouseRouteButton = button("开启鼠标自动跨屏");
+        mouseRouteButton = button("开启鼠标操控虚拟屏");
         mouseRouteButton.setEnabled(false);
         content.addView(mouseRouteButton, margins(0, 0, 0, 8));
         mouseRouteButton.setOnClickListener(v -> toggleMouseRoute());
@@ -350,6 +357,9 @@ public final class MainActivity extends Activity {
             });
             outputSurface.setOpaque(true);
             frame.addView(outputSurface);
+            mousePointerView = new MousePointerView(this);
+            frame.addView(mousePointerView, new FrameLayout.LayoutParams(
+                    FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
             presentation.setContentView(frame);
             presentation.show();
             updateOutputLayout();
@@ -386,6 +396,7 @@ public final class MainActivity extends Activity {
                     && ((view.getWidth() != width) || (view.getHeight() != height));
             if (orientationChange) {
                 transitionFramesRemaining = 2;
+                if (mousePointerView != null) mousePointerView.hidePointer();
                 view.setAlpha(0f);
                 view.setVisibility(View.INVISIBLE);
                 view.postDelayed(() -> {
@@ -444,6 +455,7 @@ public final class MainActivity extends Activity {
         Log.i(TAG, "stop displayId=" + virtualDisplayId);
         mouseBound = false;
         boundMouseDescriptor = null;
+        if (mousePointerView != null) mousePointerView.setForwarding(false);
         updateMouseRouteButton();
         if (virtualDisplayId >= 0 && displayService != null) {
             try { displayService.releaseDisplay(); } catch (RemoteException ignored) { }
@@ -464,27 +476,33 @@ public final class MainActivity extends Activity {
         }
         try {
             if (mouseBound) {
-                displayService.stopMouseEdgeSwitch();
                 mouseBound = false;
-                boundMouseDescriptor = null;
-                status("鼠标自动跨屏已关闭");
+                if (mousePointerView != null) mousePointerView.setForwarding(false);
+                status("鼠标转发已关闭，外接屏光标保留");
             } else {
                 String descriptor = findExternalMouseDescriptor();
                 if (descriptor == null) {
                     status("未检测到已连接的外接鼠标");
                     return;
                 }
-                android.graphics.Point mainSize = new android.graphics.Point();
-                displayManager.getDisplay(Display.DEFAULT_DISPLAY).getRealSize(mainSize);
-                displayService.startMouseEdgeSwitch(descriptor, mainSize.x, mainSize.y);
+                if (externalDisplay == null) {
+                    status("未检测到外接显示器");
+                    return;
+                }
+                displayService.setMouseDisplay(descriptor, externalDisplay.getDisplayId());
                 boundMouseDescriptor = descriptor;
                 mouseBound = true;
-                status("自动跨屏已开启：主屏顶部进入虚拟屏，虚拟屏底部返回");
+                if (mousePointerView != null) mousePointerView.setForwarding(true);
+                status(portraitMode
+                        ? "鼠标已转发到竖屏虚拟画面，光标随画面旋转"
+                        : "鼠标已转发到横屏虚拟画面");
             }
             updateMouseRouteButton();
         } catch (Exception e) {
             Log.e(TAG, "mouse display routing failed", e);
-            status("鼠标绑定失败：" + e.getMessage());
+            mouseBound = false;
+            if (mousePointerView != null) mousePointerView.setForwarding(false);
+            status("鼠标转发失败：" + e.getMessage());
         }
     }
 
@@ -501,7 +519,151 @@ public final class MainActivity extends Activity {
     private void updateMouseRouteButton() {
         if (mouseRouteButton == null) return;
         mouseRouteButton.setEnabled(displayService != null && virtualDisplayId >= 0);
-        mouseRouteButton.setText(mouseBound ? "自动跨屏已开启 · 点击关闭" : "开启鼠标自动跨屏");
+        mouseRouteButton.setText(mouseBound ? "虚拟屏鼠标控制已开启 · 点击关闭" : "开启鼠标操控虚拟屏");
+    }
+
+    private final class MousePointerView extends View {
+        private final Handler handler = new Handler();
+        private final Runnable hidePointer = () -> {
+            pointerVisible = false;
+            invalidate();
+        };
+        private final Paint pointerPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        private final Paint outlinePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        private final Path pointerShape = new Path();
+        private float pointerX;
+        private float pointerY;
+        private boolean pointerVisible;
+        private boolean forwarding;
+
+        MousePointerView(Context context) {
+            super(context);
+            setClickable(true);
+            setFocusable(true);
+            pointerPaint.setColor(0xffffffff);
+            pointerPaint.setStyle(Paint.Style.FILL);
+            outlinePaint.setColor(0xff111111);
+            outlinePaint.setStyle(Paint.Style.STROKE);
+            outlinePaint.setStrokeWidth(3f);
+            outlinePaint.setStrokeJoin(Paint.Join.ROUND);
+            pointerShape.moveTo(1f, 1f);
+            pointerShape.lineTo(1f, 27f);
+            pointerShape.lineTo(8f, 20f);
+            pointerShape.lineTo(13f, 31f);
+            pointerShape.lineTo(18f, 29f);
+            pointerShape.lineTo(13f, 18f);
+            pointerShape.lineTo(24f, 18f);
+            pointerShape.close();
+            setForwarding(false);
+        }
+
+        void setForwarding(boolean enabled) {
+            forwarding = enabled;
+            pointerVisible = false;
+            handler.removeCallbacks(hidePointer);
+            setPointerIcon(PointerIcon.getSystemIcon(getContext(), enabled
+                    ? PointerIcon.TYPE_NULL : PointerIcon.TYPE_ARROW));
+            invalidate();
+        }
+
+        @Override
+        public boolean onTouchEvent(MotionEvent event) {
+            if (!forwarding || !event.isFromSource(InputDevice.SOURCE_MOUSE)) return false;
+            if (transitionFramesRemaining > 0) return true;
+            showPointer(event.getX(), event.getY());
+            forwardMouseEvent(event);
+            return true;
+        }
+
+        @Override
+        public boolean onGenericMotionEvent(MotionEvent event) {
+            if (!forwarding || !event.isFromSource(InputDevice.SOURCE_MOUSE)) return false;
+            int action = event.getActionMasked();
+            if (action != MotionEvent.ACTION_HOVER_ENTER
+                    && action != MotionEvent.ACTION_HOVER_MOVE
+                    && action != MotionEvent.ACTION_HOVER_EXIT
+                    && action != MotionEvent.ACTION_SCROLL
+                    && action != MotionEvent.ACTION_BUTTON_PRESS
+                    && action != MotionEvent.ACTION_BUTTON_RELEASE) return false;
+            if (transitionFramesRemaining > 0) return true;
+            if (action == MotionEvent.ACTION_HOVER_EXIT) {
+                forwardMouseEvent(event);
+                handler.removeCallbacks(hidePointer);
+                pointerVisible = false;
+                invalidate();
+            } else {
+                showPointer(event.getX(), event.getY());
+                forwardMouseEvent(event);
+            }
+            return true;
+        }
+
+        private void showPointer(float x, float y) {
+            pointerX = x;
+            pointerY = y;
+            pointerVisible = true;
+            handler.removeCallbacks(hidePointer);
+            handler.postDelayed(hidePointer, 1800);
+            invalidate();
+        }
+
+        private void forwardMouseEvent(MotionEvent source) {
+            if (displayService == null || virtualDisplayId < 0 || externalDisplay == null) return;
+            if (transitionFramesRemaining > 0) return;
+            float screenWidth = getWidth();
+            float screenHeight = getHeight();
+            if (screenWidth <= 0 || screenHeight <= 0) return;
+            int virtualWidth = portraitMode ? baseHeight : baseWidth;
+            int virtualHeight = portraitMode ? baseWidth : baseHeight;
+            float scaleX;
+            float scaleY;
+            Matrix transform = new Matrix();
+            if (portraitMode) {
+                scaleX = virtualWidth / screenHeight;
+                scaleY = virtualHeight / screenWidth;
+                transform.setValues(new float[]{
+                        0f, scaleX, 0f,
+                        -scaleY, 0f, virtualHeight - 1f,
+                        0f, 0f, 1f
+                });
+            } else {
+                scaleX = virtualWidth / screenWidth;
+                scaleY = virtualHeight / screenHeight;
+                transform.setValues(new float[]{
+                        scaleX, 0f, 0f,
+                        0f, scaleY, 0f,
+                        0f, 0f, 1f
+                });
+            }
+            MotionEvent mapped = MotionEvent.obtain(source);
+            try {
+                mapped.transform(transform);
+                if (!displayService.injectMouseEvent(mapped, virtualDisplayId)) {
+                    Log.w(TAG, "InputManager rejected mouse event for display " + virtualDisplayId);
+                }
+            } catch (RemoteException | RuntimeException e) {
+                Log.e(TAG, "Unable to forward mouse event to virtual display", e);
+            } finally {
+                mapped.recycle();
+            }
+        }
+
+        @Override
+        protected void onDraw(Canvas canvas) {
+            super.onDraw(canvas);
+            if (!forwarding || !pointerVisible) return;
+            canvas.save();
+            canvas.translate(pointerX, pointerY);
+            canvas.drawPath(pointerShape, outlinePaint);
+            canvas.drawPath(pointerShape, pointerPaint);
+            canvas.restore();
+        }
+
+        void hidePointer() {
+            handler.removeCallbacks(hidePointer);
+            pointerVisible = false;
+            invalidate();
+        }
     }
 
     private void releaseVirtualDisplay() {

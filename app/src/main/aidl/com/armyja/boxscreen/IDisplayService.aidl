@@ -1,6 +1,7 @@
 package com.armyja.boxscreen;
 
 import android.view.Surface;
+import android.view.MotionEvent;
 
 interface IDisplayService {
     int createDisplay(String name, int width, int height, int densityDpi, in Surface surface);
@@ -8,7 +9,6 @@ interface IDisplayService {
     void releaseDisplay();
     void launchActivity(String packageName, String className);
     void sendKey(String keyCode);
-    boolean setMouseDisplay(String inputDescriptor, boolean bindToVirtualDisplay);
-    void startMouseEdgeSwitch(String inputDescriptor, int mainWidth, int mainHeight);
-    void stopMouseEdgeSwitch();
+    boolean setMouseDisplay(String inputDescriptor, int displayId);
+    boolean injectMouseEvent(in MotionEvent event, int displayId);
 }

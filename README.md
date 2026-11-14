@@ -1,15 +1,16 @@
 # BoxScreen
 
-Android TV-style display host and phone remote, built as a new project.
+Android virtual-display host for PYB110.
 
 ## Device roles
 
-- **PYB110 host:** detects the connected display, requests Shizuku access, creates a public Android `VirtualDisplay`, launches selected installed apps on it, and serves authenticated remote commands over the local network.
-- **PJF110 remote:** uses the same APK in remote mode. It only sends navigation, back/home, volume and display-mode commands. It does not use Shizuku.
+- **PYB110 host:** detects the connected display, requests Shizuku access, creates a public Android `VirtualDisplay`, and launches selected installed apps on it. Shizuku is used only on this device.
 
 The virtual display dimensions are read from the connected display's active mode at runtime. Landscape uses `W×H`; portrait uses `H×W` and rotates the output surface while keeping the external video signal in the display's native landscape mode. Display IDs are discovered at runtime and never hardcoded.
 
-The current development hardware reports an H24T7 external monitor at 2560×1440, with 2560×1440@60/75/120 Hz modes. The external display ID observed during discovery was 21; this is not a stable identifier.
+Mouse control keeps the physical mouse associated with the external display so its visible pointer stays there. BoxScreen draws and auto-hides its own pointer over the output, then forwards mouse events to the virtual display. The event transform follows the output rotation, so the pointer and clicks use the virtual app's coordinates in both landscape and portrait modes.
+
+The current development hardware reports an H24T7 external monitor at 2560×1440. Display IDs change at runtime and must not be hardcoded.
 
 ## Build
 
@@ -27,4 +28,4 @@ Shizuku must be running and authorized only on the PYB110 host. On a non-root de
 
 ## Network
 
-The host displays its local address and a short-lived pairing code. The PJF110 remote enters both to connect. Only a small allowlist of remote commands is accepted; the remote cannot send arbitrary shell commands.
+The project currently provides the PYB110 display host only.
