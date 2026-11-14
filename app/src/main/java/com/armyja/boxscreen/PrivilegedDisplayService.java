@@ -89,6 +89,7 @@ public final class PrivilegedDisplayService extends IDisplayService.Stub {
 
     @Override
     public void releaseDisplay() {
+        clearMouseAssociation();
         if (virtualDisplay != null) {
             virtualDisplay.release();
             virtualDisplay = null;
@@ -144,8 +145,22 @@ public final class PrivilegedDisplayService extends IDisplayService.Stub {
                 || displayId != virtualDisplay.getDisplay().getDisplayId()) {
             return false;
         }
-        MotionEvent forwarded = MotionEvent.obtain(event);
+        MotionEvent forwarded = null;
         try {
+            int pointerCount = event.getPointerCount();
+            MotionEvent.PointerProperties[] properties = new MotionEvent.PointerProperties[pointerCount];
+            MotionEvent.PointerCoords[] coordinates = new MotionEvent.PointerCoords[pointerCount];
+            for (int i = 0; i < pointerCount; i++) {
+                properties[i] = new MotionEvent.PointerProperties();
+                coordinates[i] = new MotionEvent.PointerCoords();
+                event.getPointerProperties(i, properties[i]);
+                event.getPointerCoords(i, coordinates[i]);
+            }
+            forwarded = MotionEvent.obtain(event.getDownTime(), event.getEventTime(),
+                    event.getAction(), pointerCount, properties, coordinates,
+                    event.getMetaState(), event.getButtonState(), event.getXPrecision(),
+                    event.getYPrecision(), event.getDeviceId(), event.getEdgeFlags(),
+                    event.getSource(), event.getFlags());
             Method setDisplayId = InputEvent.class.getDeclaredMethod("setDisplayId", int.class);
             setDisplayId.setAccessible(true);
             setDisplayId.invoke(forwarded, displayId);
@@ -160,7 +175,7 @@ public final class PrivilegedDisplayService extends IDisplayService.Stub {
             Log.e("BoxScreen", "mouse event injection failed: " + cause.getMessage(), cause);
             return false;
         } finally {
-            forwarded.recycle();
+            if (forwarded != null) forwarded.recycle();
         }
     }
 

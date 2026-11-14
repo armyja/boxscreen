@@ -476,9 +476,14 @@ public final class MainActivity extends Activity {
         }
         try {
             if (mouseBound) {
+                String descriptor = boundMouseDescriptor != null
+                        ? boundMouseDescriptor : findExternalMouseDescriptor();
+                if (descriptor == null) throw new IllegalStateException("未检测到已连接的外接鼠标");
+                displayService.setMouseDisplay(descriptor, -1);
                 mouseBound = false;
+                boundMouseDescriptor = null;
                 if (mousePointerView != null) mousePointerView.setForwarding(false);
-                status("鼠标转发已关闭，外接屏光标保留");
+                status("鼠标已解绑，返回本机主屏");
             } else {
                 String descriptor = findExternalMouseDescriptor();
                 if (descriptor == null) {
@@ -500,9 +505,8 @@ public final class MainActivity extends Activity {
             updateMouseRouteButton();
         } catch (Exception e) {
             Log.e(TAG, "mouse display routing failed", e);
-            mouseBound = false;
-            if (mousePointerView != null) mousePointerView.setForwarding(false);
             status("鼠标转发失败：" + e.getMessage());
+            updateMouseRouteButton();
         }
     }
 
