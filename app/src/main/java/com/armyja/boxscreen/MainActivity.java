@@ -406,7 +406,8 @@ public final class MainActivity extends Activity {
         try {
             presentation = new Presentation(this, externalDisplay);
             presentation.getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON
-                    | WindowManager.LayoutParams.FLAG_FULLSCREEN);
+                    | WindowManager.LayoutParams.FLAG_FULLSCREEN
+                    | WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE);
             FrameLayout frame = new FrameLayout(this);
             frame.setBackgroundColor(0xff000000);
             outputSurface = new TextureView(this);
@@ -696,7 +697,7 @@ public final class MainActivity extends Activity {
         MousePointerView(Context context) {
             super(context);
             setClickable(true);
-            setFocusable(true);
+            setFocusable(false);
             pointerPaint.setColor(0xffffffff);
             pointerPaint.setStyle(Paint.Style.FILL);
             outlinePaint.setColor(0xff111111);
@@ -800,7 +801,9 @@ public final class MainActivity extends Activity {
                 }
                 mapped.setLocation(virtualPointerX, virtualPointerY);
                 if (!displayService.injectMouseEvent(mapped, virtualDisplayId)) {
-                    Log.w(TAG, "InputManager rejected mouse event for display " + virtualDisplayId);
+                    Log.w(TAG, "InputManager rejected mouse event display=" + virtualDisplayId
+                            + " action=" + mapped.getActionMasked() + " x=" + mapped.getX()
+                            + " y=" + mapped.getY());
                 }
             } catch (RemoteException | RuntimeException e) {
                 Log.e(TAG, "Unable to forward mouse event to virtual display", e);

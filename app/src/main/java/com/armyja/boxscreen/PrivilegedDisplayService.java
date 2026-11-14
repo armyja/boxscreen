@@ -13,6 +13,7 @@ import android.view.Display;
 import android.view.InputEvent;
 import android.view.MotionEvent;
 import android.view.Surface;
+import android.view.WindowManager;
 
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Method;
@@ -32,6 +33,9 @@ public final class PrivilegedDisplayService extends IDisplayService.Stub {
     private VirtualDisplay virtualDisplay;
     private Surface outputSurface;
     private String mouseAssociationDescriptor;
+    private WindowManager imeWindowManager;
+    private int imePolicyDisplayId = -1;
+    private int previousDisplayImePolicy = -1;
     public PrivilegedDisplayService(Context context) {
         baseContext = context;
     }
@@ -58,7 +62,9 @@ public final class PrivilegedDisplayService extends IDisplayService.Stub {
             if (virtualDisplay == null || virtualDisplay.getDisplay() == null) {
                 throw new IllegalStateException("Android did not create the virtual display");
             }
-            return virtualDisplay.getDisplay().getDisplayId();
+            int displayId = virtualDisplay.getDisplay().getDisplayId();
+            setDisplayImePolicyLocal(displayId);
+            return displayId;
         } catch (ReflectiveOperationException e) {
             throw new IllegalStateException("Cannot create a shell-identity DisplayManager", e);
         }
@@ -68,16 +74,51 @@ public final class PrivilegedDisplayService extends IDisplayService.Stub {
         if (baseContext == null) {
             throw new IllegalStateException("Shizuku UserService did not provide a Context");
         }
-        Context shellContext = new ContextWrapper(baseContext) {
+        Context shellContext = createShellContext();
+        Constructor<DisplayManager> constructor = DisplayManager.class
+                .getDeclaredConstructor(Context.class);
+        constructor.setAccessible(true);
+        return constructor.newInstance(shellContext);
+    }
+
+    private Context createShellContext() {
+        return new ContextWrapper(baseContext) {
             @Override public String getPackageName() { return "com.android.shell"; }
             @Override public String getOpPackageName() { return "com.android.shell"; }
             public String getBasePackageName() { return "com.android.shell"; }
             @Override public String getAttributionTag() { return null; }
         };
-        Constructor<DisplayManager> constructor = DisplayManager.class
-                .getDeclaredConstructor(Context.class);
-        constructor.setAccessible(true);
-        return constructor.newInstance(shellContext);
+    }
+
+    private void setDisplayImePolicyLocal(int displayId) throws ReflectiveOperationException {
+        imeWindowManager = (WindowManager) createShellContext()
+                .getSystemService(Context.WINDOW_SERVICE);
+        Method getPolicy = imeWindowManager.getClass()
+                .getMethod("getDisplayImePolicy", int.class);
+        Method setPolicy = imeWindowManager.getClass()
+                .getMethod("setDisplayImePolicy", int.class, int.class);
+        previousDisplayImePolicy = (Integer) getPolicy.invoke(imeWindowManager, displayId);
+        setPolicy.invoke(imeWindowManager, displayId, 0); // DISPLAY_IME_POLICY_LOCAL
+        imePolicyDisplayId = displayId;
+        Log.i("BoxScreenService", "set display IME policy=LOCAL display=" + displayId
+                + " previous=" + previousDisplayImePolicy);
+    }
+
+    private void restoreDisplayImePolicy() {
+        if (imeWindowManager == null || imePolicyDisplayId < 0 || previousDisplayImePolicy < 0) return;
+        try {
+            Method setPolicy = imeWindowManager.getClass()
+                    .getMethod("setDisplayImePolicy", int.class, int.class);
+            setPolicy.invoke(imeWindowManager, imePolicyDisplayId, previousDisplayImePolicy);
+            Log.i("BoxScreenService", "restored display IME policy=" + previousDisplayImePolicy
+                    + " display=" + imePolicyDisplayId);
+        } catch (Exception e) {
+            Log.e("BoxScreenService", "failed to restore display IME policy", e);
+        } finally {
+            imeWindowManager = null;
+            imePolicyDisplayId = -1;
+            previousDisplayImePolicy = -1;
+        }
     }
 
     @Override
@@ -95,6 +136,7 @@ public final class PrivilegedDisplayService extends IDisplayService.Stub {
     @Override
     public void releaseDisplay() {
         clearMouseAssociation();
+        restoreDisplayImePolicy();
         if (virtualDisplay != null) {
             virtualDisplay.release();
             virtualDisplay = null;
