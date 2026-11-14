@@ -1004,6 +1004,10 @@ public final class MainActivity extends Activity {
                     / getResources().getDisplayMetrics().density));
             int columns = Math.max(2, Math.min(8, availableDp / 80));
             if (columns != appColumns) {
+                // GridLayout validates the current children against the new column count.
+                // During a landscape -> portrait resize, old children can still occupy
+                // columns beyond the narrower count, so remove them before shrinking.
+                appGrid.removeAllViews();
                 appColumns = columns;
                 appGrid.setColumnCount(columns);
                 rebuildAppsGrid();
