@@ -14,7 +14,6 @@ import android.os.Bundle;
 import android.os.IBinder;
 import android.os.RemoteException;
 import android.graphics.Canvas;
-import android.graphics.Matrix;
 import android.graphics.Paint;
 import android.graphics.Path;
 import android.util.Log;
@@ -614,8 +613,8 @@ public final class MainActivity extends Activity {
         private void updateVirtualPointer(float x, float y) {
             int virtualWidth = portraitMode ? baseHeight : baseWidth;
             int virtualHeight = portraitMode ? baseWidth : baseHeight;
-            virtualPointerX = portraitMode ? virtualWidth - 1f - x : x;
-            virtualPointerY = portraitMode ? virtualHeight - 1f - y : y;
+            virtualPointerX = x;
+            virtualPointerY = y;
             virtualPointerX = Math.max(0f, Math.min(virtualWidth - 1f, virtualPointerX));
             virtualPointerY = Math.max(0f, Math.min(virtualHeight - 1f, virtualPointerY));
         }
@@ -635,21 +634,8 @@ public final class MainActivity extends Activity {
             float screenWidth = getWidth();
             float screenHeight = getHeight();
             if (screenWidth <= 0 || screenHeight <= 0) return;
-            int virtualWidth = portraitMode ? baseHeight : baseWidth;
-            int virtualHeight = portraitMode ? baseWidth : baseHeight;
-            Matrix transform = new Matrix();
-            if (portraitMode) {
-                transform.setValues(new float[]{
-                        -1f, 0f, virtualWidth - 1f,
-                        0f, -1f, virtualHeight - 1f,
-                        0f, 0f, 1f
-                });
-            } else {
-                transform.reset();
-            }
             MotionEvent mapped = MotionEvent.obtain(source);
             try {
-                mapped.transform(transform);
                 mapped.setLocation(virtualPointerX, virtualPointerY);
                 if (!displayService.injectMouseEvent(mapped, virtualDisplayId)) {
                     Log.w(TAG, "InputManager rejected mouse event for display " + virtualDisplayId);
