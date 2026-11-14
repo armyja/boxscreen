@@ -615,8 +615,8 @@ public final class MainActivity extends Activity {
             if (screenWidth <= 0f || screenHeight <= 0f) return;
             if (!hasLastScreenPosition) {
                 if (portraitMode) {
-                    virtualPointerX = y * virtualWidth / screenHeight;
-                    virtualPointerY = virtualHeight - 1f - x * virtualHeight / screenWidth;
+                    virtualPointerX = virtualWidth - 1f - y * virtualWidth / screenHeight;
+                    virtualPointerY = x * virtualHeight / screenWidth;
                 } else {
                     virtualPointerX = x * virtualWidth / screenWidth;
                     virtualPointerY = y * virtualHeight / screenHeight;
@@ -626,8 +626,8 @@ public final class MainActivity extends Activity {
                 float deltaX = x - lastScreenX;
                 float deltaY = y - lastScreenY;
                 if (portraitMode) {
-                    virtualPointerX += deltaY * virtualWidth / screenHeight;
-                    virtualPointerY -= deltaX * virtualHeight / screenWidth;
+                    virtualPointerX -= deltaY * virtualWidth / screenHeight;
+                    virtualPointerY += deltaX * virtualHeight / screenWidth;
                 } else {
                     virtualPointerX += deltaX * virtualWidth / screenWidth;
                     virtualPointerY += deltaY * virtualHeight / screenHeight;
@@ -665,8 +665,8 @@ public final class MainActivity extends Activity {
                 scaleX = virtualWidth / screenHeight;
                 scaleY = virtualHeight / screenWidth;
                 transform.setValues(new float[]{
-                        0f, scaleX, 0f,
-                        -scaleY, 0f, virtualHeight - 1f,
+                        0f, -scaleX, virtualWidth - 1f,
+                        scaleY, 0f, 0f,
                         0f, 0f, 1f
                 });
             } else {
