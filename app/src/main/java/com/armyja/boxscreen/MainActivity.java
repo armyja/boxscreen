@@ -631,8 +631,10 @@ public final class MainActivity extends Activity {
         private void updateVirtualPointer(float x, float y) {
             int virtualWidth = portraitMode ? baseHeight : baseWidth;
             int virtualHeight = portraitMode ? baseWidth : baseHeight;
-            virtualPointerX = x * virtualWidth / Math.max(1, baseWidth);
-            virtualPointerY = y * virtualHeight / Math.max(1, baseHeight);
+            float scale = Math.max(virtualWidth / (float) Math.max(1, baseWidth),
+                    virtualHeight / (float) Math.max(1, baseHeight));
+            virtualPointerX = x * scale;
+            virtualPointerY = y * scale;
             virtualPointerX = Math.max(0f, Math.min(virtualWidth - 1f, virtualPointerX));
             virtualPointerY = Math.max(0f, Math.min(virtualHeight - 1f, virtualPointerY));
         }
