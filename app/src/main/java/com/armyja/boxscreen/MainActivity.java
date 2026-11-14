@@ -14,6 +14,7 @@ import android.os.Bundle;
 import android.os.IBinder;
 import android.os.RemoteException;
 import android.graphics.Canvas;
+import android.graphics.Matrix;
 import android.graphics.Paint;
 import android.graphics.Path;
 import android.util.Log;
@@ -580,7 +581,7 @@ public final class MainActivity extends Activity {
         public boolean onTouchEvent(MotionEvent event) {
             if (!forwarding || !event.isFromSource(InputDevice.SOURCE_MOUSE)) return false;
             if (transitionFramesRemaining > 0) return true;
-            updateVirtualPointer(event.getX(), event.getY());
+            updateVirtualPointer(event.getRawX(), event.getRawY());
             showPointer();
             forwardMouseEvent(event);
             return true;
@@ -603,7 +604,7 @@ public final class MainActivity extends Activity {
                 pointerVisible = false;
                 invalidate();
             } else {
-                updateVirtualPointer(event.getX(), event.getY());
+                updateVirtualPointer(event.getRawX(), event.getRawY());
                 showPointer();
                 forwardMouseEvent(event);
             }
@@ -613,8 +614,8 @@ public final class MainActivity extends Activity {
         private void updateVirtualPointer(float x, float y) {
             int virtualWidth = portraitMode ? baseHeight : baseWidth;
             int virtualHeight = portraitMode ? baseWidth : baseHeight;
-            virtualPointerX = x;
-            virtualPointerY = y;
+            virtualPointerX = x * virtualWidth / Math.max(1, baseWidth);
+            virtualPointerY = y * virtualHeight / Math.max(1, baseHeight);
             virtualPointerX = Math.max(0f, Math.min(virtualWidth - 1f, virtualPointerX));
             virtualPointerY = Math.max(0f, Math.min(virtualHeight - 1f, virtualPointerY));
         }
@@ -631,11 +632,24 @@ public final class MainActivity extends Activity {
         private void forwardMouseEvent(MotionEvent source) {
             if (displayService == null || virtualDisplayId < 0 || externalDisplay == null) return;
             if (transitionFramesRemaining > 0) return;
-            float screenWidth = getWidth();
-            float screenHeight = getHeight();
+            float screenWidth = baseWidth;
+            float screenHeight = baseHeight;
             if (screenWidth <= 0 || screenHeight <= 0) return;
+            int virtualWidth = portraitMode ? baseHeight : baseWidth;
+            int virtualHeight = portraitMode ? baseWidth : baseHeight;
             MotionEvent mapped = MotionEvent.obtain(source);
             try {
+                if (portraitMode) {
+                    float scaleX = virtualWidth / screenWidth;
+                    float scaleY = virtualHeight / screenHeight;
+                    Matrix transform = new Matrix();
+                    transform.setValues(new float[]{
+                            0f, -scaleX, screenWidth * scaleX,
+                            scaleY, 0f, 0f,
+                            0f, 0f, 1f
+                    });
+                    mapped.transform(transform);
+                }
                 mapped.setLocation(virtualPointerX, virtualPointerY);
                 if (!displayService.injectMouseEvent(mapped, virtualDisplayId)) {
                     Log.w(TAG, "InputManager rejected mouse event for display " + virtualDisplayId);
