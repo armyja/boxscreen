@@ -50,7 +50,8 @@ public final class PrivilegedDisplayService extends IDisplayService.Stub {
             DisplayManager manager = createShellDisplayManager();
             int flags = DisplayManager.VIRTUAL_DISPLAY_FLAG_PUBLIC
                     | DisplayManager.VIRTUAL_DISPLAY_FLAG_PRESENTATION
-                    | DisplayManager.VIRTUAL_DISPLAY_FLAG_OWN_CONTENT_ONLY;
+                    | DisplayManager.VIRTUAL_DISPLAY_FLAG_OWN_CONTENT_ONLY
+                    | (1 << 10); // VIRTUAL_DISPLAY_FLAG_TRUSTED
             outputSurface = surface;
             virtualDisplay = manager.createVirtualDisplay(name, width, height, densityDpi,
                     outputSurface, flags);
