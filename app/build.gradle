@@ -2,6 +2,12 @@ plugins {
     id 'com.android.application'
 }
 
+def releaseSigningPropertiesFile = new File(System.getProperty('user.home'), '.gradle/boxscreen-release.properties')
+def releaseSigningProperties = new Properties()
+if (releaseSigningPropertiesFile.exists()) {
+    releaseSigningPropertiesFile.withInputStream { releaseSigningProperties.load(it) }
+}
+
 android {
     namespace 'com.armyja.boxscreen'
     compileSdk 36
@@ -15,7 +21,7 @@ android {
         minSdk 29
         targetSdk 35
         versionCode 1
-        versionName '0.1.0'
+        versionName '1.0.0'
     }
 
     signingConfigs {
@@ -23,11 +29,27 @@ android {
             v1SigningEnabled true
             v2SigningEnabled true
         }
+        release {
+            if (releaseSigningPropertiesFile.exists()) {
+                storeFile file(releaseSigningProperties.getProperty('storeFile'))
+                storePassword releaseSigningProperties.getProperty('storePassword')
+                keyAlias releaseSigningProperties.getProperty('keyAlias')
+                keyPassword releaseSigningProperties.getProperty('keyPassword')
+                v1SigningEnabled true
+                v2SigningEnabled true
+            }
+        }
     }
 
     buildTypes {
         debug {
             signingConfig signingConfigs.debug
+        }
+        release {
+            if (releaseSigningPropertiesFile.exists()) {
+                signingConfig signingConfigs.release
+            }
+            minifyEnabled false
         }
     }
 

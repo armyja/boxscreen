@@ -1,5 +1,6 @@
 package com.armyja.boxscreen;
 
+import android.annotation.SuppressLint;
 import android.content.Context;
 import android.content.ContextWrapper;
 import android.hardware.display.DisplayManager;
@@ -104,6 +105,7 @@ public final class PrivilegedDisplayService extends IDisplayService.Stub {
     }
 
     @Override
+    @SuppressLint("BlockedPrivateApi")
     public boolean setMouseDisplay(String inputDescriptor, int displayId) {
         if (inputDescriptor == null || inputDescriptor.isEmpty()) {
             throw new IllegalArgumentException("Mouse descriptor is empty");
@@ -143,6 +145,7 @@ public final class PrivilegedDisplayService extends IDisplayService.Stub {
     }
 
     @Override
+    @SuppressLint("BlockedPrivateApi")
     public boolean injectMouseEvent(MotionEvent event, int displayId) {
         if (event == null || virtualDisplay == null || virtualDisplay.getDisplay() == null
                 || displayId != virtualDisplay.getDisplay().getDisplayId()) {
