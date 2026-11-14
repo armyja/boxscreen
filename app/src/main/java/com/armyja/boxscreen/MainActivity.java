@@ -996,30 +996,61 @@ public final class MainActivity extends Activity {
         appEntries = getPackageManager().queryIntentActivities(launcher, 0);
         appGrid = new GridLayout(this);
         appGrid.setColumnCount(1);
+        appGrid.setMinimumHeight(dp(1));
         appGrid.setUseDefaultMargins(false);
         appGrid.setAlignmentMode(GridLayout.ALIGN_BOUNDS);
         content.addView(appGrid, fullWidth());
         appGrid.addOnLayoutChangeListener((view, left, top, right, bottom, oldLeft, oldTop, oldRight, oldBottom) -> {
-            int availableDp = Math.max(1, Math.round((right - left)
-                    / getResources().getDisplayMetrics().density));
-            int columns = Math.max(2, Math.min(8, availableDp / 80));
-            if (columns != appColumns) {
-                // GridLayout validates the current children against the new column count.
-                // During a landscape -> portrait resize, old children can still occupy
-                // columns beyond the narrower count, so remove them before shrinking.
-                appGrid.removeAllViews();
-                appColumns = columns;
-                appGrid.setColumnCount(columns);
-                rebuildAppsGrid();
+            scheduleAppGridUpdate(right - left);
+        });
+        // An empty GridLayout can be measured to zero height and may not receive a
+        // useful size-change callback on every Android build. Populate it after its
+        // first layout as well, once the available width is known.
+        appGrid.post(() -> updateAppGridColumns(appGrid.getWidth()));
+        appGrid.getViewTreeObserver().addOnGlobalLayoutListener(new android.view.ViewTreeObserver.OnGlobalLayoutListener() {
+            @Override public void onGlobalLayout() {
+                int width = appGrid.getWidth();
+                if (width <= 0) return;
+                appGrid.getViewTreeObserver().removeOnGlobalLayoutListener(this);
+                scheduleAppGridUpdate(width);
             }
         });
-        appGrid.post(this::rebuildAppsGrid);
+    }
+
+    private void scheduleAppGridUpdate(int widthPx) {
+        if (appGrid == null || widthPx <= 0) return;
+        // Do not add or remove GridLayout children from a layout callback. Defer
+        // population until that traversal finishes so the very first frame draws it.
+        appGrid.postOnAnimation(() -> updateAppGridColumns(appGrid.getWidth()));
+    }
+
+    private void updateAppGridColumns(int widthPx) {
+        if (appGrid == null || widthPx <= 0) return;
+        int availableDp = Math.max(1, Math.round(widthPx
+                / getResources().getDisplayMetrics().density));
+        int columns = Math.max(2, Math.min(8, availableDp / 80));
+        boolean columnsChanged = columns != appColumns || appGrid.getColumnCount() != columns;
+        if (columnsChanged) {
+            // GridLayout validates the current children against the new column count.
+            // During rotation, old children may still occupy columns beyond the new count.
+            appGrid.removeAllViews();
+            appColumns = columns;
+            appGrid.setColumnCount(columns);
+        }
+        if (columnsChanged || appGrid.getChildCount() == 0) {
+            rebuildAppsGrid();
+            Log.i(TAG, "app grid populated width=" + widthPx + " columns=" + columns
+                    + " entries=" + appEntries.size() + " children=" + appGrid.getChildCount());
+        }
     }
 
     private void rebuildAppsGrid() {
         if (appGrid == null) return;
+        // Wait until the grid has a real measured width so the initial population
+        // cannot lock children into the placeholder one-column configuration.
+        if (appGrid.getWidth() <= 0) return;
         appGrid.removeAllViews();
-        if (appColumns == 0) appColumns = 4;
+        if (appColumns == 0) return;
         String query = appSearch == null ? "" : appSearch.getText().toString().trim().toLowerCase(java.util.Locale.ROOT);
         ArrayList<ResolveInfo> visible = new ArrayList<>();
         for (ResolveInfo app : appEntries) {
