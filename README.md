@@ -17,7 +17,7 @@ BoxScreen 是一个把安卓应用放到外接屏幕独立运行的 Android 主�
 ## 设备与要求
 
 - 主机：OnePlus 16，型号 **PYB110**，连接支持视频输出的外接显示器。
-- Android 端：Shizuku 在 PYB110 上运行，并授予 BoxScreen 权限。Shizuku 不需要安装在遥控手机上；本项目当前也不需要遥控手机应用。
+- Android 端：Shizuku 在 PYB110 上运行，并授予 BoxScreen 权限。
 - 外接鼠标为可选项。没有鼠标时仍可使用应用列表和虚拟屏功能。
 - 构建环境：JDK 17 或更新版本、Android SDK Platform 36、Android Build Tools，以及仓库自带的 Gradle Wrapper。
 

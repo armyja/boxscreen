@@ -1,6 +1,6 @@
 # BoxScreen 使用手册
 
-本手册针对 **OnePlus 16（PYB110）** 编写。BoxScreen 运行在连接外接显示器的 PYB110 上；当前项目不需要在 PJF110 或其他手机上安装遥控端。
+本手册针对 **OnePlus 16（PYB110）** 编写。BoxScreen 运行在连接外接显示器的 PYB110 上。
 
 ## 1. 使用前准备
 
