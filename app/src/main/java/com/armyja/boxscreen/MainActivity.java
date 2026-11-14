@@ -86,7 +86,6 @@ public final class MainActivity extends Activity {
     private String pendingLaunchActivity;
     private boolean autoMouseSuppressed;
     private boolean phoneScreenDimmed;
-    private boolean phoneScreenAwakeByTouch;
     private boolean systemBarsHiddenForBlackout;
     private int previousSystemUiVisibility;
     private float previousWindowBrightness = WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE;
@@ -131,6 +130,7 @@ public final class MainActivity extends Activity {
             mouseBound = false;
             boundMouseDescriptor = null;
             if (mousePointerView != null) mousePointerView.setForwarding(false);
+            restorePhoneScreen();
             updateMouseRouteButton();
             status("Shizuku 服务已断开");
         }
@@ -148,8 +148,6 @@ public final class MainActivity extends Activity {
         @Override public void onDisplayAdded(int displayId) {
             externalDisplay = findExternalDisplay();
             if (monitorView != null) updateMonitorLabel();
-            if (!startPending && presentation == null && displayService == null
-                    && findExternalMouseDescriptor() != null) requestShizukuAndStart();
         }
         @Override public void onDisplayRemoved(int displayId) {
             if (displayId == (externalDisplay == null ? -1 : externalDisplay.getDisplayId())) stopOutput();
@@ -178,19 +176,17 @@ public final class MainActivity extends Activity {
             densityInitialized = true;
         }
         showRoleScreen();
-        if (findExternalMouseDescriptor() != null) requestShizukuAndStart();
     }
 
     @Override protected void onResume() {
         super.onResume();
         externalDisplay = findExternalDisplay();
         if (monitorView != null) updateMonitorLabel();
-        autoEnableMouseIfAvailable();
     }
 
     @Override protected void onDestroy() {
         densityResizeHandler.removeCallbacks(applyPendingDensity);
-        restorePhoneScreen(false);
+        restorePhoneScreen();
         Shizuku.removeRequestPermissionResultListener(permissionListener);
         if (presentation != null) presentation.dismiss();
         if (displayManager != null) displayManager.unregisterDisplayListener(displayListener);
@@ -263,6 +259,11 @@ public final class MainActivity extends Activity {
         Button stop = button("停止输出");
         densityRow.addView(stop, new LinearLayout.LayoutParams(-2, -2));
         stop.setOnClickListener(v -> stopOutput());
+        Button blackout = button("手机黑屏");
+        LinearLayout.LayoutParams blackoutParams = new LinearLayout.LayoutParams(-2, -2);
+        blackoutParams.setMargins(dp(4), 0, 0, 0);
+        densityRow.addView(blackout, blackoutParams);
+        blackout.setOnClickListener(v -> dimAndBlackoutPhoneScreen());
         densitySlider = new SeekBar(this);
         densitySlider.setMax(46);
         densitySlider.setProgress(Math.max(0, Math.min(46, (densityDpi - 140) / 10)));
@@ -535,7 +536,7 @@ public final class MainActivity extends Activity {
         mouseBound = false;
         boundMouseDescriptor = null;
         if (mousePointerView != null) mousePointerView.setForwarding(false);
-        restorePhoneScreen(false);
+        restorePhoneScreen();
         updateMouseRouteButton();
         if (virtualDisplayId >= 0 && displayService != null) {
             try { displayService.releaseDisplay(); } catch (RemoteException ignored) { }
@@ -564,7 +565,7 @@ public final class MainActivity extends Activity {
                 boundMouseDescriptor = null;
                 autoMouseSuppressed = true;
                 if (mousePointerView != null) mousePointerView.setForwarding(false);
-                restorePhoneScreen(false);
+                restorePhoneScreen();
                 status("鼠标已解绑，返回本机主屏");
             } else {
                 String descriptor = findExternalMouseDescriptor();
@@ -581,7 +582,6 @@ public final class MainActivity extends Activity {
                 mouseBound = true;
                 autoMouseSuppressed = false;
                 if (mousePointerView != null) mousePointerView.setForwarding(true);
-                dimAndBlackoutPhoneScreen();
                 status(portraitMode
                         ? "鼠标已转发到竖屏虚拟画面，光标随画面旋转"
                         : "鼠标已转发到横屏虚拟画面");
@@ -604,7 +604,6 @@ public final class MainActivity extends Activity {
             boundMouseDescriptor = descriptor;
             mouseBound = true;
             if (mousePointerView != null) mousePointerView.setForwarding(true);
-            dimAndBlackoutPhoneScreen();
             updateMouseRouteButton();
             status("已检测到鼠标并自动启用虚拟屏操控");
             Log.i(TAG, "auto-enabled mouse routing descriptor=" + descriptor);
@@ -615,7 +614,7 @@ public final class MainActivity extends Activity {
     }
 
     private void dimAndBlackoutPhoneScreen() {
-        if (phoneScreenAwakeByTouch || phoneScreenDimmed || rootLayout == null) return;
+        if (phoneScreenDimmed || rootLayout == null) return;
         WindowManager.LayoutParams attributes = getWindow().getAttributes();
         previousWindowBrightness = attributes.screenBrightness;
         attributes.screenBrightness = 0f;
@@ -633,7 +632,7 @@ public final class MainActivity extends Activity {
         blackScreenOverlay.setClickable(true);
         blackScreenOverlay.setOnTouchListener((view, event) -> {
             if (event.getActionMasked() == MotionEvent.ACTION_DOWN) {
-                restorePhoneScreen(true);
+                restorePhoneScreen();
             }
             return true;
         });
@@ -643,8 +642,7 @@ public final class MainActivity extends Activity {
                 + previousWindowBrightness);
     }
 
-    private void restorePhoneScreen(boolean userTouch) {
-        if (userTouch) phoneScreenAwakeByTouch = true;
+    private void restorePhoneScreen() {
         if (blackScreenOverlay != null) {
             if (blackScreenOverlay.getParent() instanceof FrameLayout) {
                 ((FrameLayout) blackScreenOverlay.getParent()).removeView(blackScreenOverlay);
@@ -660,7 +658,7 @@ public final class MainActivity extends Activity {
             getWindow().getDecorView().setSystemUiVisibility(previousSystemUiVisibility);
             systemBarsHiddenForBlackout = false;
         }
-        Log.i(TAG, "phone screen restored; userTouch=" + userTouch);
+        Log.i(TAG, "phone screen restored");
     }
 
     private String findExternalMouseDescriptor() {
@@ -928,6 +926,7 @@ public final class MainActivity extends Activity {
     }
 
     private void launchPackage(String packageName, String activityName) {
+        autoMouseSuppressed = false;
         if (displayService == null || virtualDisplayId < 0) {
             pendingLaunchPackage = packageName;
             pendingLaunchActivity = activityName;
@@ -935,8 +934,10 @@ public final class MainActivity extends Activity {
             return;
         }
         try {
+            autoEnableMouseIfAvailable();
             Log.i(TAG, "launch=" + packageName + "/" + activityName + " display=" + virtualDisplayId);
             displayService.launchActivity(packageName, activityName);
+            if (mouseBound) dimAndBlackoutPhoneScreen();
             status("已请求在虚拟屏中打开 " + packageName);
         } catch (Exception e) {
             Log.e(TAG, "launch failed=" + packageName + ": " + e.getMessage(), e);
