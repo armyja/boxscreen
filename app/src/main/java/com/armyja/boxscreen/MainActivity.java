@@ -78,6 +78,8 @@ public final class MainActivity extends Activity {
     private int transitionFramesRemaining;
     private boolean portraitMode;
     private boolean startPending;
+    private String pendingLaunchPackage;
+    private String pendingLaunchActivity;
 
     private LinearLayout content;
     private TextView statusView;
@@ -113,6 +115,10 @@ public final class MainActivity extends Activity {
         }
         @Override public void onServiceDisconnected(ComponentName name) {
             displayService = null;
+            virtualDisplayId = -1;
+            mouseBound = false;
+            boundMouseDescriptor = null;
+            updateMouseRouteButton();
             status("Shizuku 服务已断开");
         }
     };
@@ -196,10 +202,6 @@ public final class MainActivity extends Activity {
         content.addView(monitorView, cardMargins());
         updateMonitorLabel();
 
-        Button start = button("创建虚拟屏并输出到外接显示器");
-        content.addView(start, margins(0, 8, 0, 8));
-        start.setOnClickListener(v -> requestShizukuAndStart());
-
         mouseRouteButton = button("开启鼠标操控虚拟屏");
         mouseRouteButton.setEnabled(false);
         content.addView(mouseRouteButton, margins(0, 0, 0, 8));
@@ -280,6 +282,7 @@ public final class MainActivity extends Activity {
             return;
         }
         if (Shizuku.checkSelfPermission() != PackageManager.PERMISSION_GRANTED) {
+            startPending = true;
             Shizuku.requestPermission(SHIZUKU_REQUEST);
             status("请在 Shizuku 提示中授权 BoxScreen");
             return;
@@ -307,7 +310,19 @@ public final class MainActivity extends Activity {
     }
 
     private void showExternalOutput() {
-        if (presentation != null) stopOutput();
+        if (presentation != null) {
+            if (virtualDisplayId >= 0) {
+                launchPendingApp();
+                return;
+            }
+            if (outputSurface != null) {
+                if (outputSurface.isAvailable() && displayService != null) {
+                    createVirtualDisplay(outputSurface.getSurfaceTexture());
+                }
+                return;
+            }
+            stopOutput();
+        }
         externalDisplay = findExternalDisplay();
         if (externalDisplay == null || displayService == null) {
             status("外接显示器或 Shizuku 服务不可用");
@@ -380,6 +395,7 @@ public final class MainActivity extends Activity {
                     densityDpi, new android.view.Surface(texture));
             updateMouseRouteButton();
             status("虚拟屏已创建，系统 display ID=" + virtualDisplayId);
+            launchPendingApp();
         } catch (Exception e) {
             status("创建虚拟屏失败：" + e.getMessage());
         }
@@ -544,8 +560,12 @@ public final class MainActivity extends Activity {
         private float pointerY;
         private float virtualPointerX;
         private float virtualPointerY;
+        private float lastRawX;
+        private float lastRawY;
         private boolean pointerVisible;
         private boolean forwarding;
+        private boolean pointerCaptured;
+        private boolean rawPositionInitialized;
 
         MousePointerView(Context context) {
             super(context);
@@ -571,17 +591,62 @@ public final class MainActivity extends Activity {
         void setForwarding(boolean enabled) {
             forwarding = enabled;
             pointerVisible = false;
+            rawPositionInitialized = false;
             handler.removeCallbacks(hidePointer);
             setPointerIcon(PointerIcon.getSystemIcon(getContext(), enabled
                     ? PointerIcon.TYPE_NULL : PointerIcon.TYPE_ARROW));
+            if (enabled) {
+                if (virtualPointerX == 0f && virtualPointerY == 0f) {
+                    virtualPointerX = (portraitMode ? baseHeight : baseWidth) / 2f;
+                    virtualPointerY = (portraitMode ? baseWidth : baseHeight) / 2f;
+                }
+                post(() -> {
+                    if (forwarding && isAttachedToWindow() && hasWindowFocus()) requestPointerCapture();
+                });
+            } else if (hasPointerCapture()) {
+                releasePointerCapture();
+            }
             invalidate();
+        }
+
+        @Override
+        public void onPointerCaptureChange(boolean hasCapture) {
+            super.onPointerCaptureChange(hasCapture);
+            pointerCaptured = hasCapture;
+            rawPositionInitialized = false;
+            Log.i(TAG, "mouse pointer capture=" + hasCapture);
+        }
+
+        @Override
+        public void onWindowFocusChanged(boolean hasWindowFocus) {
+            super.onWindowFocusChanged(hasWindowFocus);
+            if (hasWindowFocus && forwarding) requestPointerCapture();
+        }
+
+        @Override
+        public boolean onCapturedPointerEvent(MotionEvent event) {
+            if (!forwarding || !event.isFromSource(InputDevice.SOURCE_MOUSE)) return false;
+            if (transitionFramesRemaining > 0) return true;
+            if (event.getActionMasked() == MotionEvent.ACTION_MOVE) {
+                int virtualWidth = portraitMode ? baseHeight : baseWidth;
+                int virtualHeight = portraitMode ? baseWidth : baseHeight;
+                // Captured deltas use one shared gain so portrait aspect ratio cannot
+                // make one physical axis travel farther than the other.
+                virtualPointerX += event.getAxisValue(MotionEvent.AXIS_RELATIVE_X);
+                virtualPointerY += event.getAxisValue(MotionEvent.AXIS_RELATIVE_Y);
+                virtualPointerX = Math.max(0f, Math.min(virtualWidth - 1f, virtualPointerX));
+                virtualPointerY = Math.max(0f, Math.min(virtualHeight - 1f, virtualPointerY));
+                showPointer();
+            }
+            forwardMouseEvent(event);
+            return true;
         }
 
         @Override
         public boolean onTouchEvent(MotionEvent event) {
             if (!forwarding || !event.isFromSource(InputDevice.SOURCE_MOUSE)) return false;
             if (transitionFramesRemaining > 0) return true;
-            updateVirtualPointer(event.getRawX(), event.getRawY());
+            updateVirtualPointerFromAbsolute(event.getRawX(), event.getRawY());
             showPointer();
             forwardMouseEvent(event);
             return true;
@@ -604,18 +669,29 @@ public final class MainActivity extends Activity {
                 pointerVisible = false;
                 invalidate();
             } else {
-                updateVirtualPointer(event.getRawX(), event.getRawY());
+                updateVirtualPointerFromAbsolute(event.getRawX(), event.getRawY());
                 showPointer();
                 forwardMouseEvent(event);
             }
             return true;
         }
 
-        private void updateVirtualPointer(float x, float y) {
+        private void updateVirtualPointerFromAbsolute(float x, float y) {
             int virtualWidth = portraitMode ? baseHeight : baseWidth;
             int virtualHeight = portraitMode ? baseWidth : baseHeight;
-            virtualPointerX = x * virtualWidth / Math.max(1, baseWidth);
-            virtualPointerY = y * virtualHeight / Math.max(1, baseHeight);
+            if (pointerCaptured) return;
+            if (!rawPositionInitialized) {
+                virtualPointerX = x * virtualWidth / Math.max(1, baseWidth);
+                virtualPointerY = y * virtualHeight / Math.max(1, baseHeight);
+                rawPositionInitialized = true;
+            } else {
+                // Fallback for Android versions/devices that do not grant pointer
+                // capture: keep both axes at the same pixels-per-motion gain.
+                virtualPointerX += x - lastRawX;
+                virtualPointerY += y - lastRawY;
+            }
+            lastRawX = x;
+            lastRawY = y;
             virtualPointerX = Math.max(0f, Math.min(virtualWidth - 1f, virtualPointerX));
             virtualPointerY = Math.max(0f, Math.min(virtualHeight - 1f, virtualPointerY));
         }
@@ -680,6 +756,9 @@ public final class MainActivity extends Activity {
 
         void resetPointerPosition() {
             hidePointer();
+            virtualPointerX = (portraitMode ? baseHeight : baseWidth) / 2f;
+            virtualPointerY = (portraitMode ? baseWidth : baseHeight) / 2f;
+            rawPositionInitialized = false;
         }
     }
 
@@ -778,7 +857,9 @@ public final class MainActivity extends Activity {
 
     private void launchPackage(String packageName, String activityName) {
         if (displayService == null || virtualDisplayId < 0) {
-            status("先启动虚拟屏");
+            pendingLaunchPackage = packageName;
+            pendingLaunchActivity = activityName;
+            requestShizukuAndStart();
             return;
         }
         try {
@@ -789,6 +870,16 @@ public final class MainActivity extends Activity {
             Log.e(TAG, "launch failed=" + packageName + ": " + e.getMessage(), e);
             status("启动应用失败：" + e.getMessage());
         }
+    }
+
+    private void launchPendingApp() {
+        if (pendingLaunchPackage == null || pendingLaunchActivity == null
+                || displayService == null || virtualDisplayId < 0) return;
+        String packageName = pendingLaunchPackage;
+        String activityName = pendingLaunchActivity;
+        pendingLaunchPackage = null;
+        pendingLaunchActivity = null;
+        launchPackage(packageName, activityName);
     }
 
     private Display findExternalDisplay() {
