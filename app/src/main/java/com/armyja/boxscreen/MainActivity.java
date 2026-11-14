@@ -84,8 +84,16 @@ public final class MainActivity extends Activity {
     private boolean startPending;
     private String pendingLaunchPackage;
     private String pendingLaunchActivity;
+    private boolean autoMouseSuppressed;
+    private boolean phoneScreenDimmed;
+    private boolean phoneScreenAwakeByTouch;
+    private boolean systemBarsHiddenForBlackout;
+    private int previousSystemUiVisibility;
+    private float previousWindowBrightness = WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE;
 
     private LinearLayout content;
+    private FrameLayout rootLayout;
+    private View blackScreenOverlay;
     private TextView statusView;
     private TextView monitorView;
     private TextView densityView;
@@ -140,6 +148,8 @@ public final class MainActivity extends Activity {
         @Override public void onDisplayAdded(int displayId) {
             externalDisplay = findExternalDisplay();
             if (monitorView != null) updateMonitorLabel();
+            if (!startPending && presentation == null && displayService == null
+                    && findExternalMouseDescriptor() != null) requestShizukuAndStart();
         }
         @Override public void onDisplayRemoved(int displayId) {
             if (displayId == (externalDisplay == null ? -1 : externalDisplay.getDisplayId())) stopOutput();
@@ -168,16 +178,19 @@ public final class MainActivity extends Activity {
             densityInitialized = true;
         }
         showRoleScreen();
+        if (findExternalMouseDescriptor() != null) requestShizukuAndStart();
     }
 
     @Override protected void onResume() {
         super.onResume();
         externalDisplay = findExternalDisplay();
         if (monitorView != null) updateMonitorLabel();
+        autoEnableMouseIfAvailable();
     }
 
     @Override protected void onDestroy() {
         densityResizeHandler.removeCallbacks(applyPendingDensity);
+        restorePhoneScreen(false);
         Shizuku.removeRequestPermissionResultListener(permissionListener);
         if (presentation != null) presentation.dismiss();
         if (displayManager != null) displayManager.unregisterDisplayListener(displayListener);
@@ -193,6 +206,7 @@ public final class MainActivity extends Activity {
         content.setOrientation(LinearLayout.VERTICAL);
         content.setPadding(dp(18), dp(12), dp(18), dp(14));
         content.setBackgroundColor(0xff111318);
+        rootLayout = new FrameLayout(this);
         ScrollView scroll = new ScrollView(this);
         scroll.setClipToPadding(false);
         scroll.addView(content);
@@ -210,7 +224,8 @@ public final class MainActivity extends Activity {
             content.setPadding(dp(18), dp(12) + topInset, dp(18), dp(14) + bottomInset);
             return insets;
         });
-        setContentView(scroll);
+        rootLayout.addView(scroll, new FrameLayout.LayoutParams(-1, -1));
+        setContentView(rootLayout);
         content.addView(text("BoxScreen", 24, true), fullWidth());
         content.addView(text("手机屏幕与外接屏幕独立显示", 12, false), margins(0, 1, 0, 8));
         statusView = text("", 12, false);
@@ -313,6 +328,7 @@ public final class MainActivity extends Activity {
     }
 
     private void requestShizukuAndStart() {
+        if (startPending) return;
         externalDisplay = findExternalDisplay();
         if (externalDisplay == null) {
             status("没有检测到外接显示器");
@@ -437,6 +453,7 @@ public final class MainActivity extends Activity {
                     densityDpi, new android.view.Surface(texture));
             updateMouseRouteButton();
             status("虚拟屏已创建，系统 display ID=" + virtualDisplayId);
+            autoEnableMouseIfAvailable();
             launchPendingApp();
         } catch (Exception e) {
             status("创建虚拟屏失败：" + e.getMessage());
@@ -518,6 +535,7 @@ public final class MainActivity extends Activity {
         mouseBound = false;
         boundMouseDescriptor = null;
         if (mousePointerView != null) mousePointerView.setForwarding(false);
+        restorePhoneScreen(false);
         updateMouseRouteButton();
         if (virtualDisplayId >= 0 && displayService != null) {
             try { displayService.releaseDisplay(); } catch (RemoteException ignored) { }
@@ -544,7 +562,9 @@ public final class MainActivity extends Activity {
                 displayService.setMouseDisplay(descriptor, -1);
                 mouseBound = false;
                 boundMouseDescriptor = null;
+                autoMouseSuppressed = true;
                 if (mousePointerView != null) mousePointerView.setForwarding(false);
+                restorePhoneScreen(false);
                 status("鼠标已解绑，返回本机主屏");
             } else {
                 String descriptor = findExternalMouseDescriptor();
@@ -559,7 +579,9 @@ public final class MainActivity extends Activity {
                 displayService.setMouseDisplay(descriptor, externalDisplay.getDisplayId());
                 boundMouseDescriptor = descriptor;
                 mouseBound = true;
+                autoMouseSuppressed = false;
                 if (mousePointerView != null) mousePointerView.setForwarding(true);
+                dimAndBlackoutPhoneScreen();
                 status(portraitMode
                         ? "鼠标已转发到竖屏虚拟画面，光标随画面旋转"
                         : "鼠标已转发到横屏虚拟画面");
@@ -570,6 +592,75 @@ public final class MainActivity extends Activity {
             status("鼠标转发失败：" + e.getMessage());
             updateMouseRouteButton();
         }
+    }
+
+    private void autoEnableMouseIfAvailable() {
+        if (autoMouseSuppressed || mouseBound || virtualDisplayId < 0 || displayService == null
+                || externalDisplay == null) return;
+        String descriptor = findExternalMouseDescriptor();
+        if (descriptor == null) return;
+        try {
+            displayService.setMouseDisplay(descriptor, externalDisplay.getDisplayId());
+            boundMouseDescriptor = descriptor;
+            mouseBound = true;
+            if (mousePointerView != null) mousePointerView.setForwarding(true);
+            dimAndBlackoutPhoneScreen();
+            updateMouseRouteButton();
+            status("已检测到鼠标并自动启用虚拟屏操控");
+            Log.i(TAG, "auto-enabled mouse routing descriptor=" + descriptor);
+        } catch (Exception e) {
+            Log.e(TAG, "automatic mouse routing failed", e);
+            status("自动启用鼠标失败：" + e.getMessage());
+        }
+    }
+
+    private void dimAndBlackoutPhoneScreen() {
+        if (phoneScreenAwakeByTouch || phoneScreenDimmed || rootLayout == null) return;
+        WindowManager.LayoutParams attributes = getWindow().getAttributes();
+        previousWindowBrightness = attributes.screenBrightness;
+        attributes.screenBrightness = 0f;
+        getWindow().setAttributes(attributes);
+        phoneScreenDimmed = true;
+        View decor = getWindow().getDecorView();
+        previousSystemUiVisibility = decor.getSystemUiVisibility();
+        decor.setSystemUiVisibility(View.SYSTEM_UI_FLAG_FULLSCREEN
+                | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
+                | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY);
+        systemBarsHiddenForBlackout = true;
+
+        blackScreenOverlay = new View(this);
+        blackScreenOverlay.setBackgroundColor(0xff000000);
+        blackScreenOverlay.setClickable(true);
+        blackScreenOverlay.setOnTouchListener((view, event) -> {
+            if (event.getActionMasked() == MotionEvent.ACTION_DOWN) {
+                restorePhoneScreen(true);
+            }
+            return true;
+        });
+        rootLayout.addView(blackScreenOverlay, new FrameLayout.LayoutParams(-1, -1));
+        blackScreenOverlay.bringToFront();
+        Log.i(TAG, "phone screen dimmed and blacked out; previous window brightness="
+                + previousWindowBrightness);
+    }
+
+    private void restorePhoneScreen(boolean userTouch) {
+        if (userTouch) phoneScreenAwakeByTouch = true;
+        if (blackScreenOverlay != null) {
+            if (blackScreenOverlay.getParent() instanceof FrameLayout) {
+                ((FrameLayout) blackScreenOverlay.getParent()).removeView(blackScreenOverlay);
+            }
+            blackScreenOverlay = null;
+        }
+        if (!phoneScreenDimmed) return;
+        WindowManager.LayoutParams attributes = getWindow().getAttributes();
+        attributes.screenBrightness = previousWindowBrightness;
+        getWindow().setAttributes(attributes);
+        phoneScreenDimmed = false;
+        if (systemBarsHiddenForBlackout) {
+            getWindow().getDecorView().setSystemUiVisibility(previousSystemUiVisibility);
+            systemBarsHiddenForBlackout = false;
+        }
+        Log.i(TAG, "phone screen restored; userTouch=" + userTouch);
     }
 
     private String findExternalMouseDescriptor() {
