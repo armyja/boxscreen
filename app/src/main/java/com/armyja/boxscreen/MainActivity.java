@@ -458,6 +458,7 @@ public final class MainActivity extends Activity {
             autoEnableMouseIfAvailable();
             launchPendingApp();
         } catch (Exception e) {
+            Log.e(TAG, "create virtual display failed", e);
             status("创建虚拟屏失败：" + e.getMessage());
         }
     }

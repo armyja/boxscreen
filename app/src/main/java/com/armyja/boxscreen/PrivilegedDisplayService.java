@@ -8,6 +8,7 @@ import android.hardware.display.VirtualDisplay;
 import android.hardware.input.InputManager;
 import android.os.Parcel;
 import android.os.RemoteException;
+import android.os.SystemClock;
 import android.util.Log;
 import android.view.Display;
 import android.view.InputEvent;
@@ -16,6 +17,7 @@ import android.view.Surface;
 import android.view.WindowManager;
 
 import java.lang.reflect.Constructor;
+import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.Arrays;
 import java.util.HashSet;
@@ -25,6 +27,8 @@ import java.io.ByteArrayOutputStream;
 
 /** Runs inside Shizuku's shell-UID UserService process. */
 public final class PrivilegedDisplayService extends IDisplayService.Stub {
+    private static final int IME_POLICY_RETRY_ATTEMPTS = 8;
+    private static final long IME_POLICY_RETRY_DELAY_MS = 100;
     private static final Set<String> ALLOWED_KEYS = new HashSet<>(Arrays.asList(
             "DPAD_UP", "DPAD_DOWN", "DPAD_LEFT", "DPAD_RIGHT", "DPAD_CENTER",
             "BACK", "HOME", "VOLUME_UP", "VOLUME_DOWN", "MEDIA_PLAY_PAUSE"));
@@ -50,23 +54,43 @@ public final class PrivilegedDisplayService extends IDisplayService.Stub {
             throw new IllegalArgumentException("Invalid display dimensions or surface");
         }
         releaseDisplay();
+        DisplayManager manager;
         try {
-            DisplayManager manager = createShellDisplayManager();
-            int flags = DisplayManager.VIRTUAL_DISPLAY_FLAG_PUBLIC
-                    | DisplayManager.VIRTUAL_DISPLAY_FLAG_PRESENTATION
-                    | DisplayManager.VIRTUAL_DISPLAY_FLAG_OWN_CONTENT_ONLY
-                    | (1 << 10); // VIRTUAL_DISPLAY_FLAG_TRUSTED
+            manager = createShellDisplayManager();
+        } catch (ReflectiveOperationException | RuntimeException e) {
+            Log.e("BoxScreenService", "failed to construct shell-identity DisplayManager", e);
+            throw new IllegalStateException("Cannot construct shell-identity DisplayManager: "
+                    + describeFailure(e), e);
+        }
+
+        int flags = DisplayManager.VIRTUAL_DISPLAY_FLAG_PUBLIC
+                | DisplayManager.VIRTUAL_DISPLAY_FLAG_PRESENTATION
+                | DisplayManager.VIRTUAL_DISPLAY_FLAG_OWN_CONTENT_ONLY
+                | (1 << 10); // VIRTUAL_DISPLAY_FLAG_TRUSTED
+        try {
             outputSurface = surface;
             virtualDisplay = manager.createVirtualDisplay(name, width, height, densityDpi,
                     outputSurface, flags);
             if (virtualDisplay == null || virtualDisplay.getDisplay() == null) {
                 throw new IllegalStateException("Android did not create the virtual display");
             }
-            int displayId = virtualDisplay.getDisplay().getDisplayId();
+        } catch (RuntimeException e) {
+            Log.e("BoxScreenService", "failed to create virtual display", e);
+            cleanupPartialDisplay(e);
+            throw new IllegalStateException("Cannot create virtual display: "
+                    + describeFailure(e), e);
+        }
+
+        int displayId = virtualDisplay.getDisplay().getDisplayId();
+        try {
             setDisplayImePolicyLocal(displayId);
             return displayId;
-        } catch (ReflectiveOperationException e) {
-            throw new IllegalStateException("Cannot create a shell-identity DisplayManager", e);
+        } catch (ReflectiveOperationException | RuntimeException e) {
+            Log.e("BoxScreenService", "failed to set local IME policy for virtual display="
+                    + displayId, e);
+            cleanupPartialDisplay(e);
+            throw new IllegalStateException("Cannot set local IME policy for virtual display "
+                    + displayId + ": " + describeFailure(e), e);
         }
     }
 
@@ -91,17 +115,78 @@ public final class PrivilegedDisplayService extends IDisplayService.Stub {
     }
 
     private void setDisplayImePolicyLocal(int displayId) throws ReflectiveOperationException {
-        imeWindowManager = (WindowManager) createShellContext()
+        WindowManager windowManager = (WindowManager) createShellContext()
                 .getSystemService(Context.WINDOW_SERVICE);
-        Method getPolicy = imeWindowManager.getClass()
+        if (windowManager == null) {
+            throw new IllegalStateException("WindowManager is unavailable in shell context");
+        }
+        Method getPolicy = windowManager.getClass()
                 .getMethod("getDisplayImePolicy", int.class);
-        Method setPolicy = imeWindowManager.getClass()
+        Method setPolicy = windowManager.getClass()
                 .getMethod("setDisplayImePolicy", int.class, int.class);
-        previousDisplayImePolicy = (Integer) getPolicy.invoke(imeWindowManager, displayId);
-        setPolicy.invoke(imeWindowManager, displayId, 0); // DISPLAY_IME_POLICY_LOCAL
-        imePolicyDisplayId = displayId;
-        Log.i("BoxScreenService", "set display IME policy=LOCAL display=" + displayId
-                + " previous=" + previousDisplayImePolicy);
+        int previousPolicy = -1;
+        InvocationTargetException lastInvocationFailure = null;
+        for (int attempt = 1; attempt <= IME_POLICY_RETRY_ATTEMPTS; attempt++) {
+            try {
+                if (previousPolicy < 0) {
+                    previousPolicy = (Integer) getPolicy.invoke(windowManager, displayId);
+                    imeWindowManager = windowManager;
+                    imePolicyDisplayId = displayId;
+                    previousDisplayImePolicy = previousPolicy;
+                }
+                setPolicy.invoke(windowManager, displayId, 0); // DISPLAY_IME_POLICY_LOCAL
+                Log.i("BoxScreenService", "set display IME policy=LOCAL display=" + displayId
+                        + " previous=" + previousPolicy + " attempt=" + attempt);
+                return;
+            } catch (InvocationTargetException e) {
+                lastInvocationFailure = e;
+                Log.w("BoxScreenService", "IME policy attempt " + attempt + "/"
+                        + IME_POLICY_RETRY_ATTEMPTS + " failed for display=" + displayId
+                        + ": " + describeFailure(e), e);
+                if (attempt < IME_POLICY_RETRY_ATTEMPTS) {
+                    SystemClock.sleep(IME_POLICY_RETRY_DELAY_MS);
+                }
+            }
+        }
+        throw new ReflectiveOperationException("IME policy retries exhausted for display="
+                + displayId + " after " + IME_POLICY_RETRY_ATTEMPTS + " attempts",
+                lastInvocationFailure);
+    }
+
+    private void cleanupPartialDisplay(Throwable originalFailure) {
+        clearMouseAssociation();
+        restoreDisplayImePolicy();
+        if (virtualDisplay != null) {
+            try {
+                virtualDisplay.release();
+            } catch (RuntimeException cleanupFailure) {
+                originalFailure.addSuppressed(cleanupFailure);
+                Log.e("BoxScreenService", "failed to release partially created virtual display",
+                        cleanupFailure);
+            } finally {
+                virtualDisplay = null;
+            }
+        }
+        if (outputSurface != null) {
+            try {
+                outputSurface.release();
+            } catch (RuntimeException cleanupFailure) {
+                originalFailure.addSuppressed(cleanupFailure);
+                Log.e("BoxScreenService", "failed to release partial display surface",
+                        cleanupFailure);
+            } finally {
+                outputSurface = null;
+            }
+        }
+    }
+
+    private static String describeFailure(Throwable failure) {
+        Throwable root = failure;
+        while (root.getCause() != null && root.getCause() != root) {
+            root = root.getCause();
+        }
+        String message = root.getMessage();
+        return root.getClass().getSimpleName() + (message == null ? "" : ": " + message);
     }
 
     private void restoreDisplayImePolicy() {
