@@ -11,6 +11,7 @@ import android.content.pm.ResolveInfo;
 import android.hardware.display.DisplayManager;
 import android.os.Handler;
 import android.os.Bundle;
+import android.os.Build;
 import android.os.IBinder;
 import android.os.RemoteException;
 import android.graphics.Canvas;
@@ -28,6 +29,7 @@ import android.view.TextureView;
 import android.view.InputDevice;
 import android.view.View;
 import android.view.Window;
+import android.view.WindowInsets;
 import android.view.WindowManager;
 import android.widget.Button;
 import android.widget.CheckBox;
@@ -67,6 +69,8 @@ import rikka.shizuku.Shizuku;
 public final class MainActivity extends Activity {
     private static final String TAG = "BoxScreen";
     private static final int SHIZUKU_REQUEST = 410;
+    private final Handler densityResizeHandler = new Handler();
+    private final Runnable applyPendingDensity = this::resizeVirtualDisplay;
 
     private DisplayManager displayManager;
     private Display externalDisplay;
@@ -173,6 +177,7 @@ public final class MainActivity extends Activity {
     }
 
     @Override protected void onDestroy() {
+        densityResizeHandler.removeCallbacks(applyPendingDensity);
         Shizuku.removeRequestPermissionResultListener(permissionListener);
         if (presentation != null) presentation.dismiss();
         if (displayManager != null) displayManager.unregisterDisplayListener(displayListener);
@@ -186,38 +191,67 @@ public final class MainActivity extends Activity {
     private void showRoleScreen() {
         content = new LinearLayout(this);
         content.setOrientation(LinearLayout.VERTICAL);
-        content.setPadding(dp(20), dp(18), dp(20), dp(20));
+        content.setPadding(dp(18), dp(12), dp(18), dp(14));
         content.setBackgroundColor(0xff111318);
         ScrollView scroll = new ScrollView(this);
+        scroll.setClipToPadding(false);
         scroll.addView(content);
+        scroll.setOnApplyWindowInsetsListener((view, insets) -> {
+            int topInset;
+            int bottomInset;
+            if (Build.VERSION.SDK_INT >= 30) {
+                android.graphics.Insets bars = insets.getInsets(WindowInsets.Type.systemBars());
+                topInset = bars.top;
+                bottomInset = bars.bottom;
+            } else {
+                topInset = insets.getSystemWindowInsetTop();
+                bottomInset = insets.getSystemWindowInsetBottom();
+            }
+            content.setPadding(dp(18), dp(12) + topInset, dp(18), dp(14) + bottomInset);
+            return insets;
+        });
         setContentView(scroll);
-        content.addView(text("BoxScreen", 28, true), fullWidth());
-        content.addView(text("手机屏幕与外接屏幕独立显示", 14, false), margins(0, 4, 0, 16));
-        statusView = text("", 14, false);
-        content.addView(statusView, margins(0, 0, 0, 12));
+        content.addView(text("BoxScreen", 24, true), fullWidth());
+        content.addView(text("手机屏幕与外接屏幕独立显示", 12, false), margins(0, 1, 0, 8));
+        statusView = text("", 12, false);
+        content.addView(statusView, margins(0, 0, 0, 8));
         showHostControls();
     }
 
     private void showHostControls() {
-        monitorView = text("", 16, true);
-        content.addView(monitorView, cardMargins());
+        monitorView = text("", 13, true);
+        content.addView(monitorView, margins(0, 2, 0, 8));
         updateMonitorLabel();
 
-        mouseRouteButton = button("开启鼠标操控虚拟屏");
+        LinearLayout primaryActions = new LinearLayout(this);
+        primaryActions.setOrientation(LinearLayout.HORIZONTAL);
+        content.addView(primaryActions, margins(0, 0, 0, 4));
+        mouseRouteButton = button("开启鼠标");
         mouseRouteButton.setEnabled(false);
-        content.addView(mouseRouteButton, margins(0, 0, 0, 8));
+        LinearLayout.LayoutParams actionCell = weighted();
+        actionCell.setMargins(0, 0, dp(5), 0);
+        primaryActions.addView(mouseRouteButton, actionCell);
         mouseRouteButton.setOnClickListener(v -> toggleMouseRoute());
 
-        modeButton = button("当前：横屏显示　·　切换为竖屏效果");
-        content.addView(modeButton, margins(0, 0, 0, 8));
+        modeButton = button(portraitMode ? "竖屏 · 切换横屏" : "横屏 · 切换竖屏");
+        LinearLayout.LayoutParams modeCell = weighted();
+        modeCell.setMargins(dp(5), 0, 0, 0);
+        primaryActions.addView(modeButton, modeCell);
         modeButton.setOnClickListener(v -> setPortraitMode(!portraitMode));
 
-        densityView = text("虚拟屏 DPI：" + densityDpi, 15, true);
-        content.addView(densityView, margins(0, 0, 0, 2));
+        LinearLayout densityRow = new LinearLayout(this);
+        densityRow.setOrientation(LinearLayout.HORIZONTAL);
+        densityRow.setGravity(Gravity.CENTER_VERTICAL);
+        content.addView(densityRow, margins(0, 4, 0, 0));
+        densityView = text("虚拟屏 DPI：" + densityDpi, 13, true);
+        densityRow.addView(densityView, new LinearLayout.LayoutParams(0, -2, 1f));
+        Button stop = button("停止输出");
+        densityRow.addView(stop, new LinearLayout.LayoutParams(-2, -2));
+        stop.setOnClickListener(v -> stopOutput());
         densitySlider = new SeekBar(this);
         densitySlider.setMax(46);
         densitySlider.setProgress(Math.max(0, Math.min(46, (densityDpi - 140) / 10)));
-        content.addView(densitySlider, margins(0, 0, 0, 10));
+        content.addView(densitySlider, margins(-6, -2, -6, 4));
         densitySlider.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
             @Override public void onProgressChanged(SeekBar bar, int progress, boolean fromUser) {
                 densityDpi = 140 + progress * 10;
@@ -225,33 +259,40 @@ public final class MainActivity extends Activity {
                 getPreferences(MODE_PRIVATE).edit().putInt("virtual_density", densityDpi).apply();
                 densityView.setText("虚拟屏 DPI：" + densityDpi);
                 updateDensityStatus();
+                if (fromUser) {
+                    densityResizeHandler.removeCallbacks(applyPendingDensity);
+                    densityResizeHandler.postDelayed(applyPendingDensity, 220);
+                }
             }
             @Override public void onStartTrackingTouch(SeekBar bar) { }
-            @Override public void onStopTrackingTouch(SeekBar bar) { resizeVirtualDisplay(); }
+            @Override public void onStopTrackingTouch(SeekBar bar) {
+                densityResizeHandler.removeCallbacks(applyPendingDensity);
+                resizeVirtualDisplay();
+            }
         });
 
-        Button stop = button("停止虚拟屏");
-        content.addView(stop, margins(0, 0, 0, 14));
-        stop.setOnClickListener(v -> stopOutput());
+        TextView shizukuHint = text("需在本机启动 Shizuku", 11, false);
+        content.addView(shizukuHint, margins(0, 0, 0, 4));
 
-        TextView shizukuHint = text("Shizuku 在本机授权后即可使用。", 13, false);
-        content.addView(shizukuHint, cardMargins());
-
-
-        TextView appsTitle = text("虚拟屏可启动的应用", 18, true);
-        content.addView(appsTitle, margins(0, 18, 0, 6));
+        LinearLayout appsHeader = new LinearLayout(this);
+        appsHeader.setOrientation(LinearLayout.HORIZONTAL);
+        appsHeader.setGravity(Gravity.CENTER_VERTICAL);
+        content.addView(appsHeader, margins(0, 8, 0, 2));
+        TextView appsTitle = text("可启动的应用", 17, true);
+        appsHeader.addView(appsTitle, new LinearLayout.LayoutParams(0, -2, 1f));
+        systemAppsSwitch = new Switch(this);
+        systemAppsSwitch.setText("系统应用");
+        systemAppsSwitch.setTextSize(12);
+        systemAppsSwitch.setTextColor(0xfff2f2f2);
+        systemAppsSwitch.setChecked(showSystemApps);
+        appsHeader.addView(systemAppsSwitch, new LinearLayout.LayoutParams(-2, -2));
         editFavoritesButton = button("编辑收藏");
-        content.addView(editFavoritesButton, margins(0, 0, 0, 4));
+        appsHeader.addView(editFavoritesButton, new LinearLayout.LayoutParams(-2, -2));
         editFavoritesButton.setOnClickListener(v -> {
             editFavorites = !editFavorites;
             editFavoritesButton.setText(editFavorites ? "完成" : "编辑收藏");
             rebuildAppsGrid();
         });
-        systemAppsSwitch = new Switch(this);
-        systemAppsSwitch.setText("显示系统应用");
-        systemAppsSwitch.setTextColor(0xfff2f2f2);
-        systemAppsSwitch.setChecked(showSystemApps);
-        content.addView(systemAppsSwitch, margins(0, 0, 0, 4));
         systemAppsSwitch.setOnCheckedChangeListener((button, checked) -> {
             showSystemApps = checked;
             getPreferences(MODE_PRIVATE).edit().putBoolean("show_system_apps", checked).apply();
@@ -262,7 +303,7 @@ public final class MainActivity extends Activity {
         appSearch.setTextColor(0xfff2f2f2);
         appSearch.setHintTextColor(0xff9b9b9b);
         appSearch.setHint("搜索应用");
-        content.addView(appSearch, margins(0, 0, 0, 8));
+        content.addView(appSearch, margins(0, 0, 0, 4));
         appSearch.addTextChangedListener(new TextWatcher() {
             @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) { }
             @Override public void onTextChanged(CharSequence s, int start, int before, int count) { rebuildAppsGrid(); }
@@ -460,8 +501,7 @@ public final class MainActivity extends Activity {
             mousePointerView.setRotation(portraitMode ? 90f : 0f);
         }
         if (modeButton != null) modeButton.setText(portraitMode
-                ? "当前：竖屏效果　·　切换为横屏"
-                : "当前：横屏显示　·　切换为竖屏效果");
+                ? "竖屏 · 切换横屏" : "横屏 · 切换竖屏");
     }
 
     private void setPortraitMode(boolean portrait) {
@@ -469,12 +509,12 @@ public final class MainActivity extends Activity {
         Log.i(TAG, "orientation=" + (portrait ? "portrait" : "landscape"));
         resizeVirtualDisplay();
         if (modeButton != null) modeButton.setText(portraitMode
-                ? "当前：竖屏效果　·　切换为横屏"
-                : "当前：横屏显示　·　切换为竖屏效果");
+                ? "竖屏 · 切换横屏" : "横屏 · 切换竖屏");
     }
 
     private void stopOutput() {
         Log.i(TAG, "stop displayId=" + virtualDisplayId);
+        densityResizeHandler.removeCallbacks(applyPendingDensity);
         mouseBound = false;
         boundMouseDescriptor = null;
         if (mousePointerView != null) mousePointerView.setForwarding(false);
@@ -545,7 +585,7 @@ public final class MainActivity extends Activity {
     private void updateMouseRouteButton() {
         if (mouseRouteButton == null) return;
         mouseRouteButton.setEnabled(displayService != null && virtualDisplayId >= 0);
-        mouseRouteButton.setText(mouseBound ? "虚拟屏鼠标控制已开启 · 点击关闭" : "开启鼠标操控虚拟屏");
+        mouseRouteButton.setText(mouseBound ? "鼠标已开 · 点击关闭" : "开启鼠标");
     }
 
     private final class MousePointerView extends View {
@@ -718,7 +758,8 @@ public final class MainActivity extends Activity {
         appGrid.setAlignmentMode(GridLayout.ALIGN_BOUNDS);
         content.addView(appGrid, fullWidth());
         appGrid.addOnLayoutChangeListener((view, left, top, right, bottom, oldLeft, oldTop, oldRight, oldBottom) -> {
-            int availableDp = Math.max(1, (right - left) / dp(1));
+            int availableDp = Math.max(1, Math.round((right - left)
+                    / getResources().getDisplayMetrics().density));
             int columns = Math.max(2, Math.min(8, availableDp / 80));
             if (columns != appColumns) {
                 appColumns = columns;
@@ -844,11 +885,10 @@ public final class MainActivity extends Activity {
         Display.Mode mode = externalDisplay.getMode();
         android.util.DisplayMetrics metrics = new android.util.DisplayMetrics();
         externalDisplay.getRealMetrics(metrics);
-        monitorView.setText("外接屏：" + externalDisplay.getName()
-                + "\n当前模式：" + mode.getPhysicalWidth() + "×" + mode.getPhysicalHeight()
-                + " @ " + Math.round(mode.getRefreshRate()) + " Hz"
-                + "\n系统屏幕 ID：" + externalDisplay.getDisplayId() + "（运行时发现）"
-                + "\n密度：" + metrics.densityDpi + " dpi");
+        monitorView.setText("外接屏 " + externalDisplay.getName() + " · "
+                + mode.getPhysicalWidth() + "×" + mode.getPhysicalHeight()
+                + " @ " + Math.round(mode.getRefreshRate()) + " Hz\n"
+                + "系统 ID " + externalDisplay.getDisplayId() + " · " + metrics.densityDpi + " dpi");
     }
 
     private boolean hasShizukuPackage() {
@@ -873,6 +913,10 @@ public final class MainActivity extends Activity {
         Button b = new Button(this);
         b.setText(label);
         b.setAllCaps(false);
+        b.setTextSize(13);
+        b.setMinHeight(dp(40));
+        b.setMinimumHeight(dp(40));
+        b.setPadding(dp(6), 0, dp(6), 0);
         return b;
     }
 

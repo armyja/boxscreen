@@ -84,6 +84,9 @@ public final class PrivilegedDisplayService extends IDisplayService.Stub {
         if (width < 1 || height < 1 || densityDpi < 1) {
             throw new IllegalArgumentException("Invalid display dimensions");
         }
+        int displayId = virtualDisplay.getDisplay().getDisplayId();
+        Log.i("BoxScreenService", "resize display=" + displayId + " to " + width + "x" + height
+                + " densityDpi=" + densityDpi);
         virtualDisplay.resize(width, height, densityDpi);
     }
 
