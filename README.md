@@ -8,7 +8,7 @@ Android virtual-display host for PYB110.
 
 The virtual display dimensions are read from the connected display's active mode at runtime. Landscape uses `W×H`; portrait uses `H×W` and rotates the output surface while keeping the external video signal in the display's native landscape mode. Display IDs are discovered at runtime and never hardcoded.
 
-Mouse control keeps the physical mouse associated with the external display. BoxScreen hides the system pointer there, draws and auto-hides its own pointer over the output, then forwards mouse events to the virtual display. In portrait mode, pointer coordinates, the pointer graphic, and mouse-event axes rotate opposite to the landscape output transform, so the visible pointer and clicks follow the virtual app's coordinate system.
+Mouse control keeps the physical mouse associated with the external display. BoxScreen hides the system pointer there, draws and auto-hides its own pointer over the output, then forwards mouse events to the virtual display. In portrait mode, pointer coordinates, the pointer graphic, and mouse-event axes rotate opposite to the landscape output transform; for example, moving the mouse upward moves the virtual pointer left.
 
 The current development hardware reports an H24T7 external monitor at 2560×1440. Display IDs change at runtime and must not be hardcoded.
 

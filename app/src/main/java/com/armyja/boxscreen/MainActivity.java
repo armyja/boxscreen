@@ -396,7 +396,7 @@ public final class MainActivity extends Activity {
                     && ((view.getWidth() != width) || (view.getHeight() != height));
             if (orientationChange) {
                 transitionFramesRemaining = 2;
-                if (mousePointerView != null) mousePointerView.hidePointer();
+                if (mousePointerView != null) mousePointerView.resetPointerPosition();
                 view.setAlpha(0f);
                 view.setVisibility(View.INVISIBLE);
                 view.postDelayed(() -> {
@@ -533,8 +533,13 @@ public final class MainActivity extends Activity {
         private final Path pointerShape = new Path();
         private float pointerX;
         private float pointerY;
+        private float virtualPointerX;
+        private float virtualPointerY;
+        private float lastScreenX;
+        private float lastScreenY;
         private boolean pointerVisible;
         private boolean forwarding;
+        private boolean hasLastScreenPosition;
 
         MousePointerView(Context context) {
             super(context);
@@ -560,6 +565,7 @@ public final class MainActivity extends Activity {
         void setForwarding(boolean enabled) {
             forwarding = enabled;
             pointerVisible = false;
+            hasLastScreenPosition = false;
             handler.removeCallbacks(hidePointer);
             setPointerIcon(PointerIcon.getSystemIcon(getContext(), enabled
                     ? PointerIcon.TYPE_NULL : PointerIcon.TYPE_ARROW));
@@ -570,7 +576,8 @@ public final class MainActivity extends Activity {
         public boolean onTouchEvent(MotionEvent event) {
             if (!forwarding || !event.isFromSource(InputDevice.SOURCE_MOUSE)) return false;
             if (transitionFramesRemaining > 0) return true;
-            showPointer(event.getX(), event.getY());
+            updateVirtualPointer(event.getX(), event.getY());
+            showPointer();
             forwardMouseEvent(event);
             return true;
         }
@@ -590,31 +597,53 @@ public final class MainActivity extends Activity {
                 forwardMouseEvent(event);
                 handler.removeCallbacks(hidePointer);
                 pointerVisible = false;
+                hasLastScreenPosition = false;
                 invalidate();
             } else {
-                showPointer(event.getX(), event.getY());
+                updateVirtualPointer(event.getX(), event.getY());
+                showPointer();
                 forwardMouseEvent(event);
             }
             return true;
         }
 
-        private void showPointer(float x, float y) {
+        private void updateVirtualPointer(float x, float y) {
             float screenWidth = getWidth();
             float screenHeight = getHeight();
             int virtualWidth = portraitMode ? baseHeight : baseWidth;
             int virtualHeight = portraitMode ? baseWidth : baseHeight;
-            if (screenWidth > 0f && screenHeight > 0f && portraitMode) {
-                float virtualX = y * virtualWidth / screenHeight;
-                float virtualY = virtualHeight - 1f - x * virtualHeight / screenWidth;
-                pointerX = (virtualHeight - 1f - virtualY) * screenWidth / virtualHeight;
-                pointerY = virtualX * screenHeight / virtualWidth;
-            } else if (screenWidth > 0f && screenHeight > 0f) {
-                pointerX = x;
-                pointerY = y;
+            if (screenWidth <= 0f || screenHeight <= 0f) return;
+            if (!hasLastScreenPosition) {
+                if (portraitMode) {
+                    virtualPointerX = y * virtualWidth / screenHeight;
+                    virtualPointerY = virtualHeight - 1f - x * virtualHeight / screenWidth;
+                } else {
+                    virtualPointerX = x * virtualWidth / screenWidth;
+                    virtualPointerY = y * virtualHeight / screenHeight;
+                }
+                hasLastScreenPosition = true;
             } else {
-                pointerX = x;
-                pointerY = y;
+                float deltaX = x - lastScreenX;
+                float deltaY = y - lastScreenY;
+                if (portraitMode) {
+                    virtualPointerX += deltaY * virtualWidth / screenHeight;
+                    virtualPointerY -= deltaX * virtualHeight / screenWidth;
+                } else {
+                    virtualPointerX += deltaX * virtualWidth / screenWidth;
+                    virtualPointerY += deltaY * virtualHeight / screenHeight;
+                }
             }
+            lastScreenX = x;
+            lastScreenY = y;
+            virtualPointerX = Math.max(0f, Math.min(virtualWidth - 1f, virtualPointerX));
+            virtualPointerY = Math.max(0f, Math.min(virtualHeight - 1f, virtualPointerY));
+        }
+
+        private void showPointer() {
+            int virtualWidth = portraitMode ? baseHeight : baseWidth;
+            int virtualHeight = portraitMode ? baseWidth : baseHeight;
+            pointerX = virtualPointerX * getWidth() / Math.max(1, virtualWidth);
+            pointerY = virtualPointerY * getHeight() / Math.max(1, virtualHeight);
             pointerVisible = true;
             handler.removeCallbacks(hidePointer);
             handler.postDelayed(hidePointer, 1800);
@@ -652,6 +681,7 @@ public final class MainActivity extends Activity {
             MotionEvent mapped = MotionEvent.obtain(source);
             try {
                 mapped.transform(transform);
+                mapped.setLocation(virtualPointerX, virtualPointerY);
                 if (!displayService.injectMouseEvent(mapped, virtualDisplayId)) {
                     Log.w(TAG, "InputManager rejected mouse event for display " + virtualDisplayId);
                 }
@@ -668,7 +698,7 @@ public final class MainActivity extends Activity {
             if (!forwarding || !pointerVisible) return;
             canvas.save();
             canvas.translate(pointerX, pointerY);
-            if (portraitMode) canvas.rotate(-90f);
+            if (portraitMode) canvas.rotate(90f);
             canvas.drawPath(pointerShape, outlinePaint);
             canvas.drawPath(pointerShape, pointerPaint);
             canvas.restore();
@@ -678,6 +708,11 @@ public final class MainActivity extends Activity {
             handler.removeCallbacks(hidePointer);
             pointerVisible = false;
             invalidate();
+        }
+
+        void resetPointerPosition() {
+            hidePointer();
+            hasLastScreenPosition = false;
         }
     }
 
