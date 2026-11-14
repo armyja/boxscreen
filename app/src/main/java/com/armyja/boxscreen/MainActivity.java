@@ -6,6 +6,7 @@ import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.content.ServiceConnection;
+import android.content.res.Configuration;
 import android.content.pm.PackageManager;
 import android.content.pm.ResolveInfo;
 import android.hardware.display.DisplayManager;
@@ -23,6 +24,7 @@ import android.view.Display;
 import android.view.Gravity;
 import android.view.MotionEvent;
 import android.view.PointerIcon;
+import android.view.Surface;
 import android.view.SurfaceHolder;
 import android.graphics.SurfaceTexture;
 import android.view.TextureView;
@@ -69,8 +71,12 @@ import rikka.shizuku.Shizuku;
 public final class MainActivity extends Activity {
     private static final String TAG = "BoxScreen";
     private static final int SHIZUKU_REQUEST = 410;
+    private static final int MAX_DISPLAY_RECOVERY_ATTEMPTS = 12;
+    private static final long DISPLAY_RECOVERY_DELAY_MS = 250;
     private final Handler densityResizeHandler = new Handler();
     private final Runnable applyPendingDensity = this::resizeVirtualDisplay;
+    private final Handler displayRecoveryHandler = new Handler();
+    private final Runnable recoverExternalDisplay = this::recoverExternalDisplay;
 
     private DisplayManager displayManager;
     private Display externalDisplay;
@@ -80,8 +86,10 @@ public final class MainActivity extends Activity {
     private boolean densityInitialized;
     private int virtualDisplayId = -1;
     private int transitionFramesRemaining;
+    private int displayRecoveryAttempts;
     private boolean portraitMode;
     private boolean startPending;
+    private boolean reconnectOutputAfterDisplayChange;
     private String pendingLaunchPackage;
     private String pendingLaunchActivity;
     private boolean autoMouseSuppressed;
@@ -148,15 +156,27 @@ public final class MainActivity extends Activity {
         @Override public void onDisplayAdded(int displayId) {
             externalDisplay = findExternalDisplay();
             if (monitorView != null) updateMonitorLabel();
+            if (reconnectOutputAfterDisplayChange) scheduleExternalDisplayRecovery(0);
         }
         @Override public void onDisplayRemoved(int displayId) {
-            if (displayId == (externalDisplay == null ? -1 : externalDisplay.getDisplayId())) stopOutput();
+            if (displayId == (externalDisplay == null ? -1 : externalDisplay.getDisplayId())) {
+                beginExternalDisplayRecovery();
+            }
             externalDisplay = findExternalDisplay();
             if (monitorView != null) updateMonitorLabel();
         }
         @Override public void onDisplayChanged(int displayId) {
             externalDisplay = findExternalDisplay();
             if (monitorView != null) updateMonitorLabel();
+            if (reconnectOutputAfterDisplayChange) {
+                scheduleExternalDisplayRecovery(DISPLAY_RECOVERY_DELAY_MS);
+            } else if (presentation != null && externalDisplay != null
+                    && presentation.getDisplay().getDisplayId() != externalDisplay.getDisplayId()) {
+                beginExternalDisplayRecovery();
+            } else if (presentation != null) {
+                if (refreshExternalDisplayGeometry()) resizeVirtualDisplay();
+                updateOutputLayout();
+            }
         }
     };
 
@@ -184,8 +204,24 @@ public final class MainActivity extends Activity {
         if (monitorView != null) updateMonitorLabel();
     }
 
+    @Override public void onConfigurationChanged(Configuration newConfig) {
+        super.onConfigurationChanged(newConfig);
+        externalDisplay = findExternalDisplay();
+        if (monitorView != null) updateMonitorLabel();
+        if (refreshExternalDisplayGeometry()) resizeVirtualDisplay();
+        updateOutputLayout();
+        Log.i(TAG, "phone configuration changed orientation=" + newConfig.orientation
+                + " virtualDisplay=" + virtualDisplayId);
+    }
+
     @Override protected void onDestroy() {
         densityResizeHandler.removeCallbacks(applyPendingDensity);
+        displayRecoveryHandler.removeCallbacks(recoverExternalDisplay);
+        if (displayService != null && virtualDisplayId >= 0) {
+            try { displayService.releaseDisplay(); }
+            catch (RemoteException e) { Log.w(TAG, "failed to release display on activity destroy", e); }
+            virtualDisplayId = -1;
+        }
         restorePhoneScreen();
         Shizuku.removeRequestPermissionResultListener(permissionListener);
         if (presentation != null) presentation.dismiss();
@@ -360,7 +396,7 @@ public final class MainActivity extends Activity {
                     new ComponentName(getPackageName(), PrivilegedDisplayService.class.getName()))
                     .daemon(false)
                     .processNameSuffix("display")
-                    .version(1);
+                    .version(2);
             Shizuku.bindUserService(shizukuServiceArgs, shizukuServiceConnection);
             status("正在连接 Shizuku 主机服务…");
         } catch (RuntimeException e) {
@@ -413,13 +449,13 @@ public final class MainActivity extends Activity {
             outputSurface = new TextureView(this);
             outputSurface.setSurfaceTextureListener(new TextureView.SurfaceTextureListener() {
                 @Override public void onSurfaceTextureAvailable(SurfaceTexture texture, int width, int height) {
-                    createVirtualDisplay(texture);
+                    attachOutputSurface(texture);
                 }
                 @Override public void onSurfaceTextureSizeChanged(SurfaceTexture texture, int width, int height) {
                     resizeVirtualDisplay();
                 }
                 @Override public boolean onSurfaceTextureDestroyed(SurfaceTexture texture) {
-                    releaseVirtualDisplay();
+                    detachOutputSurfaceForRecreation();
                     return true;
                 }
                 @Override public void onSurfaceTextureUpdated(SurfaceTexture texture) {
@@ -451,15 +487,126 @@ public final class MainActivity extends Activity {
         try {
             texture.setDefaultBufferSize(width, height);
             Log.i(TAG, "create buffer=" + width + "x" + height + " dpi=" + densityDpi);
-            virtualDisplayId = displayService.createDisplay("BoxScreen", width, height,
-                    densityDpi, new android.view.Surface(texture));
+            Surface surface = new Surface(texture);
+            try {
+                virtualDisplayId = displayService.createDisplay("BoxScreen", width, height,
+                        densityDpi, surface);
+            } finally {
+                surface.release();
+            }
             updateMouseRouteButton();
             status("虚拟屏已创建，系统 display ID=" + virtualDisplayId);
-            autoEnableMouseIfAvailable();
+            if (mouseBound && boundMouseDescriptor != null) {
+                rebindMouseToExternalDisplay();
+            } else {
+                autoEnableMouseIfAvailable();
+            }
             launchPendingApp();
         } catch (Exception e) {
             Log.e(TAG, "create virtual display failed", e);
             status("创建虚拟屏失败：" + e.getMessage());
+        }
+    }
+
+    private void attachOutputSurface(SurfaceTexture texture) {
+        if (texture == null || displayService == null) return;
+        int width = portraitMode ? baseHeight : baseWidth;
+        int height = portraitMode ? baseWidth : baseHeight;
+        texture.setDefaultBufferSize(width, height);
+        if (virtualDisplayId < 0) {
+            createVirtualDisplay(texture);
+            return;
+        }
+
+        Surface surface = new Surface(texture);
+        try {
+            displayService.setDisplaySurface(surface);
+            Log.i(TAG, "reattached output surface to virtual display=" + virtualDisplayId);
+            updateOutputLayout();
+            if (mouseBound && boundMouseDescriptor != null) rebindMouseToExternalDisplay();
+            status("外接屏已恢复，继续使用虚拟屏 ID=" + virtualDisplayId);
+        } catch (RemoteException | RuntimeException e) {
+            Log.e(TAG, "failed to reattach surface; recreating virtual display", e);
+            virtualDisplayId = -1;
+            createVirtualDisplay(texture);
+        } finally {
+            surface.release();
+        }
+    }
+
+    private void detachOutputSurfaceForRecreation() {
+        if (displayService == null || virtualDisplayId < 0) {
+            releaseVirtualDisplay();
+            return;
+        }
+        try {
+            displayService.setDisplaySurface(null);
+            Log.i(TAG, "detached output surface while preserving virtual display=" + virtualDisplayId);
+        } catch (RemoteException | RuntimeException e) {
+            Log.e(TAG, "failed to detach output surface; releasing virtual display", e);
+            releaseVirtualDisplay();
+        }
+    }
+
+    private void beginExternalDisplayRecovery() {
+        if (presentation == null && virtualDisplayId < 0) return;
+        reconnectOutputAfterDisplayChange = true;
+        displayRecoveryAttempts = 0;
+        detachOutputSurfaceForRecreation();
+        Presentation oldPresentation = presentation;
+        presentation = null;
+        outputSurface = null;
+        mousePointerView = null;
+        if (oldPresentation != null) {
+            try { oldPresentation.dismiss(); }
+            catch (RuntimeException e) { Log.w(TAG, "failed to dismiss removed display presentation", e); }
+        }
+        status("外接显示器正在重新连接，虚拟屏会保留");
+        scheduleExternalDisplayRecovery(DISPLAY_RECOVERY_DELAY_MS);
+    }
+
+    private void scheduleExternalDisplayRecovery(long delayMs) {
+        displayRecoveryHandler.removeCallbacks(recoverExternalDisplay);
+        displayRecoveryHandler.postDelayed(recoverExternalDisplay, delayMs);
+    }
+
+    private void recoverExternalDisplay() {
+        externalDisplay = findExternalDisplay();
+        if (externalDisplay == null) {
+            if (++displayRecoveryAttempts < MAX_DISPLAY_RECOVERY_ATTEMPTS) {
+                scheduleExternalDisplayRecovery(DISPLAY_RECOVERY_DELAY_MS);
+            } else {
+                Log.w(TAG, "external display did not return after " + displayRecoveryAttempts
+                        + " recovery attempts");
+                status("外接显示器尚未恢复；虚拟屏仍保留，可重新连接显示器后再打开应用");
+            }
+            if (monitorView != null) updateMonitorLabel();
+            return;
+        }
+
+        if (monitorView != null) updateMonitorLabel();
+        if (!reconnectOutputAfterDisplayChange) return;
+        reconnectOutputAfterDisplayChange = false;
+        if (displayService == null) {
+            startPending = true;
+            bindShizukuService();
+            return;
+        }
+
+        Log.i(TAG, "recreating external presentation on display=" + externalDisplay.getDisplayId()
+                + " while keeping virtual display=" + virtualDisplayId);
+        showExternalOutput();
+    }
+
+    private void rebindMouseToExternalDisplay() {
+        if (displayService == null || externalDisplay == null || boundMouseDescriptor == null) return;
+        try {
+            displayService.setMouseDisplay(boundMouseDescriptor, externalDisplay.getDisplayId());
+            if (mousePointerView != null) mousePointerView.setForwarding(true);
+            Log.i(TAG, "restored mouse association to external display="
+                    + externalDisplay.getDisplayId());
+        } catch (RemoteException | RuntimeException e) {
+            Log.e(TAG, "failed to restore mouse association after display reconnect", e);
         }
     }
 
@@ -534,6 +681,8 @@ public final class MainActivity extends Activity {
 
     private void stopOutput() {
         Log.i(TAG, "stop displayId=" + virtualDisplayId);
+        reconnectOutputAfterDisplayChange = false;
+        displayRecoveryHandler.removeCallbacks(recoverExternalDisplay);
         densityResizeHandler.removeCallbacks(applyPendingDensity);
         mouseBound = false;
         boundMouseDescriptor = null;
@@ -964,11 +1113,30 @@ public final class MainActivity extends Activity {
         Display best = null;
         for (Display display : displayManager.getDisplays()) {
             if (display.getDisplayId() == Display.DEFAULT_DISPLAY
+                    || display.getDisplayId() == virtualDisplayId
                     || (display.getFlags() & Display.FLAG_PRESENTATION) == 0) continue;
             if (best == null || display.getMode().getPhysicalWidth() * display.getMode().getPhysicalHeight()
                     > best.getMode().getPhysicalWidth() * best.getMode().getPhysicalHeight()) best = display;
         }
         return best;
+    }
+
+    private boolean refreshExternalDisplayGeometry() {
+        if (externalDisplay == null) return false;
+        Display.Mode mode = externalDisplay.getMode();
+        int width = mode.getPhysicalWidth();
+        int height = mode.getPhysicalHeight();
+        if (width < height) {
+            int swap = width;
+            width = height;
+            height = swap;
+        }
+        if (width == baseWidth && height == baseHeight) return false;
+        Log.i(TAG, "external display geometry changed " + baseWidth + "x" + baseHeight
+                + " -> " + width + "x" + height);
+        baseWidth = width;
+        baseHeight = height;
+        return true;
     }
 
     private void updateMonitorLabel() {

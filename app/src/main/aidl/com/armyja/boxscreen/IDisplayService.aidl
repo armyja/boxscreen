@@ -5,6 +5,7 @@ import android.view.MotionEvent;
 
 interface IDisplayService {
     int createDisplay(String name, int width, int height, int densityDpi, in Surface surface);
+    void setDisplaySurface(in Surface surface);
     void resizeDisplay(int width, int height, int densityDpi);
     void releaseDisplay();
     void launchActivity(String packageName, String className);

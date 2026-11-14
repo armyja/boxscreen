@@ -219,6 +219,25 @@ public final class PrivilegedDisplayService extends IDisplayService.Stub {
     }
 
     @Override
+    public void setDisplaySurface(Surface surface) {
+        if (virtualDisplay == null) {
+            throw new IllegalStateException("Virtual display is not running");
+        }
+        if (surface != null && !surface.isValid()) {
+            throw new IllegalArgumentException("Display surface is invalid");
+        }
+        int displayId = virtualDisplay.getDisplay().getDisplayId();
+        Surface previousSurface = outputSurface;
+        virtualDisplay.setSurface(surface);
+        outputSurface = surface;
+        if (previousSurface != null && previousSurface != surface) {
+            previousSurface.release();
+        }
+        Log.i("BoxScreenService", (surface == null ? "detached" : "attached")
+                + " output surface display=" + displayId);
+    }
+
+    @Override
     public void releaseDisplay() {
         clearMouseAssociation();
         restoreDisplayImePolicy();
