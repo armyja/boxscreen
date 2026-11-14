@@ -101,7 +101,6 @@ public final class MainActivity extends Activity {
     private String boundMouseDescriptor;
     private TextureView outputSurface;
     private MousePointerView mousePointerView;
-    private MouseCaptureView mouseCaptureView;
     private Presentation presentation;
     private IDisplayService displayService;
     private Shizuku.UserServiceArgs shizukuServiceArgs;
@@ -119,7 +118,6 @@ public final class MainActivity extends Activity {
             virtualDisplayId = -1;
             mouseBound = false;
             boundMouseDescriptor = null;
-            if (mouseCaptureView != null) mouseCaptureView.setForwarding(false);
             if (mousePointerView != null) mousePointerView.setForwarding(false);
             updateMouseRouteButton();
             status("Shizuku 服务已断开");
@@ -190,13 +188,9 @@ public final class MainActivity extends Activity {
         content.setOrientation(LinearLayout.VERTICAL);
         content.setPadding(dp(20), dp(18), dp(20), dp(20));
         content.setBackgroundColor(0xff111318);
-        FrameLayout root = new FrameLayout(this);
         ScrollView scroll = new ScrollView(this);
         scroll.addView(content);
-        root.addView(scroll, new FrameLayout.LayoutParams(-1, -1));
-        mouseCaptureView = new MouseCaptureView(this);
-        root.addView(mouseCaptureView, new FrameLayout.LayoutParams(-1, -1));
-        setContentView(root);
+        setContentView(scroll);
         content.addView(text("BoxScreen", 28, true), fullWidth());
         content.addView(text("手机屏幕与外接屏幕独立显示", 14, false), margins(0, 4, 0, 16));
         statusView = text("", 14, false);
@@ -484,7 +478,6 @@ public final class MainActivity extends Activity {
         mouseBound = false;
         boundMouseDescriptor = null;
         if (mousePointerView != null) mousePointerView.setForwarding(false);
-        if (mouseCaptureView != null) mouseCaptureView.setForwarding(false);
         updateMouseRouteButton();
         if (virtualDisplayId >= 0 && displayService != null) {
             try { displayService.releaseDisplay(); } catch (RemoteException ignored) { }
@@ -508,7 +501,6 @@ public final class MainActivity extends Activity {
                 String descriptor = boundMouseDescriptor != null
                         ? boundMouseDescriptor : findExternalMouseDescriptor();
                 if (descriptor == null) throw new IllegalStateException("未检测到已连接的外接鼠标");
-                if (mouseCaptureView != null) mouseCaptureView.setForwarding(false);
                 displayService.setMouseDisplay(descriptor, -1);
                 mouseBound = false;
                 boundMouseDescriptor = null;
@@ -524,16 +516,10 @@ public final class MainActivity extends Activity {
                     status("未检测到外接显示器");
                     return;
                 }
-                // Capture on the focused phone window; the physical Presentation
-                // window cannot obtain focus on this device (WMS reports NO_WINDOW).
-                displayService.setMouseDisplay(descriptor, Display.DEFAULT_DISPLAY);
+                displayService.setMouseDisplay(descriptor, externalDisplay.getDisplayId());
                 boundMouseDescriptor = descriptor;
                 mouseBound = true;
-                if (mousePointerView != null) {
-                    mousePointerView.resetPointerPosition();
-                    mousePointerView.setForwarding(true);
-                }
-                if (mouseCaptureView != null) mouseCaptureView.setForwarding(true);
+                if (mousePointerView != null) mousePointerView.setForwarding(true);
                 status(portraitMode
                         ? "鼠标已转发到竖屏虚拟画面，光标随画面旋转"
                         : "鼠标已转发到横屏虚拟画面");
@@ -575,15 +561,13 @@ public final class MainActivity extends Activity {
         private float pointerY;
         private float virtualPointerX;
         private float virtualPointerY;
-        private float lastRawX;
-        private float lastRawY;
         private boolean pointerVisible;
         private boolean forwarding;
-        private boolean rawPositionInitialized;
 
         MousePointerView(Context context) {
             super(context);
             setClickable(true);
+            setFocusable(true);
             pointerPaint.setColor(0xffffffff);
             pointerPaint.setStyle(Paint.Style.FILL);
             outlinePaint.setColor(0xff111111);
@@ -604,36 +588,17 @@ public final class MainActivity extends Activity {
         void setForwarding(boolean enabled) {
             forwarding = enabled;
             pointerVisible = false;
-            rawPositionInitialized = false;
             handler.removeCallbacks(hidePointer);
             setPointerIcon(PointerIcon.getSystemIcon(getContext(), enabled
                     ? PointerIcon.TYPE_NULL : PointerIcon.TYPE_ARROW));
             invalidate();
         }
 
-        boolean handleCapturedPointerEvent(MotionEvent event) {
-            if (!forwarding || !event.isFromSource(InputDevice.SOURCE_MOUSE)) return false;
-            if (transitionFramesRemaining > 0) return true;
-            if (event.getActionMasked() == MotionEvent.ACTION_MOVE) {
-                int virtualWidth = portraitMode ? baseHeight : baseWidth;
-                int virtualHeight = portraitMode ? baseWidth : baseHeight;
-                // Captured deltas use one shared gain so portrait aspect ratio cannot
-                // make one physical axis travel farther than the other.
-                virtualPointerX += event.getAxisValue(MotionEvent.AXIS_RELATIVE_X);
-                virtualPointerY += event.getAxisValue(MotionEvent.AXIS_RELATIVE_Y);
-                virtualPointerX = Math.max(0f, Math.min(virtualWidth - 1f, virtualPointerX));
-                virtualPointerY = Math.max(0f, Math.min(virtualHeight - 1f, virtualPointerY));
-                showPointer();
-            }
-            forwardMouseEvent(event);
-            return true;
-        }
-
         @Override
         public boolean onTouchEvent(MotionEvent event) {
             if (!forwarding || !event.isFromSource(InputDevice.SOURCE_MOUSE)) return false;
             if (transitionFramesRemaining > 0) return true;
-            updateVirtualPointerFromAbsolute(event.getRawX(), event.getRawY());
+            updateVirtualPointer(event.getRawX(), event.getRawY());
             showPointer();
             forwardMouseEvent(event);
             return true;
@@ -656,28 +621,18 @@ public final class MainActivity extends Activity {
                 pointerVisible = false;
                 invalidate();
             } else {
-                updateVirtualPointerFromAbsolute(event.getRawX(), event.getRawY());
+                updateVirtualPointer(event.getRawX(), event.getRawY());
                 showPointer();
                 forwardMouseEvent(event);
             }
             return true;
         }
 
-        private void updateVirtualPointerFromAbsolute(float x, float y) {
+        private void updateVirtualPointer(float x, float y) {
             int virtualWidth = portraitMode ? baseHeight : baseWidth;
             int virtualHeight = portraitMode ? baseWidth : baseHeight;
-            if (!rawPositionInitialized) {
-                virtualPointerX = x * virtualWidth / Math.max(1, baseWidth);
-                virtualPointerY = y * virtualHeight / Math.max(1, baseHeight);
-                rawPositionInitialized = true;
-            } else {
-                // Fallback for Android versions/devices that do not grant pointer
-                // capture: keep both axes at the same pixels-per-motion gain.
-                virtualPointerX += x - lastRawX;
-                virtualPointerY += y - lastRawY;
-            }
-            lastRawX = x;
-            lastRawY = y;
+            virtualPointerX = x * virtualWidth / Math.max(1, baseWidth);
+            virtualPointerY = y * virtualHeight / Math.max(1, baseHeight);
             virtualPointerX = Math.max(0f, Math.min(virtualWidth - 1f, virtualPointerX));
             virtualPointerY = Math.max(0f, Math.min(virtualHeight - 1f, virtualPointerY));
         }
@@ -742,81 +697,6 @@ public final class MainActivity extends Activity {
 
         void resetPointerPosition() {
             hidePointer();
-            virtualPointerX = (portraitMode ? baseHeight : baseWidth) / 2f;
-            virtualPointerY = (portraitMode ? baseWidth : baseHeight) / 2f;
-            rawPositionInitialized = false;
-        }
-    }
-
-    private final class MouseCaptureView extends View {
-        private boolean forwarding;
-        private boolean captureRequestPending;
-
-        MouseCaptureView(Context context) {
-            super(context);
-            setClickable(true);
-            setFocusable(true);
-            setFocusableInTouchMode(true);
-            setVisibility(View.GONE);
-        }
-
-        void setForwarding(boolean enabled) {
-            forwarding = enabled;
-            if (enabled) {
-                setVisibility(View.VISIBLE);
-                setPointerIcon(PointerIcon.getSystemIcon(getContext(), PointerIcon.TYPE_NULL));
-                requestFocus();
-                post(this::ensurePointerCapture);
-            } else {
-                captureRequestPending = false;
-                if (hasPointerCapture()) releasePointerCapture();
-                setVisibility(View.GONE);
-            }
-        }
-
-        private void ensurePointerCapture() {
-            if (!forwarding || hasPointerCapture() || captureRequestPending
-                    || !isAttachedToWindow() || !hasWindowFocus()) return;
-            requestFocus();
-            captureRequestPending = true;
-            Log.i(TAG, "request pointer capture on focused main display");
-            requestPointerCapture();
-            postDelayed(() -> captureRequestPending = false, 500);
-        }
-
-        @Override
-        public void onPointerCaptureChange(boolean hasCapture) {
-            super.onPointerCaptureChange(hasCapture);
-            captureRequestPending = false;
-            Log.i(TAG, "main-window mouse pointer capture=" + hasCapture);
-        }
-
-        @Override
-        public void onWindowFocusChanged(boolean hasWindowFocus) {
-            super.onWindowFocusChanged(hasWindowFocus);
-            if (hasWindowFocus && forwarding) {
-                requestFocus();
-                ensurePointerCapture();
-            }
-        }
-
-        @Override
-        public boolean onCapturedPointerEvent(MotionEvent event) {
-            return mousePointerView != null && mousePointerView.handleCapturedPointerEvent(event);
-        }
-
-        @Override
-        public boolean onGenericMotionEvent(MotionEvent event) {
-            if (!forwarding || !event.isFromSource(InputDevice.SOURCE_MOUSE)) return false;
-            if (mousePointerView != null) return mousePointerView.onGenericMotionEvent(event);
-            return false;
-        }
-
-        @Override
-        public boolean onTouchEvent(MotionEvent event) {
-            if (!forwarding || !event.isFromSource(InputDevice.SOURCE_MOUSE)) return false;
-            if (mousePointerView != null) return mousePointerView.onTouchEvent(event);
-            return false;
         }
     }
 
