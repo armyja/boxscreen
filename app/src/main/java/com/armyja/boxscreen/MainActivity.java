@@ -566,11 +566,13 @@ public final class MainActivity extends Activity {
         private boolean forwarding;
         private boolean pointerCaptured;
         private boolean rawPositionInitialized;
+        private boolean captureRequestPending;
 
         MousePointerView(Context context) {
             super(context);
             setClickable(true);
             setFocusable(true);
+            setFocusableInTouchMode(true);
             pointerPaint.setColor(0xffffffff);
             pointerPaint.setStyle(Paint.Style.FILL);
             outlinePaint.setColor(0xff111111);
@@ -600,9 +602,8 @@ public final class MainActivity extends Activity {
                     virtualPointerX = (portraitMode ? baseHeight : baseWidth) / 2f;
                     virtualPointerY = (portraitMode ? baseWidth : baseHeight) / 2f;
                 }
-                post(() -> {
-                    if (forwarding && isAttachedToWindow() && hasWindowFocus()) requestPointerCapture();
-                });
+                requestFocus();
+                post(this::ensurePointerCapture);
             } else if (hasPointerCapture()) {
                 releasePointerCapture();
             }
@@ -613,6 +614,7 @@ public final class MainActivity extends Activity {
         public void onPointerCaptureChange(boolean hasCapture) {
             super.onPointerCaptureChange(hasCapture);
             pointerCaptured = hasCapture;
+            captureRequestPending = false;
             rawPositionInitialized = false;
             Log.i(TAG, "mouse pointer capture=" + hasCapture);
         }
@@ -620,7 +622,19 @@ public final class MainActivity extends Activity {
         @Override
         public void onWindowFocusChanged(boolean hasWindowFocus) {
             super.onWindowFocusChanged(hasWindowFocus);
-            if (hasWindowFocus && forwarding) requestPointerCapture();
+            if (hasWindowFocus && forwarding) {
+                requestFocus();
+                ensurePointerCapture();
+            }
+        }
+
+        private void ensurePointerCapture() {
+            if (!forwarding || pointerCaptured || captureRequestPending
+                    || !isAttachedToWindow() || !hasWindowFocus()) return;
+            requestFocus();
+            captureRequestPending = true;
+            requestPointerCapture();
+            postDelayed(() -> captureRequestPending = false, 500);
         }
 
         @Override
@@ -655,6 +669,7 @@ public final class MainActivity extends Activity {
         @Override
         public boolean onGenericMotionEvent(MotionEvent event) {
             if (!forwarding || !event.isFromSource(InputDevice.SOURCE_MOUSE)) return false;
+            if (!pointerCaptured) ensurePointerCapture();
             int action = event.getActionMasked();
             if (action != MotionEvent.ACTION_HOVER_ENTER
                     && action != MotionEvent.ACTION_HOVER_MOVE
