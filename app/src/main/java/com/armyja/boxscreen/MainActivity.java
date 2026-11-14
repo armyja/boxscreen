@@ -437,6 +437,11 @@ public final class MainActivity extends Activity {
         outputSurface.setLayoutParams(params);
         if (outputSurface.isAvailable()) outputSurface.getSurfaceTexture().setDefaultBufferSize(width, height);
         outputSurface.setRotation(portraitMode ? 90f : 0f);
+        if (mousePointerView != null) {
+            FrameLayout.LayoutParams pointerParams = new FrameLayout.LayoutParams(width, height, Gravity.CENTER);
+            mousePointerView.setLayoutParams(pointerParams);
+            mousePointerView.setRotation(portraitMode ? 90f : 0f);
+        }
         if (modeButton != null) modeButton.setText(portraitMode
                 ? "当前：竖屏效果　·　切换为横屏"
                 : "当前：横屏显示　·　切换为竖屏效果");
@@ -539,11 +544,8 @@ public final class MainActivity extends Activity {
         private float pointerY;
         private float virtualPointerX;
         private float virtualPointerY;
-        private float lastScreenX;
-        private float lastScreenY;
         private boolean pointerVisible;
         private boolean forwarding;
-        private boolean hasLastScreenPosition;
 
         MousePointerView(Context context) {
             super(context);
@@ -569,7 +571,6 @@ public final class MainActivity extends Activity {
         void setForwarding(boolean enabled) {
             forwarding = enabled;
             pointerVisible = false;
-            hasLastScreenPosition = false;
             handler.removeCallbacks(hidePointer);
             setPointerIcon(PointerIcon.getSystemIcon(getContext(), enabled
                     ? PointerIcon.TYPE_NULL : PointerIcon.TYPE_ARROW));
@@ -601,7 +602,6 @@ public final class MainActivity extends Activity {
                 forwardMouseEvent(event);
                 handler.removeCallbacks(hidePointer);
                 pointerVisible = false;
-                hasLastScreenPosition = false;
                 invalidate();
             } else {
                 updateVirtualPointer(event.getX(), event.getY());
@@ -612,42 +612,17 @@ public final class MainActivity extends Activity {
         }
 
         private void updateVirtualPointer(float x, float y) {
-            float screenWidth = getWidth();
-            float screenHeight = getHeight();
             int virtualWidth = portraitMode ? baseHeight : baseWidth;
             int virtualHeight = portraitMode ? baseWidth : baseHeight;
-            if (screenWidth <= 0f || screenHeight <= 0f) return;
-            if (!hasLastScreenPosition) {
-                if (portraitMode) {
-                    virtualPointerX = virtualWidth - 1f - y * virtualWidth / screenHeight;
-                    virtualPointerY = x * virtualHeight / screenWidth;
-                } else {
-                    virtualPointerX = x * virtualWidth / screenWidth;
-                    virtualPointerY = y * virtualHeight / screenHeight;
-                }
-                hasLastScreenPosition = true;
-            } else {
-                float deltaX = x - lastScreenX;
-                float deltaY = y - lastScreenY;
-                if (portraitMode) {
-                    virtualPointerX -= deltaY * virtualWidth / screenHeight;
-                    virtualPointerY += deltaX * virtualHeight / screenWidth;
-                } else {
-                    virtualPointerX += deltaX * virtualWidth / screenWidth;
-                    virtualPointerY += deltaY * virtualHeight / screenHeight;
-                }
-            }
-            lastScreenX = x;
-            lastScreenY = y;
+            virtualPointerX = portraitMode ? virtualWidth - 1f - x : x;
+            virtualPointerY = portraitMode ? virtualHeight - 1f - y : y;
             virtualPointerX = Math.max(0f, Math.min(virtualWidth - 1f, virtualPointerX));
             virtualPointerY = Math.max(0f, Math.min(virtualHeight - 1f, virtualPointerY));
         }
 
         private void showPointer() {
-            int virtualWidth = portraitMode ? baseHeight : baseWidth;
-            int virtualHeight = portraitMode ? baseWidth : baseHeight;
-            pointerX = virtualPointerX * getWidth() / Math.max(1, virtualWidth);
-            pointerY = virtualPointerY * getHeight() / Math.max(1, virtualHeight);
+            pointerX = virtualPointerX;
+            pointerY = virtualPointerY;
             pointerVisible = true;
             handler.removeCallbacks(hidePointer);
             handler.postDelayed(hidePointer, 1800);
@@ -662,25 +637,15 @@ public final class MainActivity extends Activity {
             if (screenWidth <= 0 || screenHeight <= 0) return;
             int virtualWidth = portraitMode ? baseHeight : baseWidth;
             int virtualHeight = portraitMode ? baseWidth : baseHeight;
-            float scaleX;
-            float scaleY;
             Matrix transform = new Matrix();
             if (portraitMode) {
-                scaleX = virtualWidth / screenHeight;
-                scaleY = virtualHeight / screenWidth;
                 transform.setValues(new float[]{
-                        0f, -scaleX, virtualWidth - 1f,
-                        scaleY, 0f, 0f,
+                        -1f, 0f, virtualWidth - 1f,
+                        0f, -1f, virtualHeight - 1f,
                         0f, 0f, 1f
                 });
             } else {
-                scaleX = virtualWidth / screenWidth;
-                scaleY = virtualHeight / screenHeight;
-                transform.setValues(new float[]{
-                        scaleX, 0f, 0f,
-                        0f, scaleY, 0f,
-                        0f, 0f, 1f
-                });
+                transform.reset();
             }
             MotionEvent mapped = MotionEvent.obtain(source);
             try {
@@ -702,7 +667,6 @@ public final class MainActivity extends Activity {
             if (!forwarding || !pointerVisible) return;
             canvas.save();
             canvas.translate(pointerX, pointerY);
-            if (portraitMode) canvas.rotate(90f);
             canvas.drawPath(pointerShape, outlinePaint);
             canvas.drawPath(pointerShape, pointerPaint);
             canvas.restore();
@@ -716,7 +680,6 @@ public final class MainActivity extends Activity {
 
         void resetPointerPosition() {
             hidePointer();
-            hasLastScreenPosition = false;
         }
     }
 
