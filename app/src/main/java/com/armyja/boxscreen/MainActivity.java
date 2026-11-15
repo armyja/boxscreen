@@ -1007,6 +1007,7 @@ public final class MainActivity extends Activity {
         private float lastRawY;
         private boolean hasRawPosition;
         private boolean preservePointerPositionWhenRebasing;
+        private boolean snapPointerToRawPositionWhenRebasing;
         private boolean touchGestureActive;
         private long touchGestureDownTime;
         private long lastHideRescheduleAt;
@@ -1086,6 +1087,7 @@ public final class MainActivity extends Activity {
             panelPointerDown = false;
             hasRawPosition = false;
             preservePointerPositionWhenRebasing = false;
+            snapPointerToRawPositionWhenRebasing = false;
             handler.removeCallbacks(hidePointer);
             handler.removeCallbacks(revealStatusBar);
             handler.removeCallbacks(hideStatusBar);
@@ -1251,6 +1253,16 @@ public final class MainActivity extends Activity {
             if (hasRawPosition) {
                 virtualPointerX += (x - lastRawX) * scale;
                 virtualPointerY += (y - lastRawY) * scale;
+            } else if (snapPointerToRawPositionWhenRebasing) {
+                // Returning from portrait to landscape also returns to the host's raw
+                // coordinate frame. Start from the mouse's current absolute position so
+                // the remaining travel to either edge is not shortened by the old frame.
+                virtualPointerX = x * scale;
+                virtualPointerY = y * scale;
+                snapPointerToRawPositionWhenRebasing = false;
+                preservePointerPositionWhenRebasing = false;
+                Log.i(TAG, "pointer raw baseline restored at " + x + "," + y
+                        + " -> virtual=" + virtualPointerX + "," + virtualPointerY);
             } else if (!preservePointerPositionWhenRebasing) {
                 virtualPointerX = x * scale;
                 virtualPointerY = y * scale;
@@ -1275,9 +1287,11 @@ public final class MainActivity extends Activity {
             pointerX = virtualPointerX;
             pointerY = virtualPointerY;
             hasRawPosition = false;
-            preservePointerPositionWhenRebasing = true;
+            snapPointerToRawPositionWhenRebasing = oldWidth < oldHeight && newWidth > newHeight;
+            preservePointerPositionWhenRebasing = !snapPointerToRawPositionWhenRebasing;
             Log.i(TAG, "pointer position remapped " + oldWidth + "x" + oldHeight + " -> "
-                    + newWidth + "x" + newHeight + "; raw input baseline will be reseeded");
+                    + newWidth + "x" + newHeight + "; snapToRaw="
+                    + snapPointerToRawPositionWhenRebasing);
         }
 
         private float statusBarHeight() { return dp(48); }
@@ -1794,33 +1808,10 @@ public final class MainActivity extends Activity {
         }
 
         private void drawInputModeIcon(Canvas canvas, float cx, float cy, boolean touchMode) {
-            panelPaint.setColor(0xe6ffffff);
-            panelPaint.setStyle(Paint.Style.FILL);
             if (touchMode) {
-                Path hand = new Path();
-                hand.moveTo(cx - dp(8), cy + dp(11));
-                hand.lineTo(cx - dp(8), cy + dp(3));
-                hand.quadTo(cx - dp(8), cy, cx - dp(5), cy);
-                hand.quadTo(cx - dp(3), cy, cx - dp(3), cy + dp(3));
-                hand.lineTo(cx - dp(3), cy - dp(9));
-                hand.quadTo(cx - dp(3), cy - dp(13), cx, cy - dp(13));
-                hand.quadTo(cx + dp(3), cy - dp(13), cx + dp(3), cy - dp(9));
-                hand.lineTo(cx + dp(3), cy + dp(2));
-                hand.lineTo(cx + dp(6), cy - dp(1));
-                hand.quadTo(cx + dp(9), cy - dp(3), cx + dp(11), cy);
-                hand.lineTo(cx + dp(14), cy + dp(5));
-                hand.quadTo(cx + dp(15), cy + dp(8), cx + dp(12), cy + dp(10));
-                hand.lineTo(cx + dp(8), cy + dp(13));
-                hand.lineTo(cx - dp(5), cy + dp(13));
-                hand.close();
-                canvas.drawPath(hand, panelPaint);
-                panelPaint.setColor(0xff48515a);
-                panelPaint.setStyle(Paint.Style.STROKE);
-                panelPaint.setStrokeWidth(dp(1));
-                panelPaint.setStrokeCap(Paint.Cap.ROUND);
-                canvas.drawLine(cx - dp(6), cy + dp(6), cx - dp(1), cy + dp(6), panelPaint);
-                canvas.drawLine(cx + dp(4), cy + dp(6), cx + dp(9), cy + dp(6), panelPaint);
+                drawPanelVectorIcon(canvas, R.drawable.ic_touch_app, cx, cy, dp(27));
             } else {
+                panelPaint.setColor(0xe6ffffff);
                 panelPaint.setStyle(Paint.Style.STROKE);
                 panelPaint.setStrokeWidth(dp(2));
                 panelPaint.setStrokeCap(Paint.Cap.ROUND);
@@ -1834,12 +1825,19 @@ public final class MainActivity extends Activity {
         }
 
         private void drawOrientationIcon(Canvas canvas, float cx, float cy) {
-            panelPaint.setColor(0xe6ffffff);
-            panelPaint.setStyle(Paint.Style.STROKE);
-            panelPaint.setStrokeWidth(dp(2));
-            canvas.drawRect(cx - dp(15), cy - dp(5), cx + dp(2), cy + dp(5), panelPaint);
-            canvas.drawRect(cx + dp(4), cy - dp(11), cx + dp(12), cy + dp(11), panelPaint);
-            panelPaint.setStyle(Paint.Style.FILL);
+            drawPanelVectorIcon(canvas, R.drawable.ic_screen_orientation, cx, cy, dp(28));
+        }
+
+        private void drawPanelVectorIcon(Canvas canvas, int resourceId, float cx, float cy, float size) {
+            android.graphics.drawable.Drawable icon = getContext().getDrawable(resourceId);
+            if (icon == null) return;
+            int save = canvas.save();
+            int left = Math.round(cx - size / 2f);
+            int top = Math.round(cy - size / 2f);
+            icon.setBounds(left, top, Math.round(cx + size / 2f), Math.round(cy + size / 2f));
+            icon.setTint(0xe6ffffff);
+            icon.draw(canvas);
+            canvas.restoreToCount(save);
         }
 
         private void drawSearchIcon(Canvas canvas, float cx, float cy) {
@@ -2152,10 +2150,10 @@ public final class MainActivity extends Activity {
 
     private void showVirtualAppSearch() {
         if (presentation == null || launcherByPackage.isEmpty()) return;
-        Context searchContext = Build.VERSION.SDK_INT >= Build.VERSION_CODES.R
-                ? getApplicationContext().createWindowContext(presentation.getDisplay(),
-                        WindowManager.LayoutParams.TYPE_APPLICATION, null)
-                : getApplicationContext().createDisplayContext(presentation.getDisplay());
+        // A Presentation owns a TYPE_PRESENTATION window context. Reuse it for the
+        // search dialog and keep the dialog's window type aligned with that context;
+        // an application WindowContext has no Activity token on this display.
+        Context searchContext = presentation.getContext();
         ArrayList<ResolveInfo> apps = new ArrayList<>();
         for (ResolveInfo app : launcherByPackage.values()) {
             if (!getPackageName().equals(app.activityInfo.packageName)) apps.add(app);
@@ -2249,7 +2247,20 @@ public final class MainActivity extends Activity {
         dialog.setOnDismissListener(ignored -> {
             if (mousePointerView != null) mousePointerView.hideQuickPanel();
         });
-        dialog.show();
+        android.view.Window dialogWindow = dialog.getWindow();
+        if (dialogWindow != null) {
+            // TYPE_PRESENTATION (2037) is system-hidden in this compile SDK even though
+            // Presentation uses it at runtime.
+            dialogWindow.setType(2037);
+            dialogWindow.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_VISIBLE
+                    | WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);
+        }
+        try {
+            dialog.show();
+        } catch (WindowManager.BadTokenException | IllegalArgumentException e) {
+            Log.e(TAG, "Unable to show virtual display app search", e);
+            status("无法打开应用搜索，请重新打开虚拟屏后重试");
+        }
     }
 
     private int getWidthForSearchDialog() {
