@@ -24,6 +24,9 @@ import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.io.ByteArrayOutputStream;
+import java.io.BufferedReader;
+import java.io.InputStreamReader;
+import java.io.IOException;
 
 /** Runs inside Shizuku's shell-UID UserService process. */
 public final class PrivilegedDisplayService extends IDisplayService.Stub {
@@ -208,6 +211,16 @@ public final class PrivilegedDisplayService extends IDisplayService.Stub {
 
     @Override
     public void resizeDisplay(int width, int height, int densityDpi) {
+        resizeDisplayInternal(width, height, densityDpi, true);
+    }
+
+    @Override
+    public void resizeDisplaySize(int width, int height, int densityDpi) {
+        resizeDisplayInternal(width, height, densityDpi, false);
+    }
+
+    private void resizeDisplayInternal(int width, int height, int densityDpi,
+                                       boolean forceDensityOverride) {
         if (virtualDisplay == null) throw new IllegalStateException("Virtual display is not running");
         if (width < 1 || height < 1 || densityDpi < 1) {
             throw new IllegalArgumentException("Invalid display dimensions");
@@ -216,6 +229,15 @@ public final class PrivilegedDisplayService extends IDisplayService.Stub {
         Log.i("BoxScreenService", "resize display=" + displayId + " to " + width + "x" + height
                 + " densityDpi=" + densityDpi);
         virtualDisplay.resize(width, height, densityDpi);
+        if (!forceDensityOverride) return;
+        try {
+            String result = run(new String[]{"/system/bin/wm", "density", Integer.toString(densityDpi),
+                    "-d", Integer.toString(displayId)});
+            Log.i("BoxScreenService", "wm density display=" + displayId + " dpi=" + densityDpi
+                    + " result=" + result);
+        } catch (RuntimeException e) {
+            Log.w("BoxScreenService", "could not force density refresh for display=" + displayId, e);
+        }
     }
 
     @Override
@@ -242,6 +264,13 @@ public final class PrivilegedDisplayService extends IDisplayService.Stub {
         clearMouseAssociation();
         restoreDisplayImePolicy();
         if (virtualDisplay != null) {
+            int displayId = virtualDisplay.getDisplay().getDisplayId();
+            try {
+                run(new String[]{"/system/bin/wm", "density", "reset", "-d",
+                        Integer.toString(displayId)});
+            } catch (RuntimeException e) {
+                Log.w("BoxScreenService", "could not reset density override for display=" + displayId, e);
+            }
             virtualDisplay.release();
             virtualDisplay = null;
         }
@@ -374,6 +403,77 @@ public final class PrivilegedDisplayService extends IDisplayService.Stub {
         run(new String[]{"/system/bin/input", "-d",
                 Integer.toString(virtualDisplay.getDisplay().getDisplayId()),
                 "keyevent", "KEYCODE_" + keyCode});
+    }
+
+    @Override
+    @SuppressLint("BlockedPrivateApi")
+    public boolean closeTopTaskOnVirtualDisplay() {
+        if (virtualDisplay == null || virtualDisplay.getDisplay() == null) {
+            throw new IllegalStateException("Virtual display is not running");
+        }
+        int displayId = virtualDisplay.getDisplay().getDisplayId();
+        int taskId = findTopTaskId(displayId);
+        if (taskId < 0) {
+            Log.w("BoxScreenService", "no foreground app task on virtual display=" + displayId);
+            return false;
+        }
+        try {
+            Class<?> activityTaskManager = Class.forName("android.app.ActivityTaskManager");
+            Method getService = activityTaskManager.getDeclaredMethod("getService");
+            getService.setAccessible(true);
+            Object service = getService.invoke(null);
+            Method removeTask = service.getClass().getMethod("removeTask", int.class);
+            boolean removed = Boolean.TRUE.equals(removeTask.invoke(service, taskId));
+            Log.i("BoxScreenService", "remove virtual display task=" + taskId
+                    + " display=" + displayId + " result=" + removed);
+            return removed;
+        } catch (ReflectiveOperationException | RuntimeException e) {
+            Throwable cause = e instanceof InvocationTargetException && e.getCause() != null
+                    ? e.getCause() : e;
+            Log.e("BoxScreenService", "failed to remove task=" + taskId
+                    + " from display=" + displayId, cause);
+            throw new IllegalStateException("Unable to close virtual display app: "
+                    + cause.getMessage(), cause);
+        }
+    }
+
+    private int findTopTaskId(int displayId) {
+        Process process = null;
+        try {
+            process = new ProcessBuilder("/system/bin/dumpsys", "activity", "activities")
+                    .redirectErrorStream(true).start();
+            boolean inTargetDisplay = false;
+            String line;
+            try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
+                while ((line = reader.readLine()) != null) {
+                    if (line.startsWith("Display #")) {
+                        inTargetDisplay = line.startsWith("Display #" + displayId + " ");
+                        continue;
+                    }
+                    if (!inTargetDisplay || !line.contains("topResumedActivity=ActivityRecord{")) continue;
+                    int marker = line.lastIndexOf(" t");
+                    int end = line.indexOf('}', marker);
+                    if (marker < 0 || end <= marker + 2) continue;
+                    if (line.contains(" com.armyja.boxscreen/")) return -1;
+                    try {
+                        return Integer.parseInt(line.substring(marker + 2, end));
+                    } catch (NumberFormatException ignored) { }
+                }
+            }
+            if (!process.waitFor(5, TimeUnit.SECONDS)) {
+                process.destroyForcibly();
+                throw new IllegalStateException("Timed out while locating virtual display task");
+            }
+            if (process.exitValue() != 0) throw new IllegalStateException("dumpsys activity failed");
+            return -1;
+        } catch (IOException e) {
+            throw new IllegalStateException("Unable to inspect virtual display task: " + e.getMessage(), e);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException("Interrupted while inspecting virtual display task", e);
+        } finally {
+            if (process != null) process.destroy();
+        }
     }
 
     private static String run(String[] args) {

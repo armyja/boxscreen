@@ -10,9 +10,11 @@ import android.content.res.Configuration;
 import android.content.pm.PackageManager;
 import android.content.pm.ResolveInfo;
 import android.hardware.display.DisplayManager;
+import android.media.AudioManager;
 import android.os.Handler;
 import android.os.Bundle;
 import android.os.Build;
+import android.os.BatteryManager;
 import android.os.IBinder;
 import android.os.RemoteException;
 import android.graphics.Canvas;
@@ -65,6 +67,8 @@ import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.text.SimpleDateFormat;
+import java.util.Date;
 
 import rikka.shizuku.Shizuku;
 
@@ -74,15 +78,18 @@ public final class MainActivity extends Activity {
     private static final int MAX_DISPLAY_RECOVERY_ATTEMPTS = 12;
     private static final long DISPLAY_RECOVERY_DELAY_MS = 250;
     private final Handler densityResizeHandler = new Handler();
-    private final Runnable applyPendingDensity = this::resizeVirtualDisplay;
+    private final Runnable applyPendingDensity = this::resizeVirtualDisplayForDensity;
     private final Handler displayRecoveryHandler = new Handler();
     private final Runnable recoverExternalDisplay = this::recoverExternalDisplay;
+    private int densityRefreshGeneration;
 
     private DisplayManager displayManager;
     private Display externalDisplay;
     private int baseWidth;
     private int baseHeight;
     private int densityDpi = 250;
+    private int landscapeDensityDpi = 250;
+    private int portraitDensityDpi = 250;
     private boolean densityInitialized;
     private int virtualDisplayId = -1;
     private int transitionFramesRemaining;
@@ -110,6 +117,8 @@ public final class MainActivity extends Activity {
     private Switch systemAppsSwitch;
     private Button editFavoritesButton;
     private List<ResolveInfo> appEntries = Collections.emptyList();
+    private final ArrayList<String> recentAppPackages = new ArrayList<>();
+    private String currentVirtualPackage;
     private Set<String> favoritePackages = new HashSet<>();
     private boolean showSystemApps;
     private boolean editFavorites;
@@ -190,11 +199,20 @@ public final class MainActivity extends Activity {
         externalDisplay = findExternalDisplay();
         showSystemApps = getPreferences(MODE_PRIVATE).getBoolean("show_system_apps", false);
         favoritePackages = new HashSet<>(getPreferences(MODE_PRIVATE).getStringSet("favorite_apps", Collections.emptySet()));
-        int savedDensity = getPreferences(MODE_PRIVATE).getInt("virtual_density", 0);
-        if (savedDensity >= 140 && savedDensity <= 600) {
-            densityDpi = 140 + Math.round((savedDensity - 140) / 10f) * 10;
-            densityInitialized = true;
-        }
+        android.content.SharedPreferences preferences = getPreferences(MODE_PRIVATE);
+        int savedDensity = preferences.getInt("virtual_density", 0);
+        int savedLandscapeDensity = preferences.getInt("virtual_density_landscape", 0);
+        int savedPortraitDensity = preferences.getInt("virtual_density_portrait", 0);
+        int fallbackDensity = savedDensity >= 140 && savedDensity <= 600
+                ? normalizeDensity(savedDensity) : 250;
+        landscapeDensityDpi = savedLandscapeDensity >= 140 && savedLandscapeDensity <= 600
+                ? normalizeDensity(savedLandscapeDensity) : fallbackDensity;
+        portraitDensityDpi = savedPortraitDensity >= 140 && savedPortraitDensity <= 600
+                ? normalizeDensity(savedPortraitDensity) : fallbackDensity;
+        densityDpi = landscapeDensityDpi;
+        densityInitialized = (savedDensity >= 140 && savedDensity <= 600)
+                || (savedLandscapeDensity >= 140 && savedLandscapeDensity <= 600)
+                || (savedPortraitDensity >= 140 && savedPortraitDensity <= 600);
         showRoleScreen();
     }
 
@@ -306,15 +324,7 @@ public final class MainActivity extends Activity {
         content.addView(densitySlider, margins(-6, -2, -6, 4));
         densitySlider.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
             @Override public void onProgressChanged(SeekBar bar, int progress, boolean fromUser) {
-                densityDpi = 140 + progress * 10;
-                densityInitialized = true;
-                getPreferences(MODE_PRIVATE).edit().putInt("virtual_density", densityDpi).apply();
-                densityView.setText("虚拟屏 DPI：" + densityDpi);
-                updateDensityStatus();
-                if (fromUser) {
-                    densityResizeHandler.removeCallbacks(applyPendingDensity);
-                    densityResizeHandler.postDelayed(applyPendingDensity, 220);
-                }
+                updateDensitySetting(140 + progress * 10, fromUser);
             }
             @Override public void onStartTrackingTouch(SeekBar bar) { }
             @Override public void onStopTrackingTouch(SeekBar bar) {
@@ -430,8 +440,14 @@ public final class MainActivity extends Activity {
         externalDisplay.getRealMetrics(metrics);
         if (!densityInitialized) {
             densityDpi = Math.max(140, Math.min(600, Math.round(metrics.densityDpi / 10f) * 10));
+            landscapeDensityDpi = densityDpi;
+            portraitDensityDpi = densityDpi;
             densityInitialized = true;
-            getPreferences(MODE_PRIVATE).edit().putInt("virtual_density", densityDpi).apply();
+            getPreferences(MODE_PRIVATE).edit()
+                    .putInt("virtual_density", densityDpi)
+                    .putInt("virtual_density_landscape", landscapeDensityDpi)
+                    .putInt("virtual_density_portrait", portraitDensityDpi)
+                    .apply();
             if (densityView != null) densityView.setText("虚拟屏 DPI：" + densityDpi);
             if (densitySlider != null) densitySlider.setProgress((densityDpi - 140) / 10);
         }
@@ -611,7 +627,19 @@ public final class MainActivity extends Activity {
     }
 
     private void resizeVirtualDisplay() {
-        if (displayService == null || virtualDisplayId < 0) return;
+        resizeVirtualDisplay(true);
+    }
+
+    private void resizeVirtualDisplayForDensity() {
+        resizeVirtualDisplay(false);
+    }
+
+    private void resizeVirtualDisplay(boolean forceDensityOverride) {
+        if (displayService == null || virtualDisplayId < 0) {
+            Log.w(TAG, "skip display resize: service=" + (displayService != null)
+                    + " displayId=" + virtualDisplayId + " dpi=" + densityDpi);
+            return;
+        }
         int width = portraitMode ? baseHeight : baseWidth;
         int height = portraitMode ? baseWidth : baseHeight;
         try {
@@ -636,12 +664,78 @@ public final class MainActivity extends Activity {
             if (outputSurface != null && outputSurface.isAvailable()) {
                 outputSurface.getSurfaceTexture().setDefaultBufferSize(width, height);
             }
-            displayService.resizeDisplay(width, height, densityDpi);
+            if (forceDensityOverride) {
+                displayService.resizeDisplay(width, height, densityDpi);
+            } else {
+                displayService.resizeDisplaySize(width, height, densityDpi);
+            }
+            Log.i(TAG, "display resize request sent displayId=" + virtualDisplayId
+                    + " dpi=" + densityDpi + " portrait=" + portraitMode
+                    + " forceDensityOverride=" + forceDensityOverride);
             updateOutputLayout();
             updateDensityStatus();
         } catch (Exception e) {
+            Log.e(TAG, "display resize failed displayId=" + virtualDisplayId
+                    + " dpi=" + densityDpi, e);
             status("切换显示方向失败：" + e.getMessage());
         }
+    }
+
+    private void refreshVirtualDisplayAfterDensityCommit() {
+        resizeVirtualDisplayForDensity();
+        if (displayService == null || virtualDisplayId < 0) return;
+
+        final int expectedDisplayId = virtualDisplayId;
+        final int expectedDensity = densityDpi;
+        final boolean expectedPortrait = portraitMode;
+        final int width = portraitMode ? baseHeight : baseWidth;
+        final int height = portraitMode ? baseWidth : baseHeight;
+        final int generation = ++densityRefreshGeneration;
+        final int nudgePx = Math.max(1, Math.round(expectedDensity / 160f));
+        final int nudgeWidth = width <= height ? Math.max(1, width - nudgePx) : width;
+        final int nudgeHeight = width <= height ? height : Math.max(1, height - nudgePx);
+
+        densityResizeHandler.postDelayed(() -> {
+            if (!isDensityRefreshCurrent(generation, expectedDisplayId, expectedDensity,
+                    expectedPortrait)) return;
+            try {
+                if (outputSurface != null && outputSurface.isAvailable()) {
+                    outputSurface.getSurfaceTexture().setDefaultBufferSize(nudgeWidth, nudgeHeight);
+                }
+                displayService.resizeDisplaySize(nudgeWidth, nudgeHeight, expectedDensity);
+                Log.i(TAG, "density refresh nudge display=" + expectedDisplayId
+                        + " size=" + nudgeWidth + "x" + nudgeHeight
+                        + " dpi=" + expectedDensity);
+            } catch (Exception e) {
+                Log.w(TAG, "density refresh nudge failed display=" + expectedDisplayId, e);
+                return;
+            }
+
+            densityResizeHandler.postDelayed(() -> {
+                if (!isDensityRefreshCurrent(generation, expectedDisplayId, expectedDensity,
+                        expectedPortrait)) return;
+                try {
+                    if (outputSurface != null && outputSurface.isAvailable()) {
+                        outputSurface.getSurfaceTexture().setDefaultBufferSize(width, height);
+                    }
+                    displayService.resizeDisplaySize(width, height, expectedDensity);
+                    Log.i(TAG, "density refresh restored display=" + expectedDisplayId
+                            + " size=" + width + "x" + height
+                            + " dpi=" + expectedDensity);
+                } catch (Exception e) {
+                    Log.e(TAG, "density refresh restore failed display=" + expectedDisplayId, e);
+                }
+            }, 80);
+        }, 80);
+    }
+
+    private boolean isDensityRefreshCurrent(int generation, int expectedDisplayId,
+                                            int expectedDensity, boolean expectedPortrait) {
+        return densityRefreshGeneration == generation
+                && virtualDisplayId == expectedDisplayId
+                && densityDpi == expectedDensity
+                && portraitMode == expectedPortrait
+                && displayService != null;
     }
 
     private void updateDensityStatus() {
@@ -652,6 +746,38 @@ public final class MainActivity extends Activity {
         int dpHeight = Math.round(height * 160f / densityDpi);
         status("虚拟屏：" + width + "×" + height + " px / " + dpWidth + "×" + dpHeight
                 + " dp，DPI " + densityDpi);
+    }
+
+    private int normalizeDensity(int value) {
+        int bounded = Math.max(140, Math.min(600, value));
+        return 140 + Math.round((bounded - 140) / 10f) * 10;
+    }
+
+    private void updateDensitySetting(int value, boolean fromUser) {
+        int previousDensity = densityDpi;
+        densityDpi = normalizeDensity(value);
+        if (portraitMode) portraitDensityDpi = densityDpi;
+        else landscapeDensityDpi = densityDpi;
+        if (densityDpi != previousDensity) {
+            Log.i(TAG, "density setting changed " + previousDensity + "->" + densityDpi
+                    + " orientation=" + (portraitMode ? "portrait" : "landscape")
+                    + " fromUser=" + fromUser);
+        }
+        densityInitialized = true;
+        int progress = (densityDpi - 140) / 10;
+        getPreferences(MODE_PRIVATE).edit()
+                .putInt("virtual_density", densityDpi)
+                .putInt(portraitMode ? "virtual_density_portrait" : "virtual_density_landscape", densityDpi)
+                .apply();
+        if (densityView != null) densityView.setText("虚拟屏 DPI：" + densityDpi);
+        if (densitySlider != null && densitySlider.getProgress() != progress) {
+            densitySlider.setProgress(progress);
+        }
+        updateDensityStatus();
+        if (fromUser) {
+            densityResizeHandler.removeCallbacks(applyPendingDensity);
+            densityResizeHandler.postDelayed(applyPendingDensity, 220);
+        }
     }
 
     private void updateOutputLayout() {
@@ -672,7 +798,20 @@ public final class MainActivity extends Activity {
     }
 
     private void setPortraitMode(boolean portrait) {
+        if (portraitMode == portrait) return;
+        densityRefreshGeneration++;
+        int oldWidth = portraitMode ? baseHeight : baseWidth;
+        int oldHeight = portraitMode ? baseWidth : baseHeight;
+        int newWidth = portrait ? baseHeight : baseWidth;
+        int newHeight = portrait ? baseWidth : baseHeight;
+        if (mousePointerView != null) {
+            mousePointerView.remapVirtualPointerPosition(oldWidth, oldHeight, newWidth, newHeight);
+        }
         portraitMode = portrait;
+        densityDpi = portraitMode ? portraitDensityDpi : landscapeDensityDpi;
+        if (densityView != null) densityView.setText("虚拟屏 DPI：" + densityDpi);
+        if (densitySlider != null) densitySlider.setProgress((densityDpi - 140) / 10);
+        updateDensityStatus();
         Log.i(TAG, "orientation=" + (portrait ? "portrait" : "landscape"));
         resizeVirtualDisplay();
         if (modeButton != null) modeButton.setText(portraitMode
@@ -681,6 +820,7 @@ public final class MainActivity extends Activity {
 
     private void stopOutput() {
         Log.i(TAG, "stop displayId=" + virtualDisplayId);
+        densityRefreshGeneration++;
         reconnectOutputAfterDisplayChange = false;
         displayRecoveryHandler.removeCallbacks(recoverExternalDisplay);
         densityResizeHandler.removeCallbacks(applyPendingDensity);
@@ -836,13 +976,51 @@ public final class MainActivity extends Activity {
         };
         private final Paint pointerPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
         private final Paint outlinePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        private final Paint panelPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        private final Paint panelTextPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
         private final Path pointerShape = new Path();
         private float pointerX;
         private float pointerY;
         private float virtualPointerX;
         private float virtualPointerY;
+        private float lastRawX;
+        private float lastRawY;
+        private boolean hasRawPosition;
         private boolean pointerVisible;
         private boolean forwarding;
+        private boolean statusBarVisible;
+        private boolean quickPanelVisible;
+        private boolean pointerOutside;
+        private boolean panelPointerDown;
+        private boolean panelDragFromBar;
+        private boolean panelDragOpened;
+        private float panelDownY;
+        private int panelPressedControl;
+
+        private final Runnable revealStatusBar = () -> {
+            if (forwarding && pointerY <= statusBarRevealZone()) {
+                statusBarVisible = true;
+                invalidate();
+            }
+        };
+        private final Runnable hideStatusBar = () -> {
+            if (pointerOutside || (pointerY > statusBarHeight()
+                    && (!quickPanelVisible || pointerY > statusBarHeight() + quickPanelHeight()))) {
+                statusBarVisible = false;
+                quickPanelVisible = false;
+                pointerOutside = false;
+                invalidate();
+            }
+        };
+
+        private static final int PANEL_NONE = 0;
+        private static final int PANEL_VOLUME_SLIDER = 3;
+        private static final int PANEL_APPS = 4;
+        private static final int PANEL_CLOSE_APP = 5;
+        private static final int PANEL_APP_BASE = 10;
+        private static final int PANEL_RECENT_APP_BASE = 100;
+        private static final int PANEL_DPI_SLIDER = 6;
+        private static final int PANEL_ORIENTATION = 7;
 
         MousePointerView(Context context) {
             super(context);
@@ -854,6 +1032,10 @@ public final class MainActivity extends Activity {
             outlinePaint.setStyle(Paint.Style.STROKE);
             outlinePaint.setStrokeWidth(3f);
             outlinePaint.setStrokeJoin(Paint.Join.ROUND);
+            panelPaint.setStyle(Paint.Style.FILL);
+            panelTextPaint.setColor(0xffffffff);
+            panelTextPaint.setTextAlign(Paint.Align.CENTER);
+            panelTextPaint.setTypeface(android.graphics.Typeface.create("sans-serif-medium", 0));
             pointerShape.moveTo(1f, 1f);
             pointerShape.lineTo(1f, 27f);
             pointerShape.lineTo(8f, 20f);
@@ -868,9 +1050,20 @@ public final class MainActivity extends Activity {
         void setForwarding(boolean enabled) {
             forwarding = enabled;
             pointerVisible = false;
+            statusBarVisible = false;
+            quickPanelVisible = false;
+            pointerOutside = false;
+            panelPointerDown = false;
+            hasRawPosition = false;
             handler.removeCallbacks(hidePointer);
+            handler.removeCallbacks(revealStatusBar);
+            handler.removeCallbacks(hideStatusBar);
             setPointerIcon(PointerIcon.getSystemIcon(getContext(), enabled
                     ? PointerIcon.TYPE_NULL : PointerIcon.TYPE_ARROW));
+            if (presentation != null && presentation.getWindow() != null) {
+                presentation.getWindow().getDecorView().setPointerIcon(PointerIcon.getSystemIcon(
+                        getContext(), enabled ? PointerIcon.TYPE_NULL : PointerIcon.TYPE_ARROW));
+            }
             invalidate();
         }
 
@@ -880,6 +1073,8 @@ public final class MainActivity extends Activity {
             if (transitionFramesRemaining > 0) return true;
             updateVirtualPointer(event.getRawX(), event.getRawY());
             showPointer();
+            updateStatusBarDwell();
+            if (handleQuickPanelTouch(event)) return true;
             forwardMouseEvent(event);
             return true;
         }
@@ -895,28 +1090,530 @@ public final class MainActivity extends Activity {
                     && action != MotionEvent.ACTION_BUTTON_PRESS
                     && action != MotionEvent.ACTION_BUTTON_RELEASE) return false;
             if (transitionFramesRemaining > 0) return true;
+            updateVirtualPointer(event.getRawX(), event.getRawY());
+            showPointer();
+            updateStatusBarDwell();
+            if (action == MotionEvent.ACTION_HOVER_EXIT) {
+                pointerOutside = true;
+                handler.removeCallbacks(revealStatusBar);
+                if (statusBarVisible || quickPanelVisible) {
+                    handler.removeCallbacks(hideStatusBar);
+                    handler.postDelayed(hideStatusBar, 500);
+                }
+            }
+            if ((quickPanelVisible || statusBarVisible) && isOverQuickUi(virtualPointerX, virtualPointerY)) {
+                if (action == MotionEvent.ACTION_SCROLL) adjustVolume(event.getAxisValue(MotionEvent.AXIS_VSCROLL) > 0 ? 1 : -1);
+                return true;
+            }
             if (action == MotionEvent.ACTION_HOVER_EXIT) {
                 forwardMouseEvent(event);
-                handler.removeCallbacks(hidePointer);
-                pointerVisible = false;
-                invalidate();
+                if (portraitMode && event.getRawX() <= 2f) {
+                    pointerOutside = false;
+                    handler.removeCallbacks(hidePointer);
+                    pointerVisible = true;
+                    Log.i(TAG, "preserving pointer at portrait left edge rawX=" + event.getRawX());
+                    invalidate();
+                } else {
+                    handler.removeCallbacks(hidePointer);
+                    pointerVisible = false;
+                    invalidate();
+                }
             } else {
-                updateVirtualPointer(event.getRawX(), event.getRawY());
-                showPointer();
                 forwardMouseEvent(event);
             }
             return true;
         }
 
         private void updateVirtualPointer(float x, float y) {
+            pointerOutside = false;
             int virtualWidth = portraitMode ? baseHeight : baseWidth;
             int virtualHeight = portraitMode ? baseWidth : baseHeight;
             float scale = Math.max(virtualWidth / (float) Math.max(1, baseWidth),
                     virtualHeight / (float) Math.max(1, baseHeight));
-            virtualPointerX = x * scale;
-            virtualPointerY = y * scale;
+            if (hasRawPosition) {
+                virtualPointerX += (x - lastRawX) * scale;
+                virtualPointerY += (y - lastRawY) * scale;
+            } else {
+                virtualPointerX = x * scale;
+                virtualPointerY = y * scale;
+            }
+            lastRawX = x;
+            lastRawY = y;
+            hasRawPosition = true;
             virtualPointerX = Math.max(0f, Math.min(virtualWidth - 1f, virtualPointerX));
             virtualPointerY = Math.max(0f, Math.min(virtualHeight - 1f, virtualPointerY));
+        }
+
+        void remapVirtualPointerPosition(int oldWidth, int oldHeight, int newWidth, int newHeight) {
+            if (oldWidth <= 0 || oldHeight <= 0 || newWidth <= 0 || newHeight <= 0) return;
+            virtualPointerX = Math.max(0f, Math.min(newWidth - 1f,
+                    virtualPointerX / oldWidth * newWidth));
+            virtualPointerY = Math.max(0f, Math.min(newHeight - 1f,
+                    virtualPointerY / oldHeight * newHeight));
+            pointerX = virtualPointerX;
+            pointerY = virtualPointerY;
+            Log.i(TAG, "pointer position remapped " + oldWidth + "x" + oldHeight + " -> "
+                    + newWidth + "x" + newHeight);
+        }
+
+        private float statusBarHeight() { return dp(48); }
+        private float statusBarRevealZone() { return dp(3); }
+
+        private float quickPanelHeight() {
+            int appCount = quickPanelApps().size();
+            int columns = quickPanelColumnCount(appCount);
+            int rows = (appCount + columns - 1) / columns;
+            float contentHeight = dp(76) + rows * dp(58)
+                    + Math.max(0, rows - 1) * dp(8) + dp(12);
+            return Math.min(Math.max(0, getHeight() - statusBarHeight()), contentHeight);
+        }
+
+        private int quickPanelColumnCount(int appCount) {
+            if (appCount <= 0) return 1;
+            float availableWidth = getWidth() - dp(32);
+            float gap = dp(8);
+            int columnsByWidth = Math.max(1, (int) ((availableWidth + gap) / (dp(128) + gap)));
+            return Math.min(appCount, columnsByWidth);
+        }
+
+        private float quickPanelAppsTop() { return statusBarHeight() + dp(76); }
+
+        private float dpiSliderLeft() { return dp(118); }
+
+        private float dpiSliderRight() { return Math.max(dpiSliderLeft() + 1, getWidth() - dp(140)); }
+
+        private void updateStatusBarDwell() {
+            if (!forwarding) return;
+            if (virtualPointerY <= statusBarRevealZone()) {
+                handler.removeCallbacks(hideStatusBar);
+                if (!statusBarVisible) {
+                    handler.removeCallbacks(revealStatusBar);
+                    handler.postDelayed(revealStatusBar, 500);
+                }
+            } else {
+                handler.removeCallbacks(revealStatusBar);
+                boolean insideVisiblePanel = quickPanelVisible
+                        && virtualPointerY <= statusBarHeight() + quickPanelHeight();
+                boolean insideVisibleBar = statusBarVisible && virtualPointerY <= statusBarHeight();
+                if (statusBarVisible && !insideVisiblePanel && !insideVisibleBar) {
+                    handler.removeCallbacks(hideStatusBar);
+                    handler.postDelayed(hideStatusBar, 500);
+                } else if (insideVisiblePanel || insideVisibleBar) {
+                    handler.removeCallbacks(hideStatusBar);
+                }
+            }
+        }
+
+        private boolean isOverQuickUi(float x, float y) {
+            return (statusBarVisible && y <= statusBarHeight())
+                    || (quickPanelVisible && y <= statusBarHeight() + quickPanelHeight());
+        }
+
+        private boolean handleQuickPanelTouch(MotionEvent event) {
+            int action = event.getActionMasked();
+            float x = virtualPointerX;
+            float y = virtualPointerY;
+            if (action == MotionEvent.ACTION_DOWN) {
+                panelPointerDown = false;
+                panelDragOpened = false;
+                panelDragFromBar = false;
+                if (quickPanelVisible && y <= statusBarHeight() + quickPanelHeight()) {
+                    panelPointerDown = true;
+                    panelDownY = y;
+                    panelPressedControl = hitQuickControl(x, y);
+                    if (panelPressedControl == PANEL_DPI_SLIDER) {
+                        Log.i(TAG, "DPI slider down x=" + x + " y=" + y
+                                + " dpi=" + densityDpi + " portrait=" + portraitMode);
+                    }
+                    if (panelPressedControl == PANEL_VOLUME_SLIDER) setStatusVolumeFromPointer(x);
+                    else if (panelPressedControl == PANEL_DPI_SLIDER) setDensityFromPointer(x, false);
+                    return true;
+                }
+                if (statusBarVisible && y <= statusBarHeight()) {
+                    panelPointerDown = true;
+                    panelPressedControl = hitStatusBarControl(x);
+                    panelDragFromBar = panelPressedControl == PANEL_APPS;
+                    panelDownY = y;
+                    if (panelPressedControl == PANEL_VOLUME_SLIDER) setStatusVolumeFromPointer(x);
+                    return true;
+                }
+                if (quickPanelVisible) {
+                    // Consume both DOWN and its matching UP when dismissing the panel.
+                    // Otherwise the UP leaks through to the virtual display without a DOWN.
+                    panelPointerDown = true;
+                    panelPressedControl = PANEL_NONE;
+                    quickPanelVisible = false;
+                    statusBarVisible = false;
+                    invalidate();
+                    return true;
+                }
+                return false;
+            }
+            if (!panelPointerDown) return false;
+            if (action == MotionEvent.ACTION_MOVE) {
+                if (panelDragFromBar && y - panelDownY >= dp(56)) {
+                    panelDragOpened = true;
+                    quickPanelVisible = true;
+                    statusBarVisible = true;
+                }
+                if (panelPressedControl == PANEL_VOLUME_SLIDER) setStatusVolumeFromPointer(x);
+                else if (panelPressedControl == PANEL_DPI_SLIDER) setDensityFromPointer(x, false);
+                invalidate();
+                return true;
+            }
+            if (action == MotionEvent.ACTION_UP) {
+                if (panelPressedControl == PANEL_DPI_SLIDER) {
+                    Log.i(TAG, "DPI slider up x=" + x + " y=" + y + " dpi=" + densityDpi);
+                    setDensityFromPointer(x, true);
+                }
+                if (panelDragFromBar && y - panelDownY >= dp(56)) {
+                    quickPanelVisible = true;
+                    statusBarVisible = true;
+                } else if (!panelDragOpened && panelPressedControl != PANEL_DPI_SLIDER) {
+                    int releasedControl = hitQuickControl(x, y);
+                    if (releasedControl == panelPressedControl) activateQuickControl(releasedControl, x);
+                }
+                panelPointerDown = false;
+                panelDragFromBar = false;
+                panelPressedControl = PANEL_NONE;
+                invalidate();
+                return true;
+            }
+            if (action == MotionEvent.ACTION_CANCEL) {
+                panelPointerDown = false;
+                panelDragFromBar = false;
+                panelPressedControl = PANEL_NONE;
+                return true;
+            }
+            return true;
+        }
+
+        private int hitQuickControl(float x, float y) {
+            float width = getWidth();
+            float barHeight = statusBarHeight();
+            if (y <= barHeight) return hitStatusBarControl(x);
+            if (!quickPanelVisible || y > barHeight + quickPanelHeight()) return PANEL_NONE;
+            float controlsTop = barHeight + dp(8);
+            float controlsBottom = barHeight + dp(64);
+            if (y >= controlsTop && y <= controlsBottom) {
+                if (x >= getWidth() - dp(124)) return PANEL_ORIENTATION;
+                if (x >= dpiSliderLeft() && x <= dpiSliderRight()) return PANEL_DPI_SLIDER;
+                return PANEL_NONE;
+            }
+            float appsTop = quickPanelAppsTop();
+            float tileHeight = dp(58);
+            float gap = dp(8);
+            if (y >= appsTop) {
+                int row = (int) ((y - appsTop) / (tileHeight + gap));
+                ArrayList<ResolveInfo> apps = quickPanelApps();
+                int columns = quickPanelColumnCount(apps.size());
+                float horizontalPadding = dp(16);
+                float tileGap = dp(8);
+                float tileWidth = (width - horizontalPadding * 2f - tileGap * (columns - 1)) / columns;
+                float offsetX = x - horizontalPadding;
+                if (offsetX < 0 || tileWidth <= 0) return PANEL_NONE;
+                int column = (int) (offsetX / (tileWidth + tileGap));
+                if (column >= columns || offsetX - column * (tileWidth + tileGap) > tileWidth) return PANEL_NONE;
+                int index = row * columns + column;
+                if (index >= 0 && index < apps.size()) return PANEL_APP_BASE + index;
+            }
+            return PANEL_NONE;
+        }
+
+        private void activateQuickControl(int control, float x) {
+            if (control == PANEL_VOLUME_SLIDER) setStatusVolumeFromPointer(x);
+            else if (control == PANEL_DPI_SLIDER) setDensityFromPointer(x, true);
+            else if (control == PANEL_ORIENTATION) setPortraitMode(!portraitMode);
+            else if (control == PANEL_APPS) {
+                quickPanelVisible = true;
+                statusBarVisible = true;
+            } else if (control == PANEL_CLOSE_APP) {
+                closeCurrentVirtualApp();
+            } else if (control >= PANEL_RECENT_APP_BASE) {
+                launchRecentApp(control - PANEL_RECENT_APP_BASE);
+            } else if (control >= PANEL_APP_BASE) {
+                launchQuickPanelApp(control - PANEL_APP_BASE);
+            }
+            invalidate();
+        }
+
+        private void adjustVolume(int direction) {
+            AudioManager audio = (AudioManager) getSystemService(AUDIO_SERVICE);
+            if (audio == null) return;
+            int current = audio.getStreamVolume(AudioManager.STREAM_MUSIC);
+            int max = audio.getStreamMaxVolume(AudioManager.STREAM_MUSIC);
+            audio.setStreamVolume(AudioManager.STREAM_MUSIC,
+                    Math.max(0, Math.min(max, current + direction)), 0);
+            invalidate();
+        }
+
+        private void setStatusVolumeFromPointer(float x) {
+            StatusBarLayout layout = statusBarLayout();
+            AudioManager audio = (AudioManager) getSystemService(AUDIO_SERVICE);
+            if (audio == null || layout.sliderRight <= layout.sliderLeft) return;
+            float ratio = Math.max(0f, Math.min(1f, (x - layout.sliderLeft)
+                    / (layout.sliderRight - layout.sliderLeft)));
+            int max = audio.getStreamMaxVolume(AudioManager.STREAM_MUSIC);
+            audio.setStreamVolume(AudioManager.STREAM_MUSIC, Math.round(max * ratio), 0);
+            invalidate();
+        }
+
+        private void setDensityFromPointer(float x, boolean finished) {
+            float left = dpiSliderLeft();
+            float right = dpiSliderRight();
+            float ratio = Math.max(0f, Math.min(1f, (x - left) / (right - left)));
+            int step = Math.round(ratio * 46f);
+            int selectedDensity = 140 + step * 10;
+            if (finished) {
+                Log.i(TAG, "DPI slider commit x=" + x + " track=" + left + ".." + right
+                        + " selected=" + selectedDensity + " current=" + densityDpi
+                        + " portrait=" + portraitMode);
+            }
+            if (selectedDensity != densityDpi) updateDensitySetting(selectedDensity, true);
+            if (finished) {
+                densityResizeHandler.removeCallbacks(applyPendingDensity);
+                refreshVirtualDisplayAfterDensityCommit();
+            }
+            invalidate();
+        }
+
+        private final class StatusBarLayout {
+            final String label;
+            final ArrayList<ResolveInfo> apps;
+            final float sliderLeft;
+            final float sliderRight;
+            final float appsLeft;
+            final float closeLeft;
+
+            StatusBarLayout(String label, ArrayList<ResolveInfo> apps, float sliderLeft,
+                            float sliderRight, float appsLeft, float closeLeft) {
+                this.label = label;
+                this.apps = apps;
+                this.sliderLeft = sliderLeft;
+                this.sliderRight = sliderRight;
+                this.appsLeft = appsLeft;
+                this.closeLeft = closeLeft;
+            }
+        }
+
+        private StatusBarLayout statusBarLayout() {
+            panelTextPaint.setTextSize(dp(15));
+            String label = statusBarLabel();
+            ArrayList<ResolveInfo> apps = recentStatusApps();
+            float width = getWidth();
+            float closeLeft = width - dp(44);
+            float appsLeft = closeLeft - dp(8) - apps.size() * dp(42);
+            float sliderLeft = dp(16) + panelTextPaint.measureText(label) + dp(14);
+            float sliderRight = Math.min(sliderLeft + dp(150), appsLeft - dp(12));
+            return new StatusBarLayout(label, apps, sliderLeft, sliderRight, appsLeft, closeLeft);
+        }
+
+        private String statusBarLabel() {
+            String time = new SimpleDateFormat("HH:mm", java.util.Locale.getDefault()).format(new Date());
+            BatteryManager battery = (BatteryManager) getSystemService(BATTERY_SERVICE);
+            int percent = battery == null ? -1
+                    : battery.getIntProperty(BatteryManager.BATTERY_PROPERTY_CAPACITY);
+            return percent < 0 ? time : time + "   " + percent + "%";
+        }
+
+        private ArrayList<ResolveInfo> recentStatusApps() {
+            ArrayList<ResolveInfo> apps = new ArrayList<>();
+            for (String packageName : recentAppPackages) {
+                if (packageName.equals(currentVirtualPackage)) continue;
+                for (ResolveInfo app : appEntries) {
+                    if (packageName.equals(app.activityInfo.packageName)) {
+                        apps.add(app);
+                        break;
+                    }
+                }
+                if (apps.size() >= 3) break;
+            }
+            return apps;
+        }
+
+        private int hitStatusBarControl(float x) {
+            StatusBarLayout layout = statusBarLayout();
+            if (x >= layout.closeLeft) return PANEL_CLOSE_APP;
+            float appsRight = layout.closeLeft - dp(8);
+            if (x >= layout.appsLeft && x < appsRight) {
+                int index = (int) ((x - layout.appsLeft) / dp(42));
+                if (index >= 0 && index < layout.apps.size()) return PANEL_RECENT_APP_BASE + index;
+            }
+            if (x >= layout.sliderLeft && x <= layout.sliderRight) return PANEL_VOLUME_SLIDER;
+            return PANEL_APPS;
+        }
+
+        private void launchRecentApp(int index) {
+            ArrayList<ResolveInfo> apps = recentStatusApps();
+            if (index < 0 || index >= apps.size()) return;
+            ResolveInfo app = apps.get(index);
+            quickPanelVisible = false;
+            statusBarVisible = false;
+            launchPackage(app.activityInfo.packageName, app.activityInfo.name);
+        }
+
+        private void closeCurrentVirtualApp() {
+            if (displayService == null || virtualDisplayId < 0) return;
+            try {
+                boolean removed = displayService.closeTopTaskOnVirtualDisplay();
+                Log.i(TAG, "close foreground virtual display task result=" + removed
+                        + " package=" + currentVirtualPackage);
+                if (removed) {
+                    currentVirtualPackage = null;
+                    quickPanelVisible = false;
+                    statusBarVisible = false;
+                } else {
+                    status("虚拟屏上没有可关闭的应用任务");
+                }
+            } catch (RemoteException e) {
+                Log.e(TAG, "unable to close foreground app on virtual display", e);
+                status("关闭虚拟屏应用失败：" + e.getMessage());
+            }
+            invalidate();
+        }
+
+        private ArrayList<ResolveInfo> quickPanelApps() {
+            ArrayList<ResolveInfo> visible = new ArrayList<>();
+            HashSet<String> packages = new HashSet<>();
+            for (ResolveInfo app : appEntries) {
+                String packageName = app.activityInfo.packageName;
+                if (packageName.equals(getPackageName()) || !packages.add(packageName)) continue;
+                int flags = app.activityInfo.applicationInfo.flags;
+                boolean system = (flags & (android.content.pm.ApplicationInfo.FLAG_SYSTEM
+                        | android.content.pm.ApplicationInfo.FLAG_UPDATED_SYSTEM_APP)) != 0;
+                if (system && !showSystemApps) continue;
+                visible.add(app);
+            }
+            Collections.sort(visible, (a, b) -> {
+                boolean af = favoritePackages.contains(a.activityInfo.packageName);
+                boolean bf = favoritePackages.contains(b.activityInfo.packageName);
+                if (af != bf) return af ? -1 : 1;
+                return String.valueOf(a.loadLabel(getPackageManager()))
+                        .compareToIgnoreCase(String.valueOf(b.loadLabel(getPackageManager())));
+            });
+            if (visible.size() > 6) return new ArrayList<>(visible.subList(0, 6));
+            return visible;
+        }
+
+        private void launchQuickPanelApp(int index) {
+            ArrayList<ResolveInfo> apps = quickPanelApps();
+            if (index < 0 || index >= apps.size()) return;
+            ResolveInfo app = apps.get(index);
+            quickPanelVisible = false;
+            statusBarVisible = false;
+            launchPackage(app.activityInfo.packageName, app.activityInfo.name);
+        }
+
+        private void drawQuickUi(Canvas canvas) {
+            float width = getWidth();
+            float barHeight = statusBarHeight();
+            panelPaint.setColor(0xb8171a20);
+            panelPaint.setStyle(Paint.Style.FILL);
+            panelTextPaint.setColor(0xe6ffffff);
+            if (quickPanelVisible) {
+                float bottom = barHeight + quickPanelHeight();
+                canvas.drawRect(0, 0, width, bottom, panelPaint);
+
+                ArrayList<ResolveInfo> apps = quickPanelApps();
+                float controlsTop = barHeight + dp(8);
+                float controlsBottom = barHeight + dp(64);
+                float controlsCenterY = barHeight + dp(36);
+                panelPaint.setColor(0x6630343d);
+                canvas.drawRect(width - dp(124), controlsTop + dp(4), width - dp(16),
+                        controlsBottom - dp(4), panelPaint);
+                panelTextPaint.setColor(0xe6ffffff);
+                panelTextPaint.setTextSize(dp(14));
+                panelTextPaint.setTextAlign(Paint.Align.LEFT);
+                canvas.drawText("DPI " + densityDpi, dp(16), controlsCenterY + dp(5), panelTextPaint);
+                float sliderLeft = dpiSliderLeft();
+                float sliderRight = dpiSliderRight();
+                float densityRatio = (densityDpi - 140) / 460f;
+                panelPaint.setColor(0x9977808d);
+                canvas.drawRoundRect(sliderLeft, controlsCenterY - dp(3), sliderRight,
+                        controlsCenterY + dp(3), dp(4), dp(4), panelPaint);
+                panelPaint.setColor(0xdd80cbc4);
+                canvas.drawRoundRect(sliderLeft, controlsCenterY - dp(3),
+                        sliderLeft + (sliderRight - sliderLeft) * densityRatio,
+                        controlsCenterY + dp(3), dp(4), dp(4), panelPaint);
+                canvas.drawCircle(sliderLeft + (sliderRight - sliderLeft) * densityRatio,
+                        controlsCenterY, dp(8), panelPaint);
+                panelTextPaint.setTextAlign(Paint.Align.CENTER);
+                panelTextPaint.setTextSize(dp(13));
+                canvas.drawText(portraitMode ? "切换横屏" : "切换竖屏", width - dp(70),
+                        controlsCenterY + dp(5), panelTextPaint);
+
+                float tileTop = quickPanelAppsTop();
+                float tileHeight = dp(58);
+                float gap = dp(8);
+                float horizontalPadding = dp(16);
+                float tileGap = dp(8);
+                int columns = quickPanelColumnCount(apps.size());
+                float tileWidth = (width - horizontalPadding * 2f - tileGap * (columns - 1)) / columns;
+                panelPaint.setColor(0x9930343d);
+                panelTextPaint.setTextSize(dp(14));
+                panelTextPaint.setTextAlign(Paint.Align.CENTER);
+                for (int i = 0; i < apps.size(); i++) {
+                    int row = i / columns;
+                    int column = i % columns;
+                    float left = horizontalPadding + column * (tileWidth + tileGap);
+                    float top = tileTop + row * (tileHeight + gap);
+                    canvas.drawRect(left, top, left + tileWidth, top + tileHeight, panelPaint);
+                    String label = String.valueOf(apps.get(i).loadLabel(getPackageManager()));
+                    canvas.drawText(android.text.TextUtils.ellipsize(label,
+                                    new android.text.TextPaint(panelTextPaint), tileWidth - dp(16),
+                                    android.text.TextUtils.TruncateAt.END).toString(),
+                            left + tileWidth / 2f, top + tileHeight / 2f + dp(5), panelTextPaint);
+                }
+            }
+
+            if (statusBarVisible && !quickPanelVisible) {
+                panelPaint.setColor(0xb8171a20);
+                canvas.drawRect(0, 0, width, barHeight, panelPaint);
+            }
+            if (statusBarVisible) {
+                StatusBarLayout layout = statusBarLayout();
+                panelTextPaint.setTextAlign(Paint.Align.LEFT);
+                panelTextPaint.setTextSize(dp(15));
+                canvas.drawText(layout.label, dp(16), barHeight * 0.66f, panelTextPaint);
+                AudioManager audio = (AudioManager) getSystemService(AUDIO_SERVICE);
+                if (audio != null && layout.sliderRight > layout.sliderLeft) {
+                    float center = barHeight / 2f;
+                    float ratio = audio.getStreamVolume(AudioManager.STREAM_MUSIC)
+                            / (float) Math.max(1, audio.getStreamMaxVolume(AudioManager.STREAM_MUSIC));
+                    panelPaint.setColor(0xb877808d);
+                    canvas.drawRoundRect(layout.sliderLeft, center - dp(3), layout.sliderRight,
+                            center + dp(3), dp(4), dp(4), panelPaint);
+                    panelPaint.setColor(0xdd80cbc4);
+                    canvas.drawRoundRect(layout.sliderLeft, center - dp(3),
+                            layout.sliderLeft + (layout.sliderRight - layout.sliderLeft) * ratio,
+                            center + dp(3), dp(4), dp(4), panelPaint);
+                    canvas.drawCircle(layout.sliderLeft + (layout.sliderRight - layout.sliderLeft) * ratio,
+                            center, dp(8), panelPaint);
+                }
+                for (int i = 0; i < layout.apps.size(); i++) {
+                    float left = layout.appsLeft + i * dp(42);
+                    float top = (barHeight - dp(32)) / 2f;
+                    panelPaint.setColor(0x665f6875);
+                    canvas.drawRoundRect(left + dp(5), top, left + dp(37), top + dp(32),
+                            dp(7), dp(7), panelPaint);
+                    try {
+                        android.graphics.drawable.Drawable icon = layout.apps.get(i).loadIcon(getPackageManager());
+                        canvas.save();
+                        canvas.clipRect(left + dp(7), top + dp(2), left + dp(35), top + dp(30));
+                        icon.setBounds((int) (left + dp(7)), (int) (top + dp(2)),
+                                (int) (left + dp(35)), (int) (top + dp(30)));
+                        icon.draw(canvas);
+                        canvas.restore();
+                    } catch (RuntimeException ignored) { }
+                }
+                float closeCenterX = layout.closeLeft + dp(22);
+                float closeCenterY = barHeight / 2f;
+                panelPaint.setColor(0x885f6875);
+                canvas.drawCircle(closeCenterX, closeCenterY, dp(15), panelPaint);
+                panelTextPaint.setTextAlign(Paint.Align.CENTER);
+                panelTextPaint.setTextSize(dp(22));
+                canvas.drawText("×", closeCenterX, closeCenterY + dp(8), panelTextPaint);
+            }
         }
 
         private void showPointer() {
@@ -931,19 +1628,17 @@ public final class MainActivity extends Activity {
         private void forwardMouseEvent(MotionEvent source) {
             if (displayService == null || virtualDisplayId < 0 || externalDisplay == null) return;
             if (transitionFramesRemaining > 0) return;
-            float screenWidth = baseWidth;
-            float screenHeight = baseHeight;
-            if (screenWidth <= 0 || screenHeight <= 0) return;
+            if (baseWidth <= 0 || baseHeight <= 0) return;
             int virtualWidth = portraitMode ? baseHeight : baseWidth;
             int virtualHeight = portraitMode ? baseWidth : baseHeight;
             MotionEvent mapped = MotionEvent.obtain(source);
             try {
                 if (portraitMode) {
-                    float scaleX = virtualWidth / screenWidth;
-                    float scaleY = virtualHeight / screenHeight;
+                    float scaleX = virtualWidth / (float) baseWidth;
+                    float scaleY = virtualHeight / (float) baseHeight;
                     Matrix transform = new Matrix();
                     transform.setValues(new float[]{
-                            0f, -scaleX, screenWidth * scaleX,
+                            0f, -scaleX, baseWidth * scaleX,
                             scaleY, 0f, 0f,
                             0f, 0f, 1f
                     });
@@ -965,6 +1660,7 @@ public final class MainActivity extends Activity {
         @Override
         protected void onDraw(Canvas canvas) {
             super.onDraw(canvas);
+            if (statusBarVisible || quickPanelVisible) drawQuickUi(canvas);
             if (!forwarding || !pointerVisible) return;
             canvas.save();
             canvas.translate(pointerX, pointerY);
@@ -1125,6 +1821,11 @@ public final class MainActivity extends Activity {
             autoEnableMouseIfAvailable();
             Log.i(TAG, "launch=" + packageName + "/" + activityName + " display=" + virtualDisplayId);
             displayService.launchActivity(packageName, activityName);
+            currentVirtualPackage = packageName;
+            recentAppPackages.remove(packageName);
+            recentAppPackages.add(0, packageName);
+            while (recentAppPackages.size() > 8) recentAppPackages.remove(recentAppPackages.size() - 1);
+            if (mousePointerView != null) mousePointerView.invalidate();
             if (mouseBound) dimAndBlackoutPhoneScreen();
             status("已请求在虚拟屏中打开 " + packageName);
         } catch (Exception e) {
