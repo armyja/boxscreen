@@ -986,6 +986,7 @@ public final class MainActivity extends Activity {
         private float lastRawX;
         private float lastRawY;
         private boolean hasRawPosition;
+        private boolean preservePointerPositionWhenRebasing;
         private boolean pointerVisible;
         private boolean forwarding;
         private boolean statusBarVisible;
@@ -1055,6 +1056,7 @@ public final class MainActivity extends Activity {
             pointerOutside = false;
             panelPointerDown = false;
             hasRawPosition = false;
+            preservePointerPositionWhenRebasing = false;
             handler.removeCallbacks(hidePointer);
             handler.removeCallbacks(revealStatusBar);
             handler.removeCallbacks(hideStatusBar);
@@ -1133,9 +1135,13 @@ public final class MainActivity extends Activity {
             if (hasRawPosition) {
                 virtualPointerX += (x - lastRawX) * scale;
                 virtualPointerY += (y - lastRawY) * scale;
-            } else {
+            } else if (!preservePointerPositionWhenRebasing) {
                 virtualPointerX = x * scale;
                 virtualPointerY = y * scale;
+            } else {
+                // The virtual coordinates were already remapped for the new orientation.
+                // Seed the raw input baseline without replacing that remapped position.
+                preservePointerPositionWhenRebasing = false;
             }
             lastRawX = x;
             lastRawY = y;
@@ -1152,8 +1158,10 @@ public final class MainActivity extends Activity {
                     virtualPointerY / oldHeight * newHeight));
             pointerX = virtualPointerX;
             pointerY = virtualPointerY;
+            hasRawPosition = false;
+            preservePointerPositionWhenRebasing = true;
             Log.i(TAG, "pointer position remapped " + oldWidth + "x" + oldHeight + " -> "
-                    + newWidth + "x" + newHeight);
+                    + newWidth + "x" + newHeight + "; raw input baseline will be reseeded");
         }
 
         private float statusBarHeight() { return dp(48); }
