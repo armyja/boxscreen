@@ -1795,26 +1795,36 @@ public final class MainActivity extends Activity {
 
         private void drawInputModeIcon(Canvas canvas, float cx, float cy, boolean touchMode) {
             panelPaint.setColor(0xe6ffffff);
-            panelPaint.setStyle(Paint.Style.STROKE);
-            panelPaint.setStrokeWidth(dp(2));
-            panelPaint.setStrokeCap(Paint.Cap.ROUND);
-            panelPaint.setStrokeJoin(Paint.Join.ROUND);
+            panelPaint.setStyle(Paint.Style.FILL);
             if (touchMode) {
                 Path hand = new Path();
-                hand.moveTo(cx - dp(7), cy + dp(10));
-                hand.lineTo(cx - dp(7), cy + dp(2));
-                hand.quadTo(cx - dp(7), cy - dp(1), cx - dp(4), cy - dp(1));
-                hand.lineTo(cx - dp(3), cy + dp(1));
+                hand.moveTo(cx - dp(8), cy + dp(11));
+                hand.lineTo(cx - dp(8), cy + dp(3));
+                hand.quadTo(cx - dp(8), cy, cx - dp(5), cy);
+                hand.quadTo(cx - dp(3), cy, cx - dp(3), cy + dp(3));
                 hand.lineTo(cx - dp(3), cy - dp(9));
-                hand.quadTo(cx - dp(3), cy - dp(12), cx, cy - dp(12));
-                hand.quadTo(cx + dp(3), cy - dp(12), cx + dp(3), cy - dp(9));
-                hand.lineTo(cx + dp(3), cy - dp(1));
-                hand.lineTo(cx + dp(6), cy + dp(1));
-                hand.quadTo(cx + dp(9), cy + dp(4), cx + dp(7), cy + dp(8));
-                hand.lineTo(cx + dp(5), cy + dp(11));
+                hand.quadTo(cx - dp(3), cy - dp(13), cx, cy - dp(13));
+                hand.quadTo(cx + dp(3), cy - dp(13), cx + dp(3), cy - dp(9));
+                hand.lineTo(cx + dp(3), cy + dp(2));
+                hand.lineTo(cx + dp(6), cy - dp(1));
+                hand.quadTo(cx + dp(9), cy - dp(3), cx + dp(11), cy);
+                hand.lineTo(cx + dp(14), cy + dp(5));
+                hand.quadTo(cx + dp(15), cy + dp(8), cx + dp(12), cy + dp(10));
+                hand.lineTo(cx + dp(8), cy + dp(13));
+                hand.lineTo(cx - dp(5), cy + dp(13));
                 hand.close();
                 canvas.drawPath(hand, panelPaint);
+                panelPaint.setColor(0xff48515a);
+                panelPaint.setStyle(Paint.Style.STROKE);
+                panelPaint.setStrokeWidth(dp(1));
+                panelPaint.setStrokeCap(Paint.Cap.ROUND);
+                canvas.drawLine(cx - dp(6), cy + dp(6), cx - dp(1), cy + dp(6), panelPaint);
+                canvas.drawLine(cx + dp(4), cy + dp(6), cx + dp(9), cy + dp(6), panelPaint);
             } else {
+                panelPaint.setStyle(Paint.Style.STROKE);
+                panelPaint.setStrokeWidth(dp(2));
+                panelPaint.setStrokeCap(Paint.Cap.ROUND);
+                panelPaint.setStrokeJoin(Paint.Join.ROUND);
                 canvas.drawRoundRect(cx - dp(8), cy - dp(12), cx + dp(8), cy + dp(12),
                         dp(7), dp(7), panelPaint);
                 canvas.drawLine(cx, cy - dp(11), cx, cy - dp(4), panelPaint);
@@ -1827,17 +1837,9 @@ public final class MainActivity extends Activity {
             panelPaint.setColor(0xe6ffffff);
             panelPaint.setStyle(Paint.Style.STROKE);
             panelPaint.setStrokeWidth(dp(2));
-            panelPaint.setStrokeCap(Paint.Cap.ROUND);
-            android.graphics.RectF arc = new android.graphics.RectF(cx - dp(11), cy - dp(11),
-                    cx + dp(11), cy + dp(11));
-            canvas.drawArc(arc, 35f, 285f, false, panelPaint);
+            canvas.drawRect(cx - dp(15), cy - dp(5), cx + dp(2), cy + dp(5), panelPaint);
+            canvas.drawRect(cx + dp(4), cy - dp(11), cx + dp(12), cy + dp(11), panelPaint);
             panelPaint.setStyle(Paint.Style.FILL);
-            Path arrow = new Path();
-            arrow.moveTo(cx + dp(5), cy - dp(11));
-            arrow.lineTo(cx + dp(12), cy - dp(10));
-            arrow.lineTo(cx + dp(9), cy - dp(4));
-            arrow.close();
-            canvas.drawPath(arrow, panelPaint);
         }
 
         private void drawSearchIcon(Canvas canvas, float cx, float cy) {
@@ -2150,7 +2152,10 @@ public final class MainActivity extends Activity {
 
     private void showVirtualAppSearch() {
         if (presentation == null || launcherByPackage.isEmpty()) return;
-        Context searchContext = presentation.getContext();
+        Context searchContext = Build.VERSION.SDK_INT >= Build.VERSION_CODES.R
+                ? getApplicationContext().createWindowContext(presentation.getDisplay(),
+                        WindowManager.LayoutParams.TYPE_APPLICATION, null)
+                : getApplicationContext().createDisplayContext(presentation.getDisplay());
         ArrayList<ResolveInfo> apps = new ArrayList<>();
         for (ResolveInfo app : launcherByPackage.values()) {
             if (!getPackageName().equals(app.activityInfo.packageName)) apps.add(app);
