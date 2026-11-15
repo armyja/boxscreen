@@ -120,6 +120,7 @@ public final class MainActivity extends Activity {
     private final ArrayList<String> recentAppPackages = new ArrayList<>();
     private String currentVirtualPackage;
     private Set<String> favoritePackages = new HashSet<>();
+    private Set<String> touchModePackages = new HashSet<>();
     private boolean showSystemApps;
     private boolean editFavorites;
     private int appColumns;
@@ -200,6 +201,15 @@ public final class MainActivity extends Activity {
         showSystemApps = getPreferences(MODE_PRIVATE).getBoolean("show_system_apps", false);
         favoritePackages = new HashSet<>(getPreferences(MODE_PRIVATE).getStringSet("favorite_apps", Collections.emptySet()));
         android.content.SharedPreferences preferences = getPreferences(MODE_PRIVATE);
+        touchModePackages = new HashSet<>(preferences.getStringSet("touch_mode_apps", Collections.emptySet()));
+        String savedRecentApps = preferences.getString("recent_apps", "");
+        if (!savedRecentApps.isEmpty()) {
+            for (String packageName : savedRecentApps.split("\\n")) {
+                if (!packageName.isEmpty() && !recentAppPackages.contains(packageName)) {
+                    recentAppPackages.add(packageName);
+                }
+            }
+        }
         int savedDensity = preferences.getInt("virtual_density", 0);
         int savedLandscapeDensity = preferences.getInt("virtual_density_landscape", 0);
         int savedPortraitDensity = preferences.getInt("virtual_density_portrait", 0);
@@ -220,6 +230,7 @@ public final class MainActivity extends Activity {
         super.onResume();
         externalDisplay = findExternalDisplay();
         if (monitorView != null) updateMonitorLabel();
+        if (appGrid != null) refreshLaunchableApps();
     }
 
     @Override public void onConfigurationChanged(Configuration newConfig) {
@@ -987,6 +998,8 @@ public final class MainActivity extends Activity {
         private float lastRawY;
         private boolean hasRawPosition;
         private boolean preservePointerPositionWhenRebasing;
+        private boolean touchGestureActive;
+        private long touchGestureDownTime;
         private boolean pointerVisible;
         private boolean forwarding;
         private boolean statusBarVisible;
@@ -1022,6 +1035,7 @@ public final class MainActivity extends Activity {
         private static final int PANEL_RECENT_APP_BASE = 100;
         private static final int PANEL_DPI_SLIDER = 6;
         private static final int PANEL_ORIENTATION = 7;
+        private static final int PANEL_INPUT_MODE = 8;
 
         MousePointerView(Context context) {
             super(context);
@@ -1049,6 +1063,7 @@ public final class MainActivity extends Activity {
         }
 
         void setForwarding(boolean enabled) {
+            if (!enabled) cancelTouchGesture();
             forwarding = enabled;
             pointerVisible = false;
             statusBarVisible = false;
@@ -1077,7 +1092,8 @@ public final class MainActivity extends Activity {
             showPointer();
             updateStatusBarDwell();
             if (handleQuickPanelTouch(event)) return true;
-            forwardMouseEvent(event);
+            if (isCurrentAppTouchMode()) forwardTouchModeEvent(event);
+            else forwardMouseEvent(event);
             return true;
         }
 
@@ -1108,7 +1124,7 @@ public final class MainActivity extends Activity {
                 return true;
             }
             if (action == MotionEvent.ACTION_HOVER_EXIT) {
-                forwardMouseEvent(event);
+                if (!isCurrentAppTouchMode()) forwardMouseEvent(event);
                 if (portraitMode && event.getRawX() <= 2f) {
                     pointerOutside = false;
                     handler.removeCallbacks(hidePointer);
@@ -1120,10 +1136,94 @@ public final class MainActivity extends Activity {
                     pointerVisible = false;
                     invalidate();
                 }
+            } else if (isCurrentAppTouchMode()) {
+                if (action == MotionEvent.ACTION_SCROLL) forwardMouseEvent(event);
+                else forwardTouchModeEvent(event);
             } else {
                 forwardMouseEvent(event);
             }
             return true;
+        }
+
+        private void forwardTouchModeEvent(MotionEvent source) {
+            int action = source.getActionMasked();
+            switch (action) {
+                case MotionEvent.ACTION_DOWN:
+                    beginTouchGesture(source);
+                    break;
+                case MotionEvent.ACTION_MOVE:
+                    if (touchGestureActive) injectTouchAction(source, MotionEvent.ACTION_MOVE);
+                    break;
+                case MotionEvent.ACTION_UP:
+                    finishTouchGesture(source, MotionEvent.ACTION_UP);
+                    break;
+                case MotionEvent.ACTION_CANCEL:
+                    finishTouchGesture(source, MotionEvent.ACTION_CANCEL);
+                    break;
+                case MotionEvent.ACTION_BUTTON_PRESS:
+                    if (source.getActionButton() == MotionEvent.BUTTON_PRIMARY
+                            || (source.getButtonState() & MotionEvent.BUTTON_PRIMARY) != 0) {
+                        beginTouchGesture(source);
+                    }
+                    break;
+                case MotionEvent.ACTION_BUTTON_RELEASE:
+                    if (touchGestureActive
+                            && (source.getActionButton() == MotionEvent.BUTTON_PRIMARY
+                            || (source.getButtonState() & MotionEvent.BUTTON_PRIMARY) == 0)) {
+                        finishTouchGesture(source, MotionEvent.ACTION_UP);
+                    }
+                    break;
+                default:
+                    break;
+            }
+        }
+
+        private void beginTouchGesture(MotionEvent source) {
+            if (touchGestureActive) return;
+            touchGestureDownTime = source.getEventTime();
+            touchGestureActive = true;
+            injectTouchAction(source, MotionEvent.ACTION_DOWN);
+        }
+
+        private void finishTouchGesture(MotionEvent source, int action) {
+            if (!touchGestureActive) return;
+            injectTouchAction(source, action);
+            touchGestureActive = false;
+        }
+
+        void cancelTouchGesture() {
+            if (!touchGestureActive) return;
+            injectTouchAction(null, MotionEvent.ACTION_CANCEL);
+            touchGestureActive = false;
+        }
+
+        private void injectTouchAction(MotionEvent source, int action) {
+            if (displayService == null || virtualDisplayId < 0 || transitionFramesRemaining > 0) return;
+            if (baseWidth <= 0 || baseHeight <= 0) return;
+            long eventTime = source == null ? android.os.SystemClock.uptimeMillis() : source.getEventTime();
+            MotionEvent.PointerProperties properties = new MotionEvent.PointerProperties();
+            properties.id = 0;
+            properties.toolType = MotionEvent.TOOL_TYPE_FINGER;
+            MotionEvent.PointerCoords coordinates = new MotionEvent.PointerCoords();
+            coordinates.x = virtualPointerX;
+            coordinates.y = virtualPointerY;
+            coordinates.pressure = action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_CANCEL ? 0f : 1f;
+            coordinates.size = 1f;
+            MotionEvent touch = MotionEvent.obtain(touchGestureDownTime, eventTime, action,
+                    1, new MotionEvent.PointerProperties[]{properties},
+                    new MotionEvent.PointerCoords[]{coordinates},
+                    source == null ? 0 : source.getMetaState(), 0, 1f, 1f, 0, 0,
+                    InputDevice.SOURCE_TOUCHSCREEN, 0);
+            try {
+                if (!displayService.injectInputEvent(touch, virtualDisplayId)) {
+                    Log.w(TAG, "InputManager rejected synthetic touch display=" + virtualDisplayId
+                            + " action=" + action + " x=" + virtualPointerX + " y=" + virtualPointerY);
+                }
+            } catch (RemoteException | RuntimeException e) {
+                Log.e(TAG, "Unable to inject synthetic touch to virtual display", e);
+            } finally {
+                touch.recycle();
+            }
         }
 
         private void updateVirtualPointer(float x, float y) {
@@ -1188,7 +1288,7 @@ public final class MainActivity extends Activity {
 
         private float dpiSliderLeft() { return dp(118); }
 
-        private float dpiSliderRight() { return Math.max(dpiSliderLeft() + 1, getWidth() - dp(140)); }
+        private float dpiSliderRight() { return Math.max(dpiSliderLeft() + 1, getWidth() - dp(240)); }
 
         private void updateStatusBarDwell() {
             if (!forwarding) return;
@@ -1305,6 +1405,7 @@ public final class MainActivity extends Activity {
             float controlsBottom = barHeight + dp(64);
             if (y >= controlsTop && y <= controlsBottom) {
                 if (x >= getWidth() - dp(124)) return PANEL_ORIENTATION;
+                if (x >= getWidth() - dp(224)) return PANEL_INPUT_MODE;
                 if (x >= dpiSliderLeft() && x <= dpiSliderRight()) return PANEL_DPI_SLIDER;
                 return PANEL_NONE;
             }
@@ -1332,6 +1433,7 @@ public final class MainActivity extends Activity {
             if (control == PANEL_VOLUME_SLIDER) setStatusVolumeFromPointer(x);
             else if (control == PANEL_DPI_SLIDER) setDensityFromPointer(x, true);
             else if (control == PANEL_ORIENTATION) setPortraitMode(!portraitMode);
+            else if (control == PANEL_INPUT_MODE) toggleCurrentInputMode();
             else if (control == PANEL_APPS) {
                 quickPanelVisible = true;
                 statusBarVisible = true;
@@ -1462,6 +1564,7 @@ public final class MainActivity extends Activity {
 
         private void closeCurrentVirtualApp() {
             if (displayService == null || virtualDisplayId < 0) return;
+            if (mousePointerView != null) mousePointerView.cancelTouchGesture();
             try {
                 boolean removed = displayService.closeTopTaskOnVirtualDisplay();
                 Log.i(TAG, "close foreground virtual display task result=" + removed
@@ -1481,26 +1584,42 @@ public final class MainActivity extends Activity {
         }
 
         private ArrayList<ResolveInfo> quickPanelApps() {
-            ArrayList<ResolveInfo> visible = new ArrayList<>();
-            HashSet<String> packages = new HashSet<>();
+            ArrayList<ResolveInfo> candidates = new ArrayList<>();
+            java.util.HashMap<String, ResolveInfo> byPackage = new java.util.HashMap<>();
             for (ResolveInfo app : appEntries) {
                 String packageName = app.activityInfo.packageName;
-                if (packageName.equals(getPackageName()) || !packages.add(packageName)) continue;
+                if (packageName.equals(getPackageName()) || byPackage.containsKey(packageName)) continue;
                 int flags = app.activityInfo.applicationInfo.flags;
                 boolean system = (flags & (android.content.pm.ApplicationInfo.FLAG_SYSTEM
                         | android.content.pm.ApplicationInfo.FLAG_UPDATED_SYSTEM_APP)) != 0;
                 if (system && !showSystemApps) continue;
-                visible.add(app);
+                byPackage.put(packageName, app);
+                candidates.add(app);
             }
-            Collections.sort(visible, (a, b) -> {
-                boolean af = favoritePackages.contains(a.activityInfo.packageName);
-                boolean bf = favoritePackages.contains(b.activityInfo.packageName);
-                if (af != bf) return af ? -1 : 1;
-                return String.valueOf(a.loadLabel(getPackageManager()))
-                        .compareToIgnoreCase(String.valueOf(b.loadLabel(getPackageManager())));
-            });
-            if (visible.size() > 6) return new ArrayList<>(visible.subList(0, 6));
-            return visible;
+            java.util.Comparator<ResolveInfo> byLabel = (a, b) ->
+                    String.valueOf(a.loadLabel(getPackageManager()))
+                            .compareToIgnoreCase(String.valueOf(b.loadLabel(getPackageManager())));
+            ArrayList<ResolveInfo> ordered = new ArrayList<>();
+            HashSet<String> added = new HashSet<>();
+            ArrayList<ResolveInfo> favorites = new ArrayList<>();
+            for (ResolveInfo app : candidates) {
+                if (favoritePackages.contains(app.activityInfo.packageName)) favorites.add(app);
+            }
+            Collections.sort(favorites, byLabel);
+            for (ResolveInfo app : favorites) {
+                ordered.add(app);
+                added.add(app.activityInfo.packageName);
+            }
+            for (String packageName : recentAppPackages) {
+                ResolveInfo app = byPackage.get(packageName);
+                if (app != null && added.add(packageName)) ordered.add(app);
+            }
+            Collections.sort(candidates, byLabel);
+            for (ResolveInfo app : candidates) {
+                if (added.add(app.activityInfo.packageName)) ordered.add(app);
+            }
+            if (ordered.size() > 12) return new ArrayList<>(ordered.subList(0, 12));
+            return ordered;
         }
 
         private void launchQuickPanelApp(int index) {
@@ -1527,8 +1646,12 @@ public final class MainActivity extends Activity {
                 float controlsBottom = barHeight + dp(64);
                 float controlsCenterY = barHeight + dp(36);
                 panelPaint.setColor(0x6630343d);
-                canvas.drawRect(width - dp(124), controlsTop + dp(4), width - dp(16),
+                canvas.drawRect(width - dp(224), controlsTop + dp(4), width - dp(16),
                         controlsBottom - dp(4), panelPaint);
+                panelPaint.setColor(currentVirtualPackage != null && isCurrentAppTouchMode()
+                        ? 0x997a5b32 : 0x664b6470);
+                canvas.drawRect(width - dp(216), controlsTop + dp(8), width - dp(124),
+                        controlsBottom - dp(8), panelPaint);
                 panelTextPaint.setColor(0xe6ffffff);
                 panelTextPaint.setTextSize(dp(14));
                 panelTextPaint.setTextAlign(Paint.Align.LEFT);
@@ -1547,6 +1670,9 @@ public final class MainActivity extends Activity {
                         controlsCenterY, dp(8), panelPaint);
                 panelTextPaint.setTextAlign(Paint.Align.CENTER);
                 panelTextPaint.setTextSize(dp(13));
+                String inputModeLabel = currentVirtualPackage == null ? "无应用"
+                        : (isCurrentAppTouchMode() ? "触摸 ✓" : "鼠标 ✓");
+                canvas.drawText(inputModeLabel, width - dp(170), controlsCenterY + dp(5), panelTextPaint);
                 canvas.drawText(portraitMode ? "切换横屏" : "切换竖屏", width - dp(70),
                         controlsCenterY + dp(5), panelTextPaint);
 
@@ -1653,7 +1779,7 @@ public final class MainActivity extends Activity {
                     mapped.transform(transform);
                 }
                 mapped.setLocation(virtualPointerX, virtualPointerY);
-                if (!displayService.injectMouseEvent(mapped, virtualDisplayId)) {
+                if (!displayService.injectInputEvent(mapped, virtualDisplayId)) {
                     Log.w(TAG, "InputManager rejected mouse event display=" + virtualDisplayId
                             + " action=" + mapped.getActionMasked() + " x=" + mapped.getX()
                             + " y=" + mapped.getY());
@@ -1696,8 +1822,7 @@ public final class MainActivity extends Activity {
     }
 
     private void addLaunchableApps() {
-        Intent launcher = new Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER);
-        appEntries = getPackageManager().queryIntentActivities(launcher, 0);
+        refreshLaunchableApps();
         appGrid = new GridLayout(this);
         appGrid.setColumnCount(1);
         appGrid.setMinimumHeight(dp(1));
@@ -1719,6 +1844,13 @@ public final class MainActivity extends Activity {
                 scheduleAppGridUpdate(width);
             }
         });
+    }
+
+    private void refreshLaunchableApps() {
+        Intent launcher = new Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER);
+        appEntries = getPackageManager().queryIntentActivities(launcher, 0);
+        if (appGrid != null) rebuildAppsGrid();
+        if (mousePointerView != null) mousePointerView.invalidate();
     }
 
     private void scheduleAppGridUpdate(int widthPx) {
@@ -1813,6 +1945,7 @@ public final class MainActivity extends Activity {
             favorite.setOnCheckedChangeListener((button, checked) -> {
                 if (checked) favoritePackages.add(packageName); else favoritePackages.remove(packageName);
                 getPreferences(MODE_PRIVATE).edit().putStringSet("favorite_apps", new HashSet<>(favoritePackages)).apply();
+                if (mousePointerView != null) mousePointerView.invalidate();
             });
         }
     }
@@ -1826,6 +1959,7 @@ public final class MainActivity extends Activity {
             return;
         }
         try {
+            if (mousePointerView != null) mousePointerView.cancelTouchGesture();
             autoEnableMouseIfAvailable();
             Log.i(TAG, "launch=" + packageName + "/" + activityName + " display=" + virtualDisplayId);
             displayService.launchActivity(packageName, activityName);
@@ -1833,6 +1967,9 @@ public final class MainActivity extends Activity {
             recentAppPackages.remove(packageName);
             recentAppPackages.add(0, packageName);
             while (recentAppPackages.size() > 8) recentAppPackages.remove(recentAppPackages.size() - 1);
+            getPreferences(MODE_PRIVATE).edit()
+                    .putString("recent_apps", android.text.TextUtils.join("\n", recentAppPackages))
+                    .apply();
             if (mousePointerView != null) mousePointerView.invalidate();
             if (mouseBound) dimAndBlackoutPhoneScreen();
             status("已请求在虚拟屏中打开 " + packageName);
@@ -1840,6 +1977,31 @@ public final class MainActivity extends Activity {
             Log.e(TAG, "launch failed=" + packageName + ": " + e.getMessage(), e);
             status("启动应用失败：" + e.getMessage());
         }
+    }
+
+    private boolean isCurrentAppTouchMode() {
+        return currentVirtualPackage != null && touchModePackages.contains(currentVirtualPackage);
+    }
+
+    private void toggleCurrentInputMode() {
+        if (currentVirtualPackage == null) {
+            status("先在虚拟屏启动应用，再切换输入模式");
+            return;
+        }
+        if (mousePointerView != null) mousePointerView.cancelTouchGesture();
+        boolean touchMode;
+        if (touchModePackages.contains(currentVirtualPackage)) {
+            touchModePackages.remove(currentVirtualPackage);
+            touchMode = false;
+        } else {
+            touchModePackages.add(currentVirtualPackage);
+            touchMode = true;
+        }
+        getPreferences(MODE_PRIVATE).edit()
+                .putStringSet("touch_mode_apps", new HashSet<>(touchModePackages))
+                .apply();
+        status((touchMode ? "触摸模式" : "鼠标模式") + "已为当前应用单独保存");
+        if (mousePointerView != null) mousePointerView.invalidate();
     }
 
     private void launchPendingApp() {

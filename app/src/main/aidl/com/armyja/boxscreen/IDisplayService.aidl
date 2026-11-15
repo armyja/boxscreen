@@ -13,5 +13,5 @@ interface IDisplayService {
     void sendKey(String keyCode);
     boolean closeTopTaskOnVirtualDisplay();
     boolean setMouseDisplay(String inputDescriptor, int displayId);
-    boolean injectMouseEvent(in MotionEvent event, int displayId);
+    boolean injectInputEvent(in MotionEvent event, int displayId);
 }

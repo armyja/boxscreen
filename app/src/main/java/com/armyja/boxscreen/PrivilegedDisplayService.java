@@ -322,7 +322,7 @@ public final class PrivilegedDisplayService extends IDisplayService.Stub {
 
     @Override
     @SuppressLint("BlockedPrivateApi")
-    public boolean injectMouseEvent(MotionEvent event, int displayId) {
+    public boolean injectInputEvent(MotionEvent event, int displayId) {
         if (event == null || virtualDisplay == null || virtualDisplay.getDisplay() == null
                 || displayId != virtualDisplay.getDisplay().getDisplayId()) {
             return false;
@@ -354,7 +354,7 @@ public final class PrivilegedDisplayService extends IDisplayService.Stub {
             return Boolean.TRUE.equals(accepted);
         } catch (ReflectiveOperationException e) {
             Throwable cause = e.getCause() == null ? e : e.getCause();
-            Log.e("BoxScreen", "mouse event injection failed: " + cause.getMessage(), cause);
+            Log.e("BoxScreen", "input event injection failed: " + cause.getMessage(), cause);
             return false;
         } finally {
             if (forwarded != null) forwarded.recycle();
