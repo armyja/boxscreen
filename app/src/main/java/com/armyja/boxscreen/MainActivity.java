@@ -135,9 +135,6 @@ public final class MainActivity extends Activity {
     private String boundMouseDescriptor;
     private TextureView outputSurface;
     private MousePointerView mousePointerView;
-    private FrameLayout presentationFrame;
-    private View virtualAppSearchOverlay;
-    private EditText virtualAppSearchField;
     private Presentation presentation;
     private IDisplayService displayService;
     private Shizuku.UserServiceArgs shizukuServiceArgs;
@@ -482,7 +479,6 @@ public final class MainActivity extends Activity {
                     | WindowManager.LayoutParams.FLAG_FULLSCREEN
                     | WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE);
             FrameLayout frame = new FrameLayout(this);
-            presentationFrame = frame;
             frame.setBackgroundColor(0xff000000);
             outputSurface = new TextureView(this);
             outputSurface.setSurfaceTextureListener(new TextureView.SurfaceTextureListener() {
@@ -595,9 +591,6 @@ public final class MainActivity extends Activity {
         presentation = null;
         outputSurface = null;
         mousePointerView = null;
-        presentationFrame = null;
-        virtualAppSearchOverlay = null;
-        virtualAppSearchField = null;
         if (oldPresentation != null) {
             try { oldPresentation.dismiss(); }
             catch (RuntimeException e) { Log.w(TAG, "failed to dismiss removed display presentation", e); }
@@ -863,9 +856,6 @@ public final class MainActivity extends Activity {
             presentation = null;
         }
         outputSurface = null;
-        presentationFrame = null;
-        virtualAppSearchOverlay = null;
-        virtualAppSearchField = null;
         status("虚拟屏已停止");
     }
 
@@ -1058,7 +1048,6 @@ public final class MainActivity extends Activity {
         private static final int PANEL_DPI_SLIDER = 6;
         private static final int PANEL_ORIENTATION = 7;
         private static final int PANEL_INPUT_MODE = 8;
-        private static final int PANEL_SEARCH = 9;
 
         MousePointerView(Context context) {
             super(context);
@@ -1287,18 +1276,6 @@ public final class MainActivity extends Activity {
             virtualPointerY = Math.max(0f, Math.min(virtualHeight - 1f, virtualPointerY));
         }
 
-        void updatePointerWhileSearching(MotionEvent event) {
-            if (!forwarding || !event.isFromSource(InputDevice.SOURCE_MOUSE)) return;
-            int action = event.getActionMasked();
-            if (action == MotionEvent.ACTION_HOVER_ENTER || action == MotionEvent.ACTION_HOVER_MOVE
-                    || action == MotionEvent.ACTION_MOVE || action == MotionEvent.ACTION_DOWN
-                    || action == MotionEvent.ACTION_UP) {
-                updateVirtualPointer(event.getRawX(), event.getRawY());
-                showPointer();
-                invalidate();
-            }
-        }
-
         void remapVirtualPointerPosition(int oldWidth, int oldHeight, int newWidth, int newHeight) {
             if (oldWidth <= 0 || oldHeight <= 0 || newWidth <= 0 || newHeight <= 0) return;
             virtualPointerX = Math.max(0f, Math.min(newWidth - 1f,
@@ -1339,7 +1316,7 @@ public final class MainActivity extends Activity {
 
         private float dpiSliderLeft() { return dp(118); }
 
-        private float dpiSliderRight() { return Math.max(dpiSliderLeft() + 1, getWidth() - dp(152)); }
+        private float dpiSliderRight() { return Math.max(dpiSliderLeft() + 1, getWidth() - dp(106)); }
 
         private void updateStatusBarDwell() {
             if (!forwarding) return;
@@ -1455,9 +1432,8 @@ public final class MainActivity extends Activity {
             float controlsTop = barHeight + dp(8);
             float controlsBottom = barHeight + dp(64);
             if (y >= controlsTop && y <= controlsBottom) {
-                if (x >= getWidth() - dp(48)) return PANEL_SEARCH;
-                if (x >= getWidth() - dp(94)) return PANEL_ORIENTATION;
-                if (x >= getWidth() - dp(140)) return PANEL_INPUT_MODE;
+                if (x >= getWidth() - dp(48)) return PANEL_ORIENTATION;
+                if (x >= getWidth() - dp(94)) return PANEL_INPUT_MODE;
                 if (x >= dpiSliderLeft() && x <= dpiSliderRight()) return PANEL_DPI_SLIDER;
                 return PANEL_NONE;
             }
@@ -1486,7 +1462,6 @@ public final class MainActivity extends Activity {
             else if (control == PANEL_DPI_SLIDER) setDensityFromPointer(x, true);
             else if (control == PANEL_ORIENTATION) setPortraitMode(!portraitMode);
             else if (control == PANEL_INPUT_MODE) toggleCurrentInputMode();
-            else if (control == PANEL_SEARCH) showVirtualAppSearch();
             else if (control == PANEL_APPS) {
                 quickPanelVisible = true;
                 statusBarVisible = true;
@@ -1725,15 +1700,13 @@ public final class MainActivity extends Activity {
                 float controlsBottom = barHeight + dp(64);
                 float controlsCenterY = barHeight + dp(36);
                 panelPaint.setColor(0x6630343d);
-                canvas.drawRect(width - dp(140), controlsTop + dp(4), width - dp(8),
+                canvas.drawRect(width - dp(94), controlsTop + dp(4), width - dp(8),
                         controlsBottom - dp(4), panelPaint);
                 panelPaint.setColor(currentVirtualPackage == null || isCurrentAppTouchMode()
                         ? 0x997a5b32 : 0x664b6470);
-                canvas.drawRect(width - dp(140), controlsTop + dp(8), width - dp(104),
-                        controlsBottom - dp(8), panelPaint);
-                panelPaint.setColor(0x664b6470);
                 canvas.drawRect(width - dp(94), controlsTop + dp(8), width - dp(58),
                         controlsBottom - dp(8), panelPaint);
+                panelPaint.setColor(0x664b6470);
                 canvas.drawRect(width - dp(48), controlsTop + dp(8), width - dp(12),
                         controlsBottom - dp(8), panelPaint);
                 panelTextPaint.setColor(0xe6ffffff);
@@ -1752,10 +1725,9 @@ public final class MainActivity extends Activity {
                         controlsCenterY + dp(3), dp(4), dp(4), panelPaint);
                 canvas.drawCircle(sliderLeft + (sliderRight - sliderLeft) * densityRatio,
                         controlsCenterY, dp(8), panelPaint);
-                drawInputModeIcon(canvas, width - dp(122), controlsCenterY,
+                drawInputModeIcon(canvas, width - dp(76), controlsCenterY,
                         currentVirtualPackage == null || isCurrentAppTouchMode());
-                drawOrientationIcon(canvas, width - dp(76), controlsCenterY);
-                drawSearchIcon(canvas, width - dp(30), controlsCenterY);
+                drawOrientationIcon(canvas, width - dp(30), controlsCenterY);
 
                 float tileTop = quickPanelAppsTop();
                 float tileHeight = dp(58);
@@ -1859,16 +1831,6 @@ public final class MainActivity extends Activity {
             icon.setTint(0xe6ffffff);
             icon.draw(canvas);
             canvas.restoreToCount(save);
-        }
-
-        private void drawSearchIcon(Canvas canvas, float cx, float cy) {
-            panelPaint.setColor(0xe6ffffff);
-            panelPaint.setStyle(Paint.Style.STROKE);
-            panelPaint.setStrokeWidth(dp(2));
-            panelPaint.setStrokeCap(Paint.Cap.ROUND);
-            canvas.drawCircle(cx - dp(2), cy - dp(2), dp(7), panelPaint);
-            canvas.drawLine(cx + dp(3), cy + dp(3), cx + dp(9), cy + dp(9), panelPaint);
-            panelPaint.setStyle(Paint.Style.FILL);
         }
 
         private void showPointer() {
@@ -2167,196 +2129,6 @@ public final class MainActivity extends Activity {
                 .apply();
         status((touchMode ? "触摸模式" : "鼠标模式") + "已为当前应用单独保存");
         if (mousePointerView != null) mousePointerView.invalidate();
-    }
-
-    private void showVirtualAppSearch() {
-        if (presentation == null || presentationFrame == null || launcherByPackage.isEmpty()
-                || virtualAppSearchOverlay != null) return;
-        Context searchContext = presentation.getContext();
-        ArrayList<ResolveInfo> apps = new ArrayList<>();
-        for (ResolveInfo app : launcherByPackage.values()) {
-            if (!getPackageName().equals(app.activityInfo.packageName)) apps.add(app);
-        }
-        Collections.sort(apps, (a, b) -> getLauncherLabel(a).compareToIgnoreCase(getLauncherLabel(b)));
-
-        FrameLayout overlay = new FrameLayout(searchContext);
-        overlay.setBackgroundColor(0xa8000000);
-        overlay.setClickable(true);
-        overlay.setFocusableInTouchMode(true);
-        overlay.setPointerIcon(PointerIcon.getSystemIcon(searchContext, PointerIcon.TYPE_NULL));
-
-        LinearLayout contentView = new LinearLayout(searchContext);
-        contentView.setOrientation(LinearLayout.VERTICAL);
-        contentView.setPadding(dp(18), dp(10), dp(18), dp(14));
-        android.graphics.drawable.GradientDrawable panelBackground =
-                new android.graphics.drawable.GradientDrawable();
-        panelBackground.setColor(0xff242629);
-        panelBackground.setCornerRadius(dp(8));
-        contentView.setBackground(panelBackground);
-        FrameLayout.LayoutParams contentParams = new FrameLayout.LayoutParams(
-                Math.min(dp(720), Math.max(dp(280), getDisplayWidth(presentation.getDisplay()) - dp(40))),
-                Math.min(dp(760), Math.max(dp(240), getDisplayHeight(presentation.getDisplay()) - dp(40))),
-                Gravity.CENTER);
-        overlay.addView(contentView, contentParams);
-
-        LinearLayout header = new LinearLayout(searchContext);
-        header.setOrientation(LinearLayout.HORIZONTAL);
-        header.setGravity(Gravity.CENTER_VERTICAL);
-        TextView title = new TextView(searchContext);
-        title.setText("搜索应用");
-        title.setTextSize(18);
-        title.setTextColor(0xfff2f2f2);
-        title.setTypeface(null, android.graphics.Typeface.BOLD);
-        header.addView(title, new LinearLayout.LayoutParams(0, -1, 1f));
-        TextView closeButton = new TextView(searchContext);
-        closeButton.setText("×");
-        closeButton.setTextSize(28);
-        closeButton.setTextColor(0xfff2f2f2);
-        closeButton.setGravity(Gravity.CENTER);
-        header.addView(closeButton, new LinearLayout.LayoutParams(dp(48), -1));
-        closeButton.setOnClickListener(v -> closeVirtualAppSearch());
-        contentView.addView(header, new LinearLayout.LayoutParams(-1, dp(48)));
-
-        EditText queryField = new EditText(searchContext);
-        virtualAppSearchField = queryField;
-        queryField.setSingleLine(true);
-        queryField.setHint("搜索应用名称或包名");
-        queryField.setHintTextColor(0xffa8abb0);
-        queryField.setTextColor(0xffffffff);
-        queryField.setInputType(android.text.InputType.TYPE_CLASS_TEXT
-                | android.text.InputType.TYPE_TEXT_FLAG_AUTO_CORRECT);
-        queryField.setPadding(dp(12), 0, dp(12), 0);
-        android.graphics.drawable.GradientDrawable queryBackground =
-                new android.graphics.drawable.GradientDrawable();
-        queryBackground.setColor(0xff35383c);
-        queryBackground.setCornerRadius(dp(5));
-        queryField.setBackground(queryBackground);
-        LinearLayout.LayoutParams queryParams = new LinearLayout.LayoutParams(-1, dp(48));
-        queryParams.setMargins(0, dp(4), 0, dp(10));
-        contentView.addView(queryField, queryParams);
-
-        LinearLayout results = new LinearLayout(searchContext);
-        results.setOrientation(LinearLayout.VERTICAL);
-        ScrollView resultsScroll = new ScrollView(searchContext);
-        resultsScroll.setFillViewport(true);
-        resultsScroll.addView(results, new ScrollView.LayoutParams(-1, -2));
-        contentView.addView(resultsScroll, new LinearLayout.LayoutParams(-1, 0, 1f));
-
-        Runnable updateResults = () -> {
-            results.removeAllViews();
-            String filter = queryField.getText().toString().trim().toLowerCase(java.util.Locale.ROOT);
-            boolean found = false;
-            for (ResolveInfo app : apps) {
-                String packageName = app.activityInfo.packageName;
-                String label = getLauncherLabel(app);
-                if (!filter.isEmpty() && !label.toLowerCase(java.util.Locale.ROOT).contains(filter)
-                        && !packageName.toLowerCase(java.util.Locale.ROOT).contains(filter)) continue;
-                LinearLayout row = new LinearLayout(searchContext);
-                row.setOrientation(LinearLayout.HORIZONTAL);
-                row.setGravity(Gravity.CENTER_VERTICAL);
-                row.setPadding(dp(8), dp(4), dp(8), dp(4));
-                android.widget.ImageView icon = new android.widget.ImageView(searchContext);
-                icon.setImageDrawable(getLauncherIcon(app));
-                row.addView(icon, new LinearLayout.LayoutParams(dp(36), dp(36)));
-                TextView rowTitle = new TextView(searchContext);
-                rowTitle.setText(label);
-                rowTitle.setTextSize(14);
-                rowTitle.setTextColor(0xfff2f2f2);
-                rowTitle.setTypeface(null, android.graphics.Typeface.BOLD);
-                LinearLayout.LayoutParams titleParams = new LinearLayout.LayoutParams(0, -2, 1f);
-                titleParams.setMargins(dp(12), 0, 0, 0);
-                row.addView(rowTitle, titleParams);
-                row.setBackgroundResource(android.R.drawable.list_selector_background);
-                row.setOnClickListener(v -> {
-                    closeVirtualAppSearch();
-                    if (mousePointerView != null) mousePointerView.cancelTouchGesture();
-                    launchPackage(packageName, app.activityInfo.name);
-                });
-                results.addView(row, new LinearLayout.LayoutParams(-1, dp(48)));
-                found = true;
-            }
-            if (!found) {
-                TextView empty = new TextView(searchContext);
-                empty.setText("没有匹配的应用");
-                empty.setTextSize(13);
-                empty.setTextColor(0xfff2f2f2);
-                empty.setPadding(dp(12), dp(12), dp(12), dp(12));
-                results.addView(empty);
-            }
-        };
-        queryField.addTextChangedListener(new TextWatcher() {
-            @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) { }
-            @Override public void onTextChanged(CharSequence s, int start, int before, int count) { updateResults.run(); }
-            @Override public void afterTextChanged(Editable s) { }
-        });
-        updateResults.run();
-        overlay.setOnClickListener(v -> closeVirtualAppSearch());
-        overlay.setOnHoverListener((v, event) -> {
-            if (mousePointerView != null) mousePointerView.updatePointerWhileSearching(event);
-            return false;
-        });
-        overlay.setOnTouchListener((v, event) -> {
-            if (mousePointerView != null) mousePointerView.updatePointerWhileSearching(event);
-            return false;
-        });
-        contentView.setOnClickListener(v -> { });
-        virtualAppSearchOverlay = overlay;
-        presentationFrame.addView(overlay, new FrameLayout.LayoutParams(-1, -1));
-        presentationFrame.bringChildToFront(overlay);
-        if (presentation.getWindow() != null) {
-            presentation.getWindow().clearFlags(WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE);
-            presentation.getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_VISIBLE
-                    | WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);
-        }
-        overlay.requestFocus();
-        queryField.requestFocus();
-        queryField.postDelayed(() -> {
-            if (virtualAppSearchOverlay != overlay) return;
-            android.view.inputmethod.InputMethodManager inputMethod =
-                    (android.view.inputmethod.InputMethodManager)
-                            searchContext.getSystemService(INPUT_METHOD_SERVICE);
-            if (inputMethod != null) inputMethod.showSoftInput(queryField,
-                    android.view.inputmethod.InputMethodManager.SHOW_IMPLICIT);
-        }, 180);
-        Log.i(TAG, "showing app search inside existing presentation display="
-                + presentation.getDisplay().getDisplayId());
-    }
-
-    private void closeVirtualAppSearch() {
-        View overlay = virtualAppSearchOverlay;
-        if (overlay == null) return;
-        EditText field = virtualAppSearchField;
-        if (field != null) {
-            android.view.inputmethod.InputMethodManager inputMethod =
-                    (android.view.inputmethod.InputMethodManager) field.getContext()
-                            .getSystemService(INPUT_METHOD_SERVICE);
-            if (inputMethod != null) inputMethod.hideSoftInputFromWindow(field.getWindowToken(), 0);
-        }
-        if (presentationFrame != null && overlay.getParent() == presentationFrame) {
-            presentationFrame.removeView(overlay);
-        }
-        virtualAppSearchOverlay = null;
-        virtualAppSearchField = null;
-        if (presentation != null && presentation.getWindow() != null) {
-            presentation.getWindow().addFlags(WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE);
-            presentation.getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_STATE_UNCHANGED
-                    | WindowManager.LayoutParams.SOFT_INPUT_ADJUST_NOTHING);
-        }
-        if (mousePointerView != null) mousePointerView.hideQuickPanel();
-    }
-
-    private int getDisplayWidth(Display display) {
-        if (display == null) return dp(520);
-        android.util.DisplayMetrics metrics = new android.util.DisplayMetrics();
-        display.getRealMetrics(metrics);
-        return metrics.widthPixels;
-    }
-
-    private int getDisplayHeight(Display display) {
-        if (display == null) return dp(400);
-        android.util.DisplayMetrics metrics = new android.util.DisplayMetrics();
-        display.getRealMetrics(metrics);
-        return metrics.heightPixels;
     }
 
     private void launchPendingApp() {
