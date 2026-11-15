@@ -1,6 +1,7 @@
 package com.armyja.boxscreen;
 
 import android.app.Activity;
+import android.app.AlertDialog;
 import android.app.Presentation;
 import android.content.ComponentName;
 import android.content.Context;
@@ -120,7 +121,12 @@ public final class MainActivity extends Activity {
     private final ArrayList<String> recentAppPackages = new ArrayList<>();
     private String currentVirtualPackage;
     private Set<String> favoritePackages = new HashSet<>();
-    private Set<String> touchModePackages = new HashSet<>();
+    private Set<String> mouseModePackages = new HashSet<>();
+    private ArrayList<ResolveInfo> quickPanelAppCache;
+    private final java.util.HashMap<String, ResolveInfo> launcherByPackage = new java.util.HashMap<>();
+    private final java.util.HashMap<String, String> launcherLabelCache = new java.util.HashMap<>();
+    private final java.util.HashMap<String, android.graphics.drawable.Drawable> launcherIconCache = new java.util.HashMap<>();
+    private final java.util.HashMap<String, String> panelDisplayLabelCache = new java.util.HashMap<>();
     private boolean showSystemApps;
     private boolean editFavorites;
     private int appColumns;
@@ -201,7 +207,7 @@ public final class MainActivity extends Activity {
         showSystemApps = getPreferences(MODE_PRIVATE).getBoolean("show_system_apps", false);
         favoritePackages = new HashSet<>(getPreferences(MODE_PRIVATE).getStringSet("favorite_apps", Collections.emptySet()));
         android.content.SharedPreferences preferences = getPreferences(MODE_PRIVATE);
-        touchModePackages = new HashSet<>(preferences.getStringSet("touch_mode_apps", Collections.emptySet()));
+        mouseModePackages = new HashSet<>(preferences.getStringSet("mouse_mode_apps", Collections.emptySet()));
         String savedRecentApps = preferences.getString("recent_apps", "");
         if (!savedRecentApps.isEmpty()) {
             for (String packageName : savedRecentApps.split("\\n")) {
@@ -369,6 +375,8 @@ public final class MainActivity extends Activity {
         systemAppsSwitch.setOnCheckedChangeListener((button, checked) -> {
             showSystemApps = checked;
             getPreferences(MODE_PRIVATE).edit().putBoolean("show_system_apps", checked).apply();
+            quickPanelAppCache = null;
+            if (mousePointerView != null) mousePointerView.invalidate();
             rebuildAppsGrid();
         });
         appSearch = new EditText(this);
@@ -983,6 +991,7 @@ public final class MainActivity extends Activity {
         private final Handler handler = new Handler();
         private final Runnable hidePointer = () -> {
             pointerVisible = false;
+            lastHideRescheduleAt = 0;
             invalidate();
         };
         private final Paint pointerPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -1000,6 +1009,7 @@ public final class MainActivity extends Activity {
         private boolean preservePointerPositionWhenRebasing;
         private boolean touchGestureActive;
         private long touchGestureDownTime;
+        private long lastHideRescheduleAt;
         private boolean pointerVisible;
         private boolean forwarding;
         private boolean statusBarVisible;
@@ -1010,6 +1020,8 @@ public final class MainActivity extends Activity {
         private boolean panelDragOpened;
         private float panelDownY;
         private int panelPressedControl;
+        private String cachedStatusBarLabel;
+        private long statusBarLabelUpdatedAt;
 
         private final Runnable revealStatusBar = () -> {
             if (forwarding && pointerY <= statusBarRevealZone()) {
@@ -1036,6 +1048,7 @@ public final class MainActivity extends Activity {
         private static final int PANEL_DPI_SLIDER = 6;
         private static final int PANEL_ORIENTATION = 7;
         private static final int PANEL_INPUT_MODE = 8;
+        private static final int PANEL_SEARCH = 9;
 
         MousePointerView(Context context) {
             super(context);
@@ -1066,6 +1079,7 @@ public final class MainActivity extends Activity {
             if (!enabled) cancelTouchGesture();
             forwarding = enabled;
             pointerVisible = false;
+            lastHideRescheduleAt = 0;
             statusBarVisible = false;
             quickPanelVisible = false;
             pointerOutside = false;
@@ -1129,11 +1143,13 @@ public final class MainActivity extends Activity {
                     pointerOutside = false;
                     handler.removeCallbacks(hidePointer);
                     pointerVisible = true;
+                    lastHideRescheduleAt = 0;
                     Log.i(TAG, "preserving pointer at portrait left edge rawX=" + event.getRawX());
                     invalidate();
                 } else {
                     handler.removeCallbacks(hidePointer);
                     pointerVisible = false;
+                    lastHideRescheduleAt = 0;
                     invalidate();
                 }
             } else if (isCurrentAppTouchMode()) {
@@ -1288,7 +1304,7 @@ public final class MainActivity extends Activity {
 
         private float dpiSliderLeft() { return dp(118); }
 
-        private float dpiSliderRight() { return Math.max(dpiSliderLeft() + 1, getWidth() - dp(240)); }
+        private float dpiSliderRight() { return Math.max(dpiSliderLeft() + 1, getWidth() - dp(152)); }
 
         private void updateStatusBarDwell() {
             if (!forwarding) return;
@@ -1404,8 +1420,9 @@ public final class MainActivity extends Activity {
             float controlsTop = barHeight + dp(8);
             float controlsBottom = barHeight + dp(64);
             if (y >= controlsTop && y <= controlsBottom) {
-                if (x >= getWidth() - dp(124)) return PANEL_ORIENTATION;
-                if (x >= getWidth() - dp(224)) return PANEL_INPUT_MODE;
+                if (x >= getWidth() - dp(48)) return PANEL_SEARCH;
+                if (x >= getWidth() - dp(94)) return PANEL_ORIENTATION;
+                if (x >= getWidth() - dp(140)) return PANEL_INPUT_MODE;
                 if (x >= dpiSliderLeft() && x <= dpiSliderRight()) return PANEL_DPI_SLIDER;
                 return PANEL_NONE;
             }
@@ -1434,6 +1451,7 @@ public final class MainActivity extends Activity {
             else if (control == PANEL_DPI_SLIDER) setDensityFromPointer(x, true);
             else if (control == PANEL_ORIENTATION) setPortraitMode(!portraitMode);
             else if (control == PANEL_INPUT_MODE) toggleCurrentInputMode();
+            else if (control == PANEL_SEARCH) showVirtualAppSearch();
             else if (control == PANEL_APPS) {
                 quickPanelVisible = true;
                 statusBarVisible = true;
@@ -1519,23 +1537,25 @@ public final class MainActivity extends Activity {
         }
 
         private String statusBarLabel() {
+            long now = android.os.SystemClock.uptimeMillis();
+            if (cachedStatusBarLabel != null && now - statusBarLabelUpdatedAt < 1000) {
+                return cachedStatusBarLabel;
+            }
             String time = new SimpleDateFormat("HH:mm", java.util.Locale.getDefault()).format(new Date());
             BatteryManager battery = (BatteryManager) getSystemService(BATTERY_SERVICE);
             int percent = battery == null ? -1
                     : battery.getIntProperty(BatteryManager.BATTERY_PROPERTY_CAPACITY);
-            return percent < 0 ? time : time + "   " + percent + "%";
+            cachedStatusBarLabel = percent < 0 ? time : time + "   " + percent + "%";
+            statusBarLabelUpdatedAt = now;
+            return cachedStatusBarLabel;
         }
 
         private ArrayList<ResolveInfo> recentStatusApps() {
             ArrayList<ResolveInfo> apps = new ArrayList<>();
             for (String packageName : recentAppPackages) {
                 if (packageName.equals(currentVirtualPackage)) continue;
-                for (ResolveInfo app : appEntries) {
-                    if (packageName.equals(app.activityInfo.packageName)) {
-                        apps.add(app);
-                        break;
-                    }
-                }
+                ResolveInfo app = launcherByPackage.get(packageName);
+                if (app != null) apps.add(app);
                 if (apps.size() >= 3) break;
             }
             return apps;
@@ -1584,21 +1604,19 @@ public final class MainActivity extends Activity {
         }
 
         private ArrayList<ResolveInfo> quickPanelApps() {
+            if (quickPanelAppCache != null) return quickPanelAppCache;
             ArrayList<ResolveInfo> candidates = new ArrayList<>();
-            java.util.HashMap<String, ResolveInfo> byPackage = new java.util.HashMap<>();
-            for (ResolveInfo app : appEntries) {
+            for (ResolveInfo app : launcherByPackage.values()) {
                 String packageName = app.activityInfo.packageName;
-                if (packageName.equals(getPackageName()) || byPackage.containsKey(packageName)) continue;
+                if (packageName.equals(getPackageName())) continue;
                 int flags = app.activityInfo.applicationInfo.flags;
                 boolean system = (flags & (android.content.pm.ApplicationInfo.FLAG_SYSTEM
                         | android.content.pm.ApplicationInfo.FLAG_UPDATED_SYSTEM_APP)) != 0;
                 if (system && !showSystemApps) continue;
-                byPackage.put(packageName, app);
                 candidates.add(app);
             }
             java.util.Comparator<ResolveInfo> byLabel = (a, b) ->
-                    String.valueOf(a.loadLabel(getPackageManager()))
-                            .compareToIgnoreCase(String.valueOf(b.loadLabel(getPackageManager())));
+                    launcherLabel(a).compareToIgnoreCase(launcherLabel(b));
             ArrayList<ResolveInfo> ordered = new ArrayList<>();
             HashSet<String> added = new HashSet<>();
             ArrayList<ResolveInfo> favorites = new ArrayList<>();
@@ -1611,15 +1629,41 @@ public final class MainActivity extends Activity {
                 added.add(app.activityInfo.packageName);
             }
             for (String packageName : recentAppPackages) {
-                ResolveInfo app = byPackage.get(packageName);
+                ResolveInfo app = launcherByPackage.get(packageName);
+                if (app != null && !showSystemApps) {
+                    int flags = app.activityInfo.applicationInfo.flags;
+                    if ((flags & (android.content.pm.ApplicationInfo.FLAG_SYSTEM
+                            | android.content.pm.ApplicationInfo.FLAG_UPDATED_SYSTEM_APP)) != 0) app = null;
+                }
                 if (app != null && added.add(packageName)) ordered.add(app);
             }
             Collections.sort(candidates, byLabel);
             for (ResolveInfo app : candidates) {
                 if (added.add(app.activityInfo.packageName)) ordered.add(app);
             }
-            if (ordered.size() > 12) return new ArrayList<>(ordered.subList(0, 12));
-            return ordered;
+            quickPanelAppCache = ordered.size() > 12
+                    ? new ArrayList<>(ordered.subList(0, 12)) : ordered;
+            return quickPanelAppCache;
+        }
+
+        private String launcherLabel(ResolveInfo app) {
+            return getLauncherLabel(app);
+        }
+
+        private android.graphics.drawable.Drawable launcherIcon(ResolveInfo app) {
+            return getLauncherIcon(app);
+        }
+
+        private String panelDisplayLabel(ResolveInfo app, float width) {
+            String key = app.activityInfo.packageName + ":" + Math.round(width);
+            String label = panelDisplayLabelCache.get(key);
+            if (label == null) {
+                label = android.text.TextUtils.ellipsize(launcherLabel(app),
+                        new android.text.TextPaint(panelTextPaint), width - dp(16),
+                        android.text.TextUtils.TruncateAt.END).toString();
+                panelDisplayLabelCache.put(key, label);
+            }
+            return label;
         }
 
         private void launchQuickPanelApp(int index) {
@@ -1646,11 +1690,16 @@ public final class MainActivity extends Activity {
                 float controlsBottom = barHeight + dp(64);
                 float controlsCenterY = barHeight + dp(36);
                 panelPaint.setColor(0x6630343d);
-                canvas.drawRect(width - dp(224), controlsTop + dp(4), width - dp(16),
+                canvas.drawRect(width - dp(140), controlsTop + dp(4), width - dp(8),
                         controlsBottom - dp(4), panelPaint);
-                panelPaint.setColor(currentVirtualPackage != null && isCurrentAppTouchMode()
+                panelPaint.setColor(currentVirtualPackage == null || isCurrentAppTouchMode()
                         ? 0x997a5b32 : 0x664b6470);
-                canvas.drawRect(width - dp(216), controlsTop + dp(8), width - dp(124),
+                canvas.drawRect(width - dp(140), controlsTop + dp(8), width - dp(104),
+                        controlsBottom - dp(8), panelPaint);
+                panelPaint.setColor(0x664b6470);
+                canvas.drawRect(width - dp(94), controlsTop + dp(8), width - dp(58),
+                        controlsBottom - dp(8), panelPaint);
+                canvas.drawRect(width - dp(48), controlsTop + dp(8), width - dp(12),
                         controlsBottom - dp(8), panelPaint);
                 panelTextPaint.setColor(0xe6ffffff);
                 panelTextPaint.setTextSize(dp(14));
@@ -1668,13 +1717,10 @@ public final class MainActivity extends Activity {
                         controlsCenterY + dp(3), dp(4), dp(4), panelPaint);
                 canvas.drawCircle(sliderLeft + (sliderRight - sliderLeft) * densityRatio,
                         controlsCenterY, dp(8), panelPaint);
-                panelTextPaint.setTextAlign(Paint.Align.CENTER);
-                panelTextPaint.setTextSize(dp(13));
-                String inputModeLabel = currentVirtualPackage == null ? "无应用"
-                        : (isCurrentAppTouchMode() ? "触摸 ✓" : "鼠标 ✓");
-                canvas.drawText(inputModeLabel, width - dp(170), controlsCenterY + dp(5), panelTextPaint);
-                canvas.drawText(portraitMode ? "切换横屏" : "切换竖屏", width - dp(70),
-                        controlsCenterY + dp(5), panelTextPaint);
+                drawInputModeIcon(canvas, width - dp(122), controlsCenterY,
+                        currentVirtualPackage == null || isCurrentAppTouchMode());
+                drawOrientationIcon(canvas, width - dp(76), controlsCenterY);
+                drawSearchIcon(canvas, width - dp(30), controlsCenterY);
 
                 float tileTop = quickPanelAppsTop();
                 float tileHeight = dp(58);
@@ -1692,10 +1738,7 @@ public final class MainActivity extends Activity {
                     float left = horizontalPadding + column * (tileWidth + tileGap);
                     float top = tileTop + row * (tileHeight + gap);
                     canvas.drawRect(left, top, left + tileWidth, top + tileHeight, panelPaint);
-                    String label = String.valueOf(apps.get(i).loadLabel(getPackageManager()));
-                    canvas.drawText(android.text.TextUtils.ellipsize(label,
-                                    new android.text.TextPaint(panelTextPaint), tileWidth - dp(16),
-                                    android.text.TextUtils.TruncateAt.END).toString(),
+                    canvas.drawText(panelDisplayLabel(apps.get(i), tileWidth),
                             left + tileWidth / 2f, top + tileHeight / 2f + dp(5), panelTextPaint);
                 }
             }
@@ -1731,7 +1774,7 @@ public final class MainActivity extends Activity {
                     canvas.drawRoundRect(left + dp(5), top, left + dp(37), top + dp(32),
                             dp(7), dp(7), panelPaint);
                     try {
-                        android.graphics.drawable.Drawable icon = layout.apps.get(i).loadIcon(getPackageManager());
+                        android.graphics.drawable.Drawable icon = launcherIcon(layout.apps.get(i));
                         canvas.save();
                         canvas.clipRect(left + dp(7), top + dp(2), left + dp(35), top + dp(30));
                         icon.setBounds((int) (left + dp(7)), (int) (top + dp(2)),
@@ -1750,12 +1793,80 @@ public final class MainActivity extends Activity {
             }
         }
 
+        private void drawInputModeIcon(Canvas canvas, float cx, float cy, boolean touchMode) {
+            panelPaint.setColor(0xe6ffffff);
+            panelPaint.setStyle(Paint.Style.STROKE);
+            panelPaint.setStrokeWidth(dp(2));
+            panelPaint.setStrokeCap(Paint.Cap.ROUND);
+            panelPaint.setStrokeJoin(Paint.Join.ROUND);
+            if (touchMode) {
+                Path hand = new Path();
+                hand.moveTo(cx - dp(7), cy + dp(10));
+                hand.lineTo(cx - dp(7), cy + dp(2));
+                hand.quadTo(cx - dp(7), cy - dp(1), cx - dp(4), cy - dp(1));
+                hand.lineTo(cx - dp(3), cy + dp(1));
+                hand.lineTo(cx - dp(3), cy - dp(9));
+                hand.quadTo(cx - dp(3), cy - dp(12), cx, cy - dp(12));
+                hand.quadTo(cx + dp(3), cy - dp(12), cx + dp(3), cy - dp(9));
+                hand.lineTo(cx + dp(3), cy - dp(1));
+                hand.lineTo(cx + dp(6), cy + dp(1));
+                hand.quadTo(cx + dp(9), cy + dp(4), cx + dp(7), cy + dp(8));
+                hand.lineTo(cx + dp(5), cy + dp(11));
+                hand.close();
+                canvas.drawPath(hand, panelPaint);
+            } else {
+                canvas.drawRoundRect(cx - dp(8), cy - dp(12), cx + dp(8), cy + dp(12),
+                        dp(7), dp(7), panelPaint);
+                canvas.drawLine(cx, cy - dp(11), cx, cy - dp(4), panelPaint);
+                canvas.drawLine(cx, cy - dp(9), cx, cy - dp(6), panelPaint);
+            }
+            panelPaint.setStyle(Paint.Style.FILL);
+        }
+
+        private void drawOrientationIcon(Canvas canvas, float cx, float cy) {
+            panelPaint.setColor(0xe6ffffff);
+            panelPaint.setStyle(Paint.Style.STROKE);
+            panelPaint.setStrokeWidth(dp(2));
+            panelPaint.setStrokeCap(Paint.Cap.ROUND);
+            android.graphics.RectF arc = new android.graphics.RectF(cx - dp(11), cy - dp(11),
+                    cx + dp(11), cy + dp(11));
+            canvas.drawArc(arc, 35f, 285f, false, panelPaint);
+            panelPaint.setStyle(Paint.Style.FILL);
+            Path arrow = new Path();
+            arrow.moveTo(cx + dp(5), cy - dp(11));
+            arrow.lineTo(cx + dp(12), cy - dp(10));
+            arrow.lineTo(cx + dp(9), cy - dp(4));
+            arrow.close();
+            canvas.drawPath(arrow, panelPaint);
+        }
+
+        private void drawSearchIcon(Canvas canvas, float cx, float cy) {
+            panelPaint.setColor(0xe6ffffff);
+            panelPaint.setStyle(Paint.Style.STROKE);
+            panelPaint.setStrokeWidth(dp(2));
+            panelPaint.setStrokeCap(Paint.Cap.ROUND);
+            canvas.drawCircle(cx - dp(2), cy - dp(2), dp(7), panelPaint);
+            canvas.drawLine(cx + dp(3), cy + dp(3), cx + dp(9), cy + dp(9), panelPaint);
+            panelPaint.setStyle(Paint.Style.FILL);
+        }
+
         private void showPointer() {
+            boolean wasVisible = pointerVisible;
             pointerX = virtualPointerX;
             pointerY = virtualPointerY;
             pointerVisible = true;
-            handler.removeCallbacks(hidePointer);
-            handler.postDelayed(hidePointer, 1800);
+            long now = android.os.SystemClock.uptimeMillis();
+            if (!wasVisible || now - lastHideRescheduleAt >= 250) {
+                handler.removeCallbacks(hidePointer);
+                handler.postDelayed(hidePointer, 1800);
+                lastHideRescheduleAt = now;
+            }
+            invalidate();
+        }
+
+        void hideQuickPanel() {
+            quickPanelVisible = false;
+            statusBarVisible = false;
             invalidate();
         }
 
@@ -1806,6 +1917,7 @@ public final class MainActivity extends Activity {
         void hidePointer() {
             handler.removeCallbacks(hidePointer);
             pointerVisible = false;
+            lastHideRescheduleAt = 0;
             invalidate();
         }
 
@@ -1849,8 +1961,38 @@ public final class MainActivity extends Activity {
     private void refreshLaunchableApps() {
         Intent launcher = new Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER);
         appEntries = getPackageManager().queryIntentActivities(launcher, 0);
+        launcherByPackage.clear();
+        launcherLabelCache.clear();
+        launcherIconCache.clear();
+        panelDisplayLabelCache.clear();
+        quickPanelAppCache = null;
+        for (ResolveInfo app : appEntries) {
+            if (app.activityInfo != null) {
+                launcherByPackage.putIfAbsent(app.activityInfo.packageName, app);
+            }
+        }
         if (appGrid != null) rebuildAppsGrid();
         if (mousePointerView != null) mousePointerView.invalidate();
+    }
+
+    private String getLauncherLabel(ResolveInfo app) {
+        String packageName = app.activityInfo.packageName;
+        String label = launcherLabelCache.get(packageName);
+        if (label == null) {
+            label = String.valueOf(app.loadLabel(getPackageManager()));
+            launcherLabelCache.put(packageName, label);
+        }
+        return label;
+    }
+
+    private android.graphics.drawable.Drawable getLauncherIcon(ResolveInfo app) {
+        String packageName = app.activityInfo.packageName;
+        android.graphics.drawable.Drawable icon = launcherIconCache.get(packageName);
+        if (icon == null) {
+            icon = app.loadIcon(getPackageManager());
+            launcherIconCache.put(packageName, icon);
+        }
+        return icon;
     }
 
     private void scheduleAppGridUpdate(int widthPx) {
@@ -1945,6 +2087,7 @@ public final class MainActivity extends Activity {
             favorite.setOnCheckedChangeListener((button, checked) -> {
                 if (checked) favoritePackages.add(packageName); else favoritePackages.remove(packageName);
                 getPreferences(MODE_PRIVATE).edit().putStringSet("favorite_apps", new HashSet<>(favoritePackages)).apply();
+                quickPanelAppCache = null;
                 if (mousePointerView != null) mousePointerView.invalidate();
             });
         }
@@ -1967,6 +2110,7 @@ public final class MainActivity extends Activity {
             recentAppPackages.remove(packageName);
             recentAppPackages.add(0, packageName);
             while (recentAppPackages.size() > 8) recentAppPackages.remove(recentAppPackages.size() - 1);
+            quickPanelAppCache = null;
             getPreferences(MODE_PRIVATE).edit()
                     .putString("recent_apps", android.text.TextUtils.join("\n", recentAppPackages))
                     .apply();
@@ -1980,7 +2124,7 @@ public final class MainActivity extends Activity {
     }
 
     private boolean isCurrentAppTouchMode() {
-        return currentVirtualPackage != null && touchModePackages.contains(currentVirtualPackage);
+        return currentVirtualPackage != null && !mouseModePackages.contains(currentVirtualPackage);
     }
 
     private void toggleCurrentInputMode() {
@@ -1990,18 +2134,124 @@ public final class MainActivity extends Activity {
         }
         if (mousePointerView != null) mousePointerView.cancelTouchGesture();
         boolean touchMode;
-        if (touchModePackages.contains(currentVirtualPackage)) {
-            touchModePackages.remove(currentVirtualPackage);
+        if (isCurrentAppTouchMode()) {
+            mouseModePackages.add(currentVirtualPackage);
             touchMode = false;
         } else {
-            touchModePackages.add(currentVirtualPackage);
+            mouseModePackages.remove(currentVirtualPackage);
             touchMode = true;
         }
         getPreferences(MODE_PRIVATE).edit()
-                .putStringSet("touch_mode_apps", new HashSet<>(touchModePackages))
+                .putStringSet("mouse_mode_apps", new HashSet<>(mouseModePackages))
                 .apply();
         status((touchMode ? "触摸模式" : "鼠标模式") + "已为当前应用单独保存");
         if (mousePointerView != null) mousePointerView.invalidate();
+    }
+
+    private void showVirtualAppSearch() {
+        if (presentation == null || launcherByPackage.isEmpty()) return;
+        Context searchContext = presentation.getContext();
+        ArrayList<ResolveInfo> apps = new ArrayList<>();
+        for (ResolveInfo app : launcherByPackage.values()) {
+            if (!getPackageName().equals(app.activityInfo.packageName)) apps.add(app);
+        }
+        Collections.sort(apps, (a, b) -> getLauncherLabel(a).compareToIgnoreCase(getLauncherLabel(b)));
+
+        LinearLayout contentView = new LinearLayout(searchContext);
+        contentView.setOrientation(LinearLayout.VERTICAL);
+        contentView.setPadding(dp(18), dp(4), dp(18), dp(4));
+        EditText queryField = new EditText(searchContext);
+        queryField.setSingleLine(true);
+        queryField.setHint("搜索应用名称或包名");
+        queryField.setInputType(android.text.InputType.TYPE_CLASS_TEXT
+                | android.text.InputType.TYPE_TEXT_FLAG_AUTO_CORRECT);
+        contentView.addView(queryField, new LinearLayout.LayoutParams(-1, dp(48)));
+        LinearLayout results = new LinearLayout(searchContext);
+        results.setOrientation(LinearLayout.VERTICAL);
+        ScrollView resultsScroll = new ScrollView(searchContext);
+        resultsScroll.setFillViewport(true);
+        resultsScroll.addView(results, new ScrollView.LayoutParams(-1, -2));
+        contentView.addView(resultsScroll, new LinearLayout.LayoutParams(-1, 0, 1f));
+
+        AlertDialog dialog = new AlertDialog.Builder(searchContext)
+                .setTitle("搜索应用")
+                .setView(contentView)
+                .setNegativeButton("关闭", null)
+                .create();
+        Runnable updateResults = () -> {
+            results.removeAllViews();
+            String filter = queryField.getText().toString().trim().toLowerCase(java.util.Locale.ROOT);
+            int count = 0;
+            for (ResolveInfo app : apps) {
+                String packageName = app.activityInfo.packageName;
+                String label = getLauncherLabel(app);
+                if (!filter.isEmpty() && !label.toLowerCase(java.util.Locale.ROOT).contains(filter)
+                        && !packageName.toLowerCase(java.util.Locale.ROOT).contains(filter)) continue;
+                LinearLayout row = new LinearLayout(searchContext);
+                row.setOrientation(LinearLayout.HORIZONTAL);
+                row.setGravity(Gravity.CENTER_VERTICAL);
+                row.setPadding(dp(8), dp(4), dp(8), dp(4));
+                android.widget.ImageView icon = new android.widget.ImageView(searchContext);
+                icon.setImageDrawable(getLauncherIcon(app));
+                row.addView(icon, new LinearLayout.LayoutParams(dp(36), dp(36)));
+                TextView title = new TextView(searchContext);
+                title.setText(label);
+                title.setTextSize(14);
+                title.setTextColor(0xfff2f2f2);
+                title.setTypeface(null, android.graphics.Typeface.BOLD);
+                LinearLayout.LayoutParams titleParams = new LinearLayout.LayoutParams(0, -2, 1f);
+                titleParams.setMargins(dp(12), 0, 0, 0);
+                row.addView(title, titleParams);
+                row.setBackgroundResource(android.R.drawable.list_selector_background);
+                row.setOnClickListener(v -> {
+                    dialog.dismiss();
+                    if (mousePointerView != null) mousePointerView.cancelTouchGesture();
+                    launchPackage(packageName, app.activityInfo.name);
+                });
+                results.addView(row, new LinearLayout.LayoutParams(-1, dp(48)));
+                count++;
+            }
+            if (count == 0) {
+                TextView empty = new TextView(searchContext);
+                empty.setText("没有匹配的应用");
+                empty.setTextSize(13);
+                empty.setTextColor(0xfff2f2f2);
+                empty.setPadding(dp(12), dp(12), dp(12), dp(12));
+                results.addView(empty);
+            }
+        };
+        queryField.addTextChangedListener(new TextWatcher() {
+            @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) { }
+            @Override public void onTextChanged(CharSequence s, int start, int before, int count) { updateResults.run(); }
+            @Override public void afterTextChanged(Editable s) { }
+        });
+        updateResults.run();
+        dialog.setOnShowListener(ignored -> {
+            android.view.Window window = dialog.getWindow();
+            if (window != null) {
+                window.setLayout(getWidthForSearchDialog(), -1);
+                window.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_VISIBLE
+                        | WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);
+            }
+            queryField.requestFocus();
+            queryField.postDelayed(() -> {
+                android.view.inputmethod.InputMethodManager inputMethod =
+                        (android.view.inputmethod.InputMethodManager) getSystemService(INPUT_METHOD_SERVICE);
+                if (inputMethod != null) inputMethod.showSoftInput(queryField,
+                        android.view.inputmethod.InputMethodManager.SHOW_IMPLICIT);
+            }, 180);
+        });
+        dialog.setOnDismissListener(ignored -> {
+            if (mousePointerView != null) mousePointerView.hideQuickPanel();
+        });
+        dialog.show();
+    }
+
+    private int getWidthForSearchDialog() {
+        if (presentation == null || presentation.getWindow() == null) return dp(520);
+        android.util.DisplayMetrics metrics = new android.util.DisplayMetrics();
+        presentation.getDisplay().getRealMetrics(metrics);
+        return Math.min(metrics.widthPixels - dp(40), dp(680));
     }
 
     private void launchPendingApp() {
