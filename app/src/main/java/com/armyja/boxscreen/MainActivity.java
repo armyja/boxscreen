@@ -252,6 +252,14 @@ public final class MainActivity extends Activity {
         if (monitorView != null) updateMonitorLabel();
         if (refreshExternalDisplayGeometry()) resizeVirtualDisplay();
         updateOutputLayout();
+        if (appGrid != null) {
+            GridLayout grid = appGrid;
+            grid.post(() -> {
+                if (appGrid != grid || grid.getWidth() <= 0) return;
+                updateAppGridColumns(grid.getWidth());
+                rebuildAppsGrid();
+            });
+        }
         Log.i(TAG, "phone configuration changed orientation=" + newConfig.orientation
                 + " virtualDisplay=" + virtualDisplayId);
     }
