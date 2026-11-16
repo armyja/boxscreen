@@ -4,7 +4,7 @@ import android.view.Surface;
 import android.view.MotionEvent;
 
 interface IDisplayService {
-    int createDisplay(String name, int width, int height, int densityDpi, in Surface surface);
+    int createDisplay(String name, int width, int height, int densityDpi, in Surface surface, boolean blockPointerCapture);
     void setDisplaySurface(in Surface surface);
     void resizeDisplay(int width, int height, int densityDpi);
     void resizeDisplaySize(int width, int height, int densityDpi);

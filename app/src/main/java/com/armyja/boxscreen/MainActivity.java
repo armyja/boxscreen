@@ -92,6 +92,7 @@ public final class MainActivity extends Activity {
     private int portraitDensityDpi = 250;
     private boolean densityInitialized;
     private int virtualDisplayId = -1;
+    private boolean captureBlockedDisplay;
     private int transitionFramesRemaining;
     private int displayRecoveryAttempts;
     private boolean portraitMode;
@@ -424,7 +425,7 @@ public final class MainActivity extends Activity {
                     new ComponentName(getPackageName(), PrivilegedDisplayService.class.getName()))
                     .daemon(false)
                     .processNameSuffix("display")
-                    .version(2);
+                    .version(3);
             Shizuku.bindUserService(shizukuServiceArgs, shizukuServiceConnection);
             status("正在连接 Shizuku 主机服务…");
         } catch (RuntimeException e) {
@@ -523,8 +524,11 @@ public final class MainActivity extends Activity {
             Log.i(TAG, "create buffer=" + width + "x" + height + " dpi=" + densityDpi);
             Surface surface = new Surface(texture);
             try {
+                boolean blockCapture = pendingLaunchPackage == null ? captureBlockedDisplay
+                        : "com.netease.uuremote".equals(pendingLaunchPackage);
                 virtualDisplayId = displayService.createDisplay("BoxScreen", width, height,
-                        densityDpi, surface);
+                        densityDpi, surface, blockCapture);
+                captureBlockedDisplay = blockCapture;
             } finally {
                 surface.release();
             }
@@ -851,6 +855,7 @@ public final class MainActivity extends Activity {
             try { displayService.releaseDisplay(); } catch (RemoteException ignored) { }
         }
         virtualDisplayId = -1;
+        captureBlockedDisplay = false;
         if (presentation != null) {
             presentation.dismiss();
             presentation = null;
@@ -2082,6 +2087,25 @@ public final class MainActivity extends Activity {
             pendingLaunchPackage = packageName;
             pendingLaunchActivity = activityName;
             requestShizukuAndStart();
+            return;
+        }
+        boolean needsCaptureBlocked = "com.netease.uuremote".equals(packageName);
+        if (captureBlockedDisplay != needsCaptureBlocked) {
+            pendingLaunchPackage = packageName;
+            pendingLaunchActivity = activityName;
+            if (outputSurface == null || !outputSurface.isAvailable()) {
+                status("外接屏画面尚未准备好，无法切换虚拟屏");
+                return;
+            }
+            try {
+                if (mousePointerView != null) mousePointerView.cancelTouchGesture();
+                displayService.releaseDisplay();
+                virtualDisplayId = -1;
+                createVirtualDisplay(outputSurface.getSurfaceTexture());
+            } catch (RemoteException | RuntimeException e) {
+                Log.e(TAG, "switch virtual display failed", e);
+                status("切换虚拟屏失败：" + e.getMessage());
+            }
             return;
         }
         try {

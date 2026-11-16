@@ -73,7 +73,8 @@ public final class PrivilegedDisplayService extends IDisplayService.Stub {
     }
 
     @Override
-    public int createDisplay(String name, int width, int height, int densityDpi, Surface surface) {
+    public int createDisplay(String name, int width, int height, int densityDpi, Surface surface,
+            boolean blockPointerCapture) {
         if (width < 1 || height < 1 || densityDpi < 1 || surface == null || !surface.isValid()) {
             throw new IllegalArgumentException("Invalid display dimensions or surface");
         }
@@ -84,8 +85,10 @@ public final class PrivilegedDisplayService extends IDisplayService.Stub {
                 | (1 << 10); // VIRTUAL_DISPLAY_FLAG_TRUSTED
         try {
             outputSurface = surface;
-            virtualDisplay = createCaptureIneligibleDisplay(name, width, height, densityDpi,
-                    outputSurface, flags);
+            virtualDisplay = blockPointerCapture
+                    ? createCaptureIneligibleDisplay(name, width, height, densityDpi, outputSurface, flags)
+                    : createShellDisplayManager().createVirtualDisplay(name, width, height,
+                            densityDpi, outputSurface, flags);
             if (virtualDisplay == null || virtualDisplay.getDisplay() == null) {
                 throw new IllegalStateException("Android did not create the virtual display");
             }
