@@ -362,6 +362,7 @@ public final class MainActivity extends Activity {
             @Override public void onStartTrackingTouch(SeekBar bar) { }
             @Override public void onStopTrackingTouch(SeekBar bar) {
                 densityResizeHandler.removeCallbacks(applyPendingDensity);
+                if (mousePointerView != null) mousePointerView.applyPanelDensity();
                 resizeVirtualDisplay();
             }
         });
@@ -848,6 +849,7 @@ public final class MainActivity extends Activity {
         }
         portraitMode = portrait;
         densityDpi = portraitMode ? portraitDensityDpi : landscapeDensityDpi;
+        if (mousePointerView != null) mousePointerView.applyPanelDensity();
         syncPrimaryDensityForPackage(currentVirtualPackage);
         if (densityView != null) densityView.setText("虚拟屏 DPI：" + densityDpi);
         if (densitySlider != null) densitySlider.setProgress((densityDpi - 140) / 10);
@@ -1021,6 +1023,7 @@ public final class MainActivity extends Activity {
         private final Paint outlinePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
         private final Paint panelPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
         private final Paint panelTextPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        private int panelDensityDpi = densityDpi;
         private final Path pointerShape = new Path();
         private float pointerX;
         private float pointerY;
@@ -1317,31 +1320,42 @@ public final class MainActivity extends Activity {
                     + snapPointerToRawPositionWhenRebasing);
         }
 
-        private float statusBarHeight() { return dp(48); }
-        private float statusBarRevealZone() { return dp(3); }
+        private int panelDp(int value) {
+            return Math.round(value * panelDensityDpi / 160f);
+        }
+
+        void applyPanelDensity() {
+            if (panelDensityDpi == densityDpi) return;
+            panelDensityDpi = densityDpi;
+            panelDisplayLabelCache.clear();
+            invalidate();
+        }
+
+        private float statusBarHeight() { return panelDp(48); }
+        private float statusBarRevealZone() { return panelDp(3); }
 
         private float quickPanelHeight() {
             int appCount = quickPanelApps().size();
             int columns = quickPanelColumnCount(appCount);
             int rows = (appCount + columns - 1) / columns;
-            float contentHeight = dp(120) + rows * dp(58)
-                    + Math.max(0, rows - 1) * dp(8) + dp(12);
+            float contentHeight = panelDp(120) + rows * panelDp(58)
+                    + Math.max(0, rows - 1) * panelDp(8) + panelDp(12);
             return Math.min(Math.max(0, getHeight() - statusBarHeight()), contentHeight);
         }
 
         private int quickPanelColumnCount(int appCount) {
             if (appCount <= 0) return 1;
-            float availableWidth = getWidth() - dp(32);
-            float gap = dp(8);
-            int columnsByWidth = Math.max(1, (int) ((availableWidth + gap) / (dp(128) + gap)));
+            float availableWidth = getWidth() - panelDp(32);
+            float gap = panelDp(8);
+            int columnsByWidth = Math.max(1, (int) ((availableWidth + gap) / (panelDp(128) + gap)));
             return Math.min(appCount, columnsByWidth);
         }
 
-        private float quickPanelAppsTop() { return statusBarHeight() + dp(120); }
+        private float quickPanelAppsTop() { return statusBarHeight() + panelDp(120); }
 
-        private float dpiSliderLeft() { return dp(118); }
+        private float dpiSliderLeft() { return panelDp(118); }
 
-        private float dpiSliderRight() { return Math.max(dpiSliderLeft() + 1, getWidth() - dp(106)); }
+        private float dpiSliderRight() { return Math.max(dpiSliderLeft() + 1, getWidth() - panelDp(106)); }
 
         private void updateStatusBarDwell() {
             if (!forwarding) return;
@@ -1412,7 +1426,7 @@ public final class MainActivity extends Activity {
             }
             if (!panelPointerDown) return false;
             if (action == MotionEvent.ACTION_MOVE) {
-                if (panelDragFromBar && y - panelDownY >= dp(56)) {
+                if (panelDragFromBar && y - panelDownY >= panelDp(56)) {
                     panelDragOpened = true;
                     quickPanelVisible = true;
                     statusBarVisible = true;
@@ -1427,7 +1441,7 @@ public final class MainActivity extends Activity {
                     Log.i(TAG, "DPI slider up x=" + x + " y=" + y + " dpi=" + densityDpi);
                     setDensityFromPointer(x, true);
                 }
-                if (panelDragFromBar && y - panelDownY >= dp(56)) {
+                if (panelDragFromBar && y - panelDownY >= panelDp(56)) {
                     quickPanelVisible = true;
                     statusBarVisible = true;
                 } else if (!panelDragOpened && panelPressedControl != PANEL_DPI_SLIDER) {
@@ -1454,24 +1468,24 @@ public final class MainActivity extends Activity {
             float barHeight = statusBarHeight();
             if (y <= barHeight) return hitStatusBarControl(x);
             if (!quickPanelVisible || y > barHeight + quickPanelHeight()) return PANEL_NONE;
-            float controlsTop = barHeight + dp(8);
-            float controlsBottom = barHeight + dp(64);
+            float controlsTop = barHeight + panelDp(8);
+            float controlsBottom = barHeight + panelDp(64);
             if (y >= controlsTop && y <= controlsBottom) {
-                if (x >= getWidth() - dp(48)) return PANEL_ORIENTATION;
-                if (x >= getWidth() - dp(94)) return PANEL_INPUT_MODE;
+                if (x >= getWidth() - panelDp(48)) return PANEL_ORIENTATION;
+                if (x >= getWidth() - panelDp(94)) return PANEL_INPUT_MODE;
                 if (x >= dpiSliderLeft() && x <= dpiSliderRight()) return PANEL_DPI_SLIDER;
                 return PANEL_NONE;
             }
-            if (y >= barHeight + dp(70) && y < barHeight + dp(112)) return PANEL_DENSITY_COMPAT;
+            if (y >= barHeight + panelDp(70) && y < barHeight + panelDp(112)) return PANEL_DENSITY_COMPAT;
             float appsTop = quickPanelAppsTop();
-            float tileHeight = dp(58);
-            float gap = dp(8);
+            float tileHeight = panelDp(58);
+            float gap = panelDp(8);
             if (y >= appsTop) {
                 int row = (int) ((y - appsTop) / (tileHeight + gap));
                 ArrayList<ResolveInfo> apps = quickPanelApps();
                 int columns = quickPanelColumnCount(apps.size());
-                float horizontalPadding = dp(16);
-                float tileGap = dp(8);
+                float horizontalPadding = panelDp(16);
+                float tileGap = panelDp(8);
                 float tileWidth = (width - horizontalPadding * 2f - tileGap * (columns - 1)) / columns;
                 float offsetX = x - horizontalPadding;
                 if (offsetX < 0 || tileWidth <= 0) return PANEL_NONE;
@@ -1537,6 +1551,7 @@ public final class MainActivity extends Activity {
             if (selectedDensity != densityDpi) updateDensitySetting(selectedDensity, true);
             if (finished) {
                 densityResizeHandler.removeCallbacks(applyPendingDensity);
+                applyPanelDensity();
                 syncPrimaryDensityForPackage(currentVirtualPackage);
                 refreshVirtualDisplayAfterDensityCommit();
             }
@@ -1563,14 +1578,14 @@ public final class MainActivity extends Activity {
         }
 
         private StatusBarLayout statusBarLayout() {
-            panelTextPaint.setTextSize(dp(15));
+            panelTextPaint.setTextSize(panelDp(15));
             String label = statusBarLabel();
             ArrayList<ResolveInfo> apps = recentStatusApps();
             float width = getWidth();
-            float closeLeft = width - dp(44);
-            float appsLeft = closeLeft - dp(8) - apps.size() * dp(42);
-            float sliderLeft = dp(16) + panelTextPaint.measureText(label) + dp(14);
-            float sliderRight = Math.min(sliderLeft + dp(150), appsLeft - dp(12));
+            float closeLeft = width - panelDp(44);
+            float appsLeft = closeLeft - panelDp(8) - apps.size() * panelDp(42);
+            float sliderLeft = panelDp(16) + panelTextPaint.measureText(label) + panelDp(14);
+            float sliderRight = Math.min(sliderLeft + panelDp(150), appsLeft - panelDp(12));
             return new StatusBarLayout(label, apps, sliderLeft, sliderRight, appsLeft, closeLeft);
         }
 
@@ -1602,9 +1617,9 @@ public final class MainActivity extends Activity {
         private int hitStatusBarControl(float x) {
             StatusBarLayout layout = statusBarLayout();
             if (x >= layout.closeLeft) return PANEL_CLOSE_APP;
-            float appsRight = layout.closeLeft - dp(8);
+            float appsRight = layout.closeLeft - panelDp(8);
             if (x >= layout.appsLeft && x < appsRight) {
-                int index = (int) ((x - layout.appsLeft) / dp(42));
+                int index = (int) ((x - layout.appsLeft) / panelDp(42));
                 if (index >= 0 && index < layout.apps.size()) return PANEL_RECENT_APP_BASE + index;
             }
             if (x >= layout.sliderLeft && x <= layout.sliderRight) return PANEL_VOLUME_SLIDER;
@@ -1698,7 +1713,7 @@ public final class MainActivity extends Activity {
             String label = panelDisplayLabelCache.get(key);
             if (label == null) {
                 label = android.text.TextUtils.ellipsize(launcherLabel(app),
-                        new android.text.TextPaint(panelTextPaint), width - dp(16),
+                        new android.text.TextPaint(panelTextPaint), width - panelDp(16),
                         android.text.TextUtils.TruncateAt.END).toString();
                 panelDisplayLabelCache.put(key, label);
             }
@@ -1725,62 +1740,62 @@ public final class MainActivity extends Activity {
                 canvas.drawRect(0, 0, width, bottom, panelPaint);
 
                 ArrayList<ResolveInfo> apps = quickPanelApps();
-                float controlsTop = barHeight + dp(8);
-                float controlsBottom = barHeight + dp(64);
-                float controlsCenterY = barHeight + dp(36);
+                float controlsTop = barHeight + panelDp(8);
+                float controlsBottom = barHeight + panelDp(64);
+                float controlsCenterY = barHeight + panelDp(36);
                 panelPaint.setColor(0x6630343d);
-                canvas.drawRect(width - dp(94), controlsTop + dp(4), width - dp(8),
-                        controlsBottom - dp(4), panelPaint);
+                canvas.drawRect(width - panelDp(94), controlsTop + panelDp(4), width - panelDp(8),
+                        controlsBottom - panelDp(4), panelPaint);
                 panelPaint.setColor(currentVirtualPackage == null || isCurrentAppTouchMode()
                         ? 0x997a5b32 : 0x664b6470);
-                canvas.drawRect(width - dp(94), controlsTop + dp(8), width - dp(58),
-                        controlsBottom - dp(8), panelPaint);
+                canvas.drawRect(width - panelDp(94), controlsTop + panelDp(8), width - panelDp(58),
+                        controlsBottom - panelDp(8), panelPaint);
                 panelPaint.setColor(0x664b6470);
-                canvas.drawRect(width - dp(48), controlsTop + dp(8), width - dp(12),
-                        controlsBottom - dp(8), panelPaint);
+                canvas.drawRect(width - panelDp(48), controlsTop + panelDp(8), width - panelDp(12),
+                        controlsBottom - panelDp(8), panelPaint);
                 panelTextPaint.setColor(0xe6ffffff);
-                panelTextPaint.setTextSize(dp(14));
+                panelTextPaint.setTextSize(panelDp(14));
                 panelTextPaint.setTextAlign(Paint.Align.LEFT);
-                canvas.drawText("DPI " + densityDpi, dp(16), controlsCenterY + dp(5), panelTextPaint);
+                canvas.drawText("DPI " + densityDpi, panelDp(16), controlsCenterY + panelDp(5), panelTextPaint);
                 float sliderLeft = dpiSliderLeft();
                 float sliderRight = dpiSliderRight();
                 float densityRatio = (densityDpi - 140) / 460f;
                 panelPaint.setColor(0x9977808d);
-                canvas.drawRoundRect(sliderLeft, controlsCenterY - dp(3), sliderRight,
-                        controlsCenterY + dp(3), dp(4), dp(4), panelPaint);
+                canvas.drawRoundRect(sliderLeft, controlsCenterY - panelDp(3), sliderRight,
+                        controlsCenterY + panelDp(3), panelDp(4), panelDp(4), panelPaint);
                 panelPaint.setColor(0xdd80cbc4);
-                canvas.drawRoundRect(sliderLeft, controlsCenterY - dp(3),
+                canvas.drawRoundRect(sliderLeft, controlsCenterY - panelDp(3),
                         sliderLeft + (sliderRight - sliderLeft) * densityRatio,
-                        controlsCenterY + dp(3), dp(4), dp(4), panelPaint);
+                        controlsCenterY + panelDp(3), panelDp(4), panelDp(4), panelPaint);
                 canvas.drawCircle(sliderLeft + (sliderRight - sliderLeft) * densityRatio,
-                        controlsCenterY, dp(8), panelPaint);
-                drawInputModeIcon(canvas, width - dp(76), controlsCenterY,
+                        controlsCenterY, panelDp(8), panelPaint);
+                drawInputModeIcon(canvas, width - panelDp(76), controlsCenterY,
                         currentVirtualPackage == null || isCurrentAppTouchMode());
-                drawOrientationIcon(canvas, width - dp(30), controlsCenterY);
+                drawOrientationIcon(canvas, width - panelDp(30), controlsCenterY);
 
-                float compatY = barHeight + dp(91);
+                float compatY = barHeight + panelDp(91);
                 boolean compat = currentVirtualPackage != null && densityCompatPackages.contains(currentVirtualPackage);
-                panelTextPaint.setTextSize(dp(13));
+                panelTextPaint.setTextSize(panelDp(13));
                 panelTextPaint.setTextAlign(Paint.Align.LEFT);
                 panelTextPaint.setColor(0xe6ffffff);
-                canvas.drawText("主屏 DPI 同步 · 当前应用", dp(16), compatY - dp(2), panelTextPaint);
-                panelTextPaint.setTextSize(dp(10));
+                canvas.drawText("主屏 DPI 同步 · 当前应用", panelDp(16), compatY - panelDp(2), panelTextPaint);
+                panelTextPaint.setTextSize(panelDp(10));
                 panelTextPaint.setColor(0xaaffffff);
-                canvas.drawText("手机主屏显示大小会变化", dp(16), compatY + dp(12), panelTextPaint);
+                canvas.drawText("手机主屏显示大小会变化", panelDp(16), compatY + panelDp(12), panelTextPaint);
                 panelPaint.setColor(compat ? 0xcc80cbc4 : 0x9977808d);
-                canvas.drawRoundRect(width - dp(55), compatY - dp(10), width - dp(15), compatY + dp(10), dp(10), dp(10), panelPaint);
+                canvas.drawRoundRect(width - panelDp(55), compatY - panelDp(10), width - panelDp(15), compatY + panelDp(10), panelDp(10), panelDp(10), panelPaint);
                 panelPaint.setColor(0xffeeeeee);
-                canvas.drawCircle(width - (compat ? dp(25) : dp(45)), compatY, dp(7), panelPaint);
+                canvas.drawCircle(width - (compat ? panelDp(25) : panelDp(45)), compatY, panelDp(7), panelPaint);
 
                 float tileTop = quickPanelAppsTop();
-                float tileHeight = dp(58);
-                float gap = dp(8);
-                float horizontalPadding = dp(16);
-                float tileGap = dp(8);
+                float tileHeight = panelDp(58);
+                float gap = panelDp(8);
+                float horizontalPadding = panelDp(16);
+                float tileGap = panelDp(8);
                 int columns = quickPanelColumnCount(apps.size());
                 float tileWidth = (width - horizontalPadding * 2f - tileGap * (columns - 1)) / columns;
                 panelPaint.setColor(0x9930343d);
-                panelTextPaint.setTextSize(dp(14));
+                panelTextPaint.setTextSize(panelDp(14));
                 panelTextPaint.setTextAlign(Paint.Align.CENTER);
                 for (int i = 0; i < apps.size(); i++) {
                     int row = i / columns;
@@ -1789,7 +1804,7 @@ public final class MainActivity extends Activity {
                     float top = tileTop + row * (tileHeight + gap);
                     canvas.drawRect(left, top, left + tileWidth, top + tileHeight, panelPaint);
                     canvas.drawText(panelDisplayLabel(apps.get(i), tileWidth),
-                            left + tileWidth / 2f, top + tileHeight / 2f + dp(5), panelTextPaint);
+                            left + tileWidth / 2f, top + tileHeight / 2f + panelDp(5), panelTextPaint);
                 }
             }
 
@@ -1800,68 +1815,68 @@ public final class MainActivity extends Activity {
             if (statusBarVisible) {
                 StatusBarLayout layout = statusBarLayout();
                 panelTextPaint.setTextAlign(Paint.Align.LEFT);
-                panelTextPaint.setTextSize(dp(15));
-                canvas.drawText(layout.label, dp(16), barHeight * 0.66f, panelTextPaint);
+                panelTextPaint.setTextSize(panelDp(15));
+                canvas.drawText(layout.label, panelDp(16), barHeight * 0.66f, panelTextPaint);
                 AudioManager audio = (AudioManager) getSystemService(AUDIO_SERVICE);
                 if (audio != null && layout.sliderRight > layout.sliderLeft) {
                     float center = barHeight / 2f;
                     float ratio = audio.getStreamVolume(AudioManager.STREAM_MUSIC)
                             / (float) Math.max(1, audio.getStreamMaxVolume(AudioManager.STREAM_MUSIC));
                     panelPaint.setColor(0xb877808d);
-                    canvas.drawRoundRect(layout.sliderLeft, center - dp(3), layout.sliderRight,
-                            center + dp(3), dp(4), dp(4), panelPaint);
+                    canvas.drawRoundRect(layout.sliderLeft, center - panelDp(3), layout.sliderRight,
+                            center + panelDp(3), panelDp(4), panelDp(4), panelPaint);
                     panelPaint.setColor(0xdd80cbc4);
-                    canvas.drawRoundRect(layout.sliderLeft, center - dp(3),
+                    canvas.drawRoundRect(layout.sliderLeft, center - panelDp(3),
                             layout.sliderLeft + (layout.sliderRight - layout.sliderLeft) * ratio,
-                            center + dp(3), dp(4), dp(4), panelPaint);
+                            center + panelDp(3), panelDp(4), panelDp(4), panelPaint);
                     canvas.drawCircle(layout.sliderLeft + (layout.sliderRight - layout.sliderLeft) * ratio,
-                            center, dp(8), panelPaint);
+                            center, panelDp(8), panelPaint);
                 }
                 for (int i = 0; i < layout.apps.size(); i++) {
-                    float left = layout.appsLeft + i * dp(42);
-                    float top = (barHeight - dp(32)) / 2f;
+                    float left = layout.appsLeft + i * panelDp(42);
+                    float top = (barHeight - panelDp(32)) / 2f;
                     panelPaint.setColor(0x665f6875);
-                    canvas.drawRoundRect(left + dp(5), top, left + dp(37), top + dp(32),
-                            dp(7), dp(7), panelPaint);
+                    canvas.drawRoundRect(left + panelDp(5), top, left + panelDp(37), top + panelDp(32),
+                            panelDp(7), panelDp(7), panelPaint);
                     try {
                         android.graphics.drawable.Drawable icon = launcherIcon(layout.apps.get(i));
                         canvas.save();
-                        canvas.clipRect(left + dp(7), top + dp(2), left + dp(35), top + dp(30));
-                        icon.setBounds((int) (left + dp(7)), (int) (top + dp(2)),
-                                (int) (left + dp(35)), (int) (top + dp(30)));
+                        canvas.clipRect(left + panelDp(7), top + panelDp(2), left + panelDp(35), top + panelDp(30));
+                        icon.setBounds((int) (left + panelDp(7)), (int) (top + panelDp(2)),
+                                (int) (left + panelDp(35)), (int) (top + panelDp(30)));
                         icon.draw(canvas);
                         canvas.restore();
                     } catch (RuntimeException ignored) { }
                 }
-                float closeCenterX = layout.closeLeft + dp(22);
+                float closeCenterX = layout.closeLeft + panelDp(22);
                 float closeCenterY = barHeight / 2f;
                 panelPaint.setColor(0x885f6875);
-                canvas.drawCircle(closeCenterX, closeCenterY, dp(15), panelPaint);
+                canvas.drawCircle(closeCenterX, closeCenterY, panelDp(15), panelPaint);
                 panelTextPaint.setTextAlign(Paint.Align.CENTER);
-                panelTextPaint.setTextSize(dp(22));
-                canvas.drawText("×", closeCenterX, closeCenterY + dp(8), panelTextPaint);
+                panelTextPaint.setTextSize(panelDp(22));
+                canvas.drawText("×", closeCenterX, closeCenterY + panelDp(8), panelTextPaint);
             }
         }
 
         private void drawInputModeIcon(Canvas canvas, float cx, float cy, boolean touchMode) {
             if (touchMode) {
-                drawPanelVectorIcon(canvas, R.drawable.ic_touch_app, cx, cy, dp(27));
+                drawPanelVectorIcon(canvas, R.drawable.ic_touch_app, cx, cy, panelDp(27));
             } else {
                 panelPaint.setColor(0xe6ffffff);
                 panelPaint.setStyle(Paint.Style.STROKE);
-                panelPaint.setStrokeWidth(dp(2));
+                panelPaint.setStrokeWidth(panelDp(2));
                 panelPaint.setStrokeCap(Paint.Cap.ROUND);
                 panelPaint.setStrokeJoin(Paint.Join.ROUND);
-                canvas.drawRoundRect(cx - dp(8), cy - dp(12), cx + dp(8), cy + dp(12),
-                        dp(7), dp(7), panelPaint);
-                canvas.drawLine(cx, cy - dp(11), cx, cy - dp(4), panelPaint);
-                canvas.drawLine(cx, cy - dp(9), cx, cy - dp(6), panelPaint);
+                canvas.drawRoundRect(cx - panelDp(8), cy - panelDp(12), cx + panelDp(8), cy + panelDp(12),
+                        panelDp(7), panelDp(7), panelPaint);
+                canvas.drawLine(cx, cy - panelDp(11), cx, cy - panelDp(4), panelPaint);
+                canvas.drawLine(cx, cy - panelDp(9), cx, cy - panelDp(6), panelPaint);
             }
             panelPaint.setStyle(Paint.Style.FILL);
         }
 
         private void drawOrientationIcon(Canvas canvas, float cx, float cy) {
-            drawPanelVectorIcon(canvas, R.drawable.ic_screen_orientation, cx, cy, dp(28));
+            drawPanelVectorIcon(canvas, R.drawable.ic_screen_orientation, cx, cy, panelDp(28));
         }
 
         private void drawPanelVectorIcon(Canvas canvas, int resourceId, float cx, float cy, float size) {
