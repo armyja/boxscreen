@@ -541,6 +541,15 @@ public final class PrivilegedDisplayService extends IDisplayService.Stub {
         }
     }
 
+    @Override public String getPrimaryDensity() {
+        return run(new String[]{"/system/bin/wm", "density", "-d", "0"});
+    }
+
+    @Override public void setPrimaryDensity(int dpi) {
+        if (dpi != 0 && (dpi < 72 || dpi > 10000)) throw new IllegalArgumentException("Invalid density");
+        run(new String[]{"/system/bin/wm", "density", dpi == 0 ? "reset" : Integer.toString(dpi), "-d", "0"});
+    }
+
     private static String run(String[] args) {
         Process process = null;
         try {

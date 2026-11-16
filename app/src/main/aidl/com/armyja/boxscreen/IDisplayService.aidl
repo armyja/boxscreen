@@ -14,4 +14,6 @@ interface IDisplayService {
     boolean closeTopTaskOnVirtualDisplay();
     boolean setMouseDisplay(String inputDescriptor, int displayId);
     boolean injectInputEvent(in MotionEvent event, int displayId);
+    String getPrimaryDensity();
+    void setPrimaryDensity(int dpi);
 }

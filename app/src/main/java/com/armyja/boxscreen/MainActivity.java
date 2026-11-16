@@ -122,6 +122,7 @@ public final class MainActivity extends Activity {
     private String currentVirtualPackage;
     private Set<String> favoritePackages = new HashSet<>();
     private Set<String> mouseModePackages = new HashSet<>();
+    private Set<String> densityCompatPackages = new HashSet<>();
     private ArrayList<ResolveInfo> quickPanelAppCache;
     private final java.util.HashMap<String, ResolveInfo> launcherByPackage = new java.util.HashMap<>();
     private final java.util.HashMap<String, String> launcherLabelCache = new java.util.HashMap<>();
@@ -142,6 +143,7 @@ public final class MainActivity extends Activity {
     private final ServiceConnection shizukuServiceConnection = new ServiceConnection() {
         @Override public void onServiceConnected(ComponentName name, IBinder binder) {
             displayService = IDisplayService.Stub.asInterface(binder);
+            if (virtualDisplayId < 0) restorePrimaryDensity();
             status("Shizuku 主机服务已连接");
             if (startPending) {
                 startPending = false;
@@ -208,6 +210,7 @@ public final class MainActivity extends Activity {
         favoritePackages = new HashSet<>(getPreferences(MODE_PRIVATE).getStringSet("favorite_apps", Collections.emptySet()));
         android.content.SharedPreferences preferences = getPreferences(MODE_PRIVATE);
         mouseModePackages = new HashSet<>(preferences.getStringSet("mouse_mode_apps", Collections.emptySet()));
+        densityCompatPackages = new HashSet<>(preferences.getStringSet("density_compat_apps", Collections.emptySet()));
         String savedRecentApps = preferences.getString("recent_apps", "");
         if (!savedRecentApps.isEmpty()) {
             for (String packageName : savedRecentApps.split("\\n")) {
@@ -230,6 +233,10 @@ public final class MainActivity extends Activity {
                 || (savedLandscapeDensity >= 140 && savedLandscapeDensity <= 600)
                 || (savedPortraitDensity >= 140 && savedPortraitDensity <= 600);
         showRoleScreen();
+        if (preferences.getBoolean("primary_density_restore_pending", false)
+                && Shizuku.pingBinder() && Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED) {
+            bindShizukuService();
+        }
     }
 
     @Override protected void onResume() {
@@ -250,6 +257,7 @@ public final class MainActivity extends Activity {
     }
 
     @Override protected void onDestroy() {
+        restorePrimaryDensity();
         densityResizeHandler.removeCallbacks(applyPendingDensity);
         displayRecoveryHandler.removeCallbacks(recoverExternalDisplay);
         if (displayService != null && virtualDisplayId >= 0) {
@@ -425,7 +433,7 @@ public final class MainActivity extends Activity {
                     new ComponentName(getPackageName(), PrivilegedDisplayService.class.getName()))
                     .daemon(false)
                     .processNameSuffix("display")
-                    .version(3);
+                    .version(4);
             Shizuku.bindUserService(shizukuServiceArgs, shizukuServiceConnection);
             status("正在连接 Shizuku 主机服务…");
         } catch (RuntimeException e) {
@@ -653,6 +661,7 @@ public final class MainActivity extends Activity {
     }
 
     private void resizeVirtualDisplayForDensity() {
+        syncPrimaryDensityForPackage(currentVirtualPackage);
         resizeVirtualDisplay(false);
     }
 
@@ -831,6 +840,7 @@ public final class MainActivity extends Activity {
         }
         portraitMode = portrait;
         densityDpi = portraitMode ? portraitDensityDpi : landscapeDensityDpi;
+        syncPrimaryDensityForPackage(currentVirtualPackage);
         if (densityView != null) densityView.setText("虚拟屏 DPI：" + densityDpi);
         if (densitySlider != null) densitySlider.setProgress((densityDpi - 140) / 10);
         updateDensityStatus();
@@ -841,6 +851,7 @@ public final class MainActivity extends Activity {
     }
 
     private void stopOutput() {
+        restorePrimaryDensity();
         Log.i(TAG, "stop displayId=" + virtualDisplayId);
         densityRefreshGeneration++;
         reconnectOutputAfterDisplayChange = false;
@@ -1053,6 +1064,7 @@ public final class MainActivity extends Activity {
         private static final int PANEL_DPI_SLIDER = 6;
         private static final int PANEL_ORIENTATION = 7;
         private static final int PANEL_INPUT_MODE = 8;
+        private static final int PANEL_DENSITY_COMPAT = 9;
 
         MousePointerView(Context context) {
             super(context);
@@ -1304,7 +1316,7 @@ public final class MainActivity extends Activity {
             int appCount = quickPanelApps().size();
             int columns = quickPanelColumnCount(appCount);
             int rows = (appCount + columns - 1) / columns;
-            float contentHeight = dp(76) + rows * dp(58)
+            float contentHeight = dp(120) + rows * dp(58)
                     + Math.max(0, rows - 1) * dp(8) + dp(12);
             return Math.min(Math.max(0, getHeight() - statusBarHeight()), contentHeight);
         }
@@ -1317,7 +1329,7 @@ public final class MainActivity extends Activity {
             return Math.min(appCount, columnsByWidth);
         }
 
-        private float quickPanelAppsTop() { return statusBarHeight() + dp(76); }
+        private float quickPanelAppsTop() { return statusBarHeight() + dp(120); }
 
         private float dpiSliderLeft() { return dp(118); }
 
@@ -1442,6 +1454,7 @@ public final class MainActivity extends Activity {
                 if (x >= dpiSliderLeft() && x <= dpiSliderRight()) return PANEL_DPI_SLIDER;
                 return PANEL_NONE;
             }
+            if (y >= barHeight + dp(70) && y < barHeight + dp(112)) return PANEL_DENSITY_COMPAT;
             float appsTop = quickPanelAppsTop();
             float tileHeight = dp(58);
             float gap = dp(8);
@@ -1467,6 +1480,7 @@ public final class MainActivity extends Activity {
             else if (control == PANEL_DPI_SLIDER) setDensityFromPointer(x, true);
             else if (control == PANEL_ORIENTATION) setPortraitMode(!portraitMode);
             else if (control == PANEL_INPUT_MODE) toggleCurrentInputMode();
+            else if (control == PANEL_DENSITY_COMPAT) toggleDensityCompat();
             else if (control == PANEL_APPS) {
                 quickPanelVisible = true;
                 statusBarVisible = true;
@@ -1515,6 +1529,7 @@ public final class MainActivity extends Activity {
             if (selectedDensity != densityDpi) updateDensitySetting(selectedDensity, true);
             if (finished) {
                 densityResizeHandler.removeCallbacks(applyPendingDensity);
+                syncPrimaryDensityForPackage(currentVirtualPackage);
                 refreshVirtualDisplayAfterDensityCommit();
             }
             invalidate();
@@ -1605,6 +1620,7 @@ public final class MainActivity extends Activity {
                 Log.i(TAG, "close foreground virtual display task result=" + removed
                         + " package=" + currentVirtualPackage);
                 if (removed) {
+                    restorePrimaryDensity();
                     currentVirtualPackage = null;
                     quickPanelVisible = false;
                     statusBarVisible = false;
@@ -1733,6 +1749,20 @@ public final class MainActivity extends Activity {
                 drawInputModeIcon(canvas, width - dp(76), controlsCenterY,
                         currentVirtualPackage == null || isCurrentAppTouchMode());
                 drawOrientationIcon(canvas, width - dp(30), controlsCenterY);
+
+                float compatY = barHeight + dp(91);
+                boolean compat = currentVirtualPackage != null && densityCompatPackages.contains(currentVirtualPackage);
+                panelTextPaint.setTextSize(dp(13));
+                panelTextPaint.setTextAlign(Paint.Align.LEFT);
+                panelTextPaint.setColor(0xe6ffffff);
+                canvas.drawText("主屏 DPI 同步 · 当前应用", dp(16), compatY - dp(2), panelTextPaint);
+                panelTextPaint.setTextSize(dp(10));
+                panelTextPaint.setColor(0xaaffffff);
+                canvas.drawText("手机主屏显示大小会变化", dp(16), compatY + dp(12), panelTextPaint);
+                panelPaint.setColor(compat ? 0xcc80cbc4 : 0x9977808d);
+                canvas.drawRoundRect(width - dp(55), compatY - dp(10), width - dp(15), compatY + dp(10), dp(10), dp(10), panelPaint);
+                panelPaint.setColor(0xffeeeeee);
+                canvas.drawCircle(width - (compat ? dp(25) : dp(45)), compatY, dp(7), panelPaint);
 
                 float tileTop = quickPanelAppsTop();
                 float tileHeight = dp(58);
@@ -2110,6 +2140,7 @@ public final class MainActivity extends Activity {
         }
         try {
             if (mousePointerView != null) mousePointerView.cancelTouchGesture();
+            if (!syncPrimaryDensityForPackage(packageName)) return;
             autoEnableMouseIfAvailable();
             Log.i(TAG, "launch=" + packageName + "/" + activityName + " display=" + virtualDisplayId);
             displayService.launchActivity(packageName, activityName);
@@ -2132,6 +2163,67 @@ public final class MainActivity extends Activity {
 
     private boolean isCurrentAppTouchMode() {
         return currentVirtualPackage != null && !mouseModePackages.contains(currentVirtualPackage);
+    }
+
+    private boolean restorePrimaryDensity() {
+        android.content.SharedPreferences prefs = getPreferences(MODE_PRIVATE);
+        if (!prefs.getBoolean("primary_density_restore_pending", false)) return true;
+        if (displayService == null) return false;
+        try {
+            displayService.setPrimaryDensity(prefs.getInt("primary_density_original_override", 0));
+            prefs.edit().remove("primary_density_restore_pending")
+                    .remove("primary_density_original_override").remove("primary_density_applied").commit();
+            Log.i(TAG, "restored primary display density");
+            return true;
+        } catch (Exception e) {
+            Log.e(TAG, "failed to restore primary display density", e);
+            status("恢复主屏 DPI 失败，请确认 Shizuku 已连接");
+            return false;
+        }
+    }
+
+    private boolean syncPrimaryDensityForPackage(String packageName) {
+        if (packageName == null || !densityCompatPackages.contains(packageName)) return restorePrimaryDensity();
+        if (displayService == null) return false;
+        android.content.SharedPreferences prefs = getPreferences(MODE_PRIVATE);
+        try {
+            if (!prefs.getBoolean("primary_density_restore_pending", false)) {
+                String output = displayService.getPrimaryDensity();
+                if (!output.contains("Physical density:")) {
+                    throw new IllegalStateException("无法读取主屏 DPI");
+                }
+                java.util.regex.Matcher matcher = java.util.regex.Pattern.compile("Override density:\\s*(\\d+)").matcher(output);
+                int originalOverride = matcher.find() ? Integer.parseInt(matcher.group(1)) : 0;
+                if (!prefs.edit().putInt("primary_density_original_override", originalOverride)
+                        .putBoolean("primary_density_restore_pending", true).commit()) {
+                    throw new IllegalStateException("无法保存主屏 DPI 恢复信息");
+                }
+            }
+            if (prefs.getInt("primary_density_applied", -1) != densityDpi) {
+                displayService.setPrimaryDensity(densityDpi);
+                prefs.edit().putInt("primary_density_applied", densityDpi).commit();
+            }
+            return true;
+        } catch (Exception e) {
+            Log.e(TAG, "failed to synchronize primary display density", e);
+            status("同步主屏 DPI 失败：" + e.getMessage());
+            return false;
+        }
+    }
+
+    private void toggleDensityCompat() {
+        if (currentVirtualPackage == null) {
+            status("先打开应用，再设置主屏 DPI 同步");
+            return;
+        }
+        boolean enabled = !densityCompatPackages.contains(currentVirtualPackage);
+        if (enabled) densityCompatPackages.add(currentVirtualPackage);
+        else densityCompatPackages.remove(currentVirtualPackage);
+        getPreferences(MODE_PRIVATE).edit().putStringSet("density_compat_apps",
+                new HashSet<>(densityCompatPackages)).apply();
+        if (syncPrimaryDensityForPackage(currentVirtualPackage)) {
+            status(enabled ? "已为当前应用同步主屏 DPI，手机显示大小会变化" : "已关闭当前应用的主屏 DPI 同步");
+        }
     }
 
     private void toggleCurrentInputMode() {
