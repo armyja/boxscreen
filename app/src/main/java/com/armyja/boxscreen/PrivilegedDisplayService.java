@@ -5,6 +5,7 @@ import android.content.Context;
 import android.content.ContextWrapper;
 import android.hardware.display.DisplayManager;
 import android.hardware.display.VirtualDisplay;
+import android.hardware.display.VirtualDisplayConfig;
 import android.hardware.input.InputManager;
 import android.os.Parcel;
 import android.os.RemoteException;
@@ -23,6 +24,9 @@ import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.Executor;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.io.ByteArrayOutputStream;
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
@@ -38,17 +42,34 @@ public final class PrivilegedDisplayService extends IDisplayService.Stub {
 
     private final Context baseContext;
     private VirtualDisplay virtualDisplay;
+    private Object virtualDevice;
+    private static final String ASSOCIATION_MAC = "02:42:4f:58:53:02";
+    private static final String ASSOCIATION_PROFILE = "android.app.role.COMPANION_DEVICE_APP_STREAMING";
+    private int associationId = -1;
     private Surface outputSurface;
     private String mouseAssociationDescriptor;
     private WindowManager imeWindowManager;
     private int imePolicyDisplayId = -1;
     private int previousDisplayImePolicy = -1;
     public PrivilegedDisplayService(Context context) {
+        useShellIdentity();
         baseContext = context;
     }
 
     public PrivilegedDisplayService() {
+        useShellIdentity();
         baseContext = null;
+    }
+
+    private static void useShellIdentity() {
+        if (android.os.Process.myUid() != 0) return;
+        try {
+            android.system.Os.setgid(2000);
+            android.system.Os.setuid(2000);
+            Log.i("BoxScreenService", "user service switched to shell uid=" + android.os.Process.myUid());
+        } catch (android.system.ErrnoException e) {
+            throw new IllegalStateException("Cannot switch display service to shell identity", e);
+        }
     }
 
     @Override
@@ -57,27 +78,18 @@ public final class PrivilegedDisplayService extends IDisplayService.Stub {
             throw new IllegalArgumentException("Invalid display dimensions or surface");
         }
         releaseDisplay();
-        DisplayManager manager;
-        try {
-            manager = createShellDisplayManager();
-        } catch (ReflectiveOperationException | RuntimeException e) {
-            Log.e("BoxScreenService", "failed to construct shell-identity DisplayManager", e);
-            throw new IllegalStateException("Cannot construct shell-identity DisplayManager: "
-                    + describeFailure(e), e);
-        }
-
         int flags = DisplayManager.VIRTUAL_DISPLAY_FLAG_PUBLIC
                 | DisplayManager.VIRTUAL_DISPLAY_FLAG_PRESENTATION
                 | DisplayManager.VIRTUAL_DISPLAY_FLAG_OWN_CONTENT_ONLY
                 | (1 << 10); // VIRTUAL_DISPLAY_FLAG_TRUSTED
         try {
             outputSurface = surface;
-            virtualDisplay = manager.createVirtualDisplay(name, width, height, densityDpi,
+            virtualDisplay = createCaptureIneligibleDisplay(name, width, height, densityDpi,
                     outputSurface, flags);
             if (virtualDisplay == null || virtualDisplay.getDisplay() == null) {
                 throw new IllegalStateException("Android did not create the virtual display");
             }
-        } catch (RuntimeException e) {
+        } catch (ReflectiveOperationException | RuntimeException e) {
             Log.e("BoxScreenService", "failed to create virtual display", e);
             cleanupPartialDisplay(e);
             throw new IllegalStateException("Cannot create virtual display: "
@@ -97,6 +109,50 @@ public final class PrivilegedDisplayService extends IDisplayService.Stub {
         }
     }
 
+    private VirtualDisplay createCaptureIneligibleDisplay(String name, int width, int height,
+            int densityDpi, Surface surface, int flags) throws ReflectiveOperationException {
+        String[] list = {"/system/bin/cmd", "companiondevice", "list", "0"};
+        String associations = run(list);
+        Matcher match = Pattern.compile("Association\\{mId=(\\d+),[^\\n]*mPackageName='com\\.android\\.shell'[^\\n]*mDeviceMacAddress=" + ASSOCIATION_MAC, Pattern.CASE_INSENSITIVE).matcher(associations);
+        if (!match.find()) {
+            run(new String[]{"/system/bin/cmd", "companiondevice", "associate", "0",
+                    "com.android.shell", ASSOCIATION_MAC, ASSOCIATION_PROFILE});
+            match = Pattern.compile("Association\\{mId=(\\d+),[^\\n]*mPackageName='com\\.android\\.shell'[^\\n]*mDeviceMacAddress=" + ASSOCIATION_MAC, Pattern.CASE_INSENSITIVE).matcher(run(list));
+            if (!match.find()) throw new IllegalStateException("Cannot find BoxScreen association");
+        }
+        associationId = Integer.parseInt(match.group(1));
+        Context shell = createShellContext();
+        Class<?> managerClass = Class.forName("android.companion.virtual.VirtualDeviceManager");
+        Object manager = shell.getSystemService(managerClass);
+        java.lang.reflect.Field service = managerClass.getDeclaredField("mService");
+        service.setAccessible(true);
+        manager = managerClass.getConstructors()[0].newInstance(service.get(manager), shell);
+        Class<?> builderClass = Class.forName("android.companion.virtual.VirtualDeviceParams$Builder");
+        Object builder = builderClass.getConstructor().newInstance();
+        Object params = builderClass.getMethod("build").invoke(builder);
+        Class<?> paramsClass = Class.forName("android.companion.virtual.VirtualDeviceParams");
+        virtualDevice = managerClass.getMethod("createVirtualDevice", int.class, paramsClass)
+                .invoke(manager, associationId, params);
+        VirtualDisplayConfig config = new VirtualDisplayConfig.Builder(name, width, height, densityDpi)
+                .setFlags(flags).setSurface(surface).build();
+        return (VirtualDisplay) virtualDevice.getClass().getMethod("createVirtualDisplay",
+                VirtualDisplayConfig.class, Executor.class, VirtualDisplay.Callback.class)
+                .invoke(virtualDevice, config, null, null);
+    }
+
+    private void closeVirtualDevice() {
+        if (virtualDevice != null) {
+            try { virtualDevice.getClass().getMethod("close").invoke(virtualDevice); }
+            catch (ReflectiveOperationException | RuntimeException e) { Log.w("BoxScreenService", "virtual device close failed", e); }
+            virtualDevice = null;
+        }
+        if (associationId >= 0) {
+            try { run(new String[]{"/system/bin/cmd", "companiondevice", "disassociate", "0", "com.android.shell", ASSOCIATION_MAC}); }
+            catch (RuntimeException e) { Log.w("BoxScreenService", "association cleanup failed", e); }
+            associationId = -1;
+        }
+    }
+
     private DisplayManager createShellDisplayManager() throws ReflectiveOperationException {
         if (baseContext == null) {
             throw new IllegalStateException("Shizuku UserService did not provide a Context");
@@ -110,8 +166,12 @@ public final class PrivilegedDisplayService extends IDisplayService.Stub {
 
     private Context createShellContext() {
         return new ContextWrapper(baseContext) {
+            @Override public Context getApplicationContext() { return this; }
             @Override public String getPackageName() { return "com.android.shell"; }
             @Override public String getOpPackageName() { return "com.android.shell"; }
+            @Override public android.content.AttributionSource getAttributionSource() {
+                return new android.content.AttributionSource.Builder(2000).setPackageName("com.android.shell").build();
+            }
             public String getBasePackageName() { return "com.android.shell"; }
             @Override public String getAttributionTag() { return null; }
         };
@@ -170,6 +230,7 @@ public final class PrivilegedDisplayService extends IDisplayService.Stub {
                 virtualDisplay = null;
             }
         }
+        closeVirtualDevice();
         if (outputSurface != null) {
             try {
                 outputSurface.release();
@@ -274,6 +335,7 @@ public final class PrivilegedDisplayService extends IDisplayService.Stub {
             virtualDisplay.release();
             virtualDisplay = null;
         }
+        closeVirtualDevice();
         if (outputSurface != null) {
             outputSurface.release();
             outputSurface = null;
