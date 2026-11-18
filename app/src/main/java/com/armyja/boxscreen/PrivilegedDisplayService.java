@@ -347,6 +347,26 @@ public final class PrivilegedDisplayService extends IDisplayService.Stub {
     }
 
     @Override
+    public boolean setDisplayMode(int displayId, int width, int height, float refreshRate) {
+        if (displayId < 0 || width < 1 || height < 1) return false;
+        String rate = String.format(java.util.Locale.US, "%.2f", refreshRate);
+        String[] command = {"cmd", "display", "set-user-preferred-display-mode",
+                Integer.toString(width), Integer.toString(height), rate,
+                Integer.toString(displayId), "true"};
+        try {
+            Process process = Runtime.getRuntime().exec(command);
+            boolean finished = process.waitFor(5, TimeUnit.SECONDS);
+            int exit = finished ? process.exitValue() : -1;
+            Log.i("BoxScreenService", "setDisplayMode " + width + "x" + height + "@" + rate
+                    + " display=" + displayId + " exit=" + exit + " finished=" + finished);
+            return finished && exit == 0;
+        } catch (Exception e) {
+            Log.w("BoxScreenService", "setDisplayMode failed", e);
+            return false;
+        }
+    }
+
+    @Override
     @SuppressLint("BlockedPrivateApi")
     public int clearGamepadAssociations() {
         InputManager inputManager = (InputManager) baseContext.getSystemService(Context.INPUT_SERVICE);

@@ -14,6 +14,7 @@ interface IDisplayService {
     boolean closeTopTaskOnVirtualDisplay();
     boolean setMouseDisplay(String inputDescriptor, int displayId);
     int clearGamepadAssociations();
+    boolean setDisplayMode(int displayId, int width, int height, float refreshRate);
     boolean injectInputEvent(in MotionEvent event, int displayId);
     String getPrimaryDensity();
     void setPrimaryDensity(int dpi);
