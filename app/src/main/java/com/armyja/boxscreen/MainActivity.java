@@ -86,6 +86,7 @@ public final class MainActivity extends Activity {
 
     private DisplayManager displayManager;
     private InputManager inputManager;
+    private volatile boolean gamepadClearPending;
     private Display externalDisplay;
     private int baseWidth;
     private int baseHeight;
@@ -669,16 +670,19 @@ public final class MainActivity extends Activity {
     }
 
     private void clearGamepadDisplayAssociations() {
-        if (displayService == null) return;
-        try {
-            int cleared = displayService.clearGamepadAssociations();
-            if (cleared > 0) {
-                Log.i(TAG, "cleared gamepad display associations count=" + cleared);
-                status("已解除 " + cleared + " 个手柄的屏幕绑定");
+        final IDisplayService service = displayService;
+        if (service == null || gamepadClearPending) return;
+        gamepadClearPending = true;
+        new Thread(() -> {
+            try {
+                int cleared = service.clearGamepadAssociations();
+                if (cleared > 0) Log.i(TAG, "cleared gamepad display associations count=" + cleared);
+            } catch (RemoteException | RuntimeException e) {
+                Log.w(TAG, "failed to clear gamepad display associations", e);
+            } finally {
+                gamepadClearPending = false;
             }
-        } catch (RemoteException | RuntimeException e) {
-            Log.e(TAG, "failed to clear gamepad display associations", e);
-        }
+        }, "gamepad-association").start();
     }
 
     private void rebindMouseToExternalDisplay() {
