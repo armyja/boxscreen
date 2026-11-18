@@ -39,7 +39,7 @@ public final class PrivilegedDisplayService extends IDisplayService.Stub {
     private static final long IME_POLICY_RETRY_DELAY_MS = 100;
     private static final Set<String> ALLOWED_KEYS = new HashSet<>(Arrays.asList(
             "DPAD_UP", "DPAD_DOWN", "DPAD_LEFT", "DPAD_RIGHT", "DPAD_CENTER",
-            "BACK", "HOME", "VOLUME_UP", "VOLUME_DOWN", "MEDIA_PLAY_PAUSE"));
+            "BACK", "MENU", "HOME", "VOLUME_UP", "VOLUME_DOWN", "MEDIA_PLAY_PAUSE"));
 
     private final Context baseContext;
     private VirtualDisplay virtualDisplay;

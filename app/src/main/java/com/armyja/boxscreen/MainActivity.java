@@ -1225,7 +1225,12 @@ public final class MainActivity extends Activity {
             int action = source.getActionMasked();
             switch (action) {
                 case MotionEvent.ACTION_DOWN:
-                    beginTouchGesture(source);
+                    // Only the primary button starts a touch gesture. Any other first
+                    // button also arrives as ACTION_DOWN, so without this guard right
+                    // and middle clicks would behave exactly like left clicks.
+                    if ((source.getButtonState() & MotionEvent.BUTTON_PRIMARY) != 0) {
+                        beginTouchGesture(source);
+                    }
                     break;
                 case MotionEvent.ACTION_MOVE:
                     if (touchGestureActive) injectTouchAction(source, MotionEvent.ACTION_MOVE);
@@ -1243,14 +1248,28 @@ public final class MainActivity extends Activity {
                     }
                     break;
                 case MotionEvent.ACTION_BUTTON_RELEASE:
-                    if (touchGestureActive
-                            && (source.getActionButton() == MotionEvent.BUTTON_PRIMARY
+                    int button = source.getActionButton();
+                    if (button == MotionEvent.BUTTON_SECONDARY && !touchGestureActive) {
+                        sendVirtualKey("BACK");
+                    } else if (button == MotionEvent.BUTTON_TERTIARY && !touchGestureActive) {
+                        sendVirtualKey("MENU");
+                    } else if (touchGestureActive
+                            && (button == MotionEvent.BUTTON_PRIMARY
                             || (source.getButtonState() & MotionEvent.BUTTON_PRIMARY) == 0)) {
                         finishTouchGesture(source, MotionEvent.ACTION_UP);
                     }
                     break;
                 default:
                     break;
+            }
+        }
+
+        private void sendVirtualKey(String keyCode) {
+            if (displayService == null || virtualDisplayId < 0) return;
+            try {
+                displayService.sendKey(keyCode);
+            } catch (RemoteException | RuntimeException e) {
+                Log.w(TAG, "failed to send " + keyCode + " to virtual display", e);
             }
         }
 
