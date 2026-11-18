@@ -545,10 +545,18 @@ public final class PrivilegedDisplayService extends IDisplayService.Stub {
                 "keyevent", "KEYCODE_" + keyCode});
     }
 
+    private long taskProbeAt;
+    private boolean taskProbeResult;
+
     @Override
     public boolean hasVirtualDisplayTask() {
         if (virtualDisplay == null || virtualDisplay.getDisplay() == null) return false;
-        return findTopTaskId(virtualDisplay.getDisplay().getDisplayId()) >= 0;
+        long now = android.os.SystemClock.uptimeMillis();
+        if (now - taskProbeAt < 400) return taskProbeResult;
+        boolean result = findTopTaskId(virtualDisplay.getDisplay().getDisplayId()) >= 0;
+        taskProbeAt = now;
+        taskProbeResult = result;
+        return result;
     }
 
     @Override
