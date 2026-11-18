@@ -494,6 +494,39 @@ public final class PrivilegedDisplayService extends IDisplayService.Stub {
                 "-n", packageName + "/" + className});
     }
 
+    private static final Set<Integer> ALLOWED_KEY_CODES = new HashSet<>(Arrays.asList(
+            android.view.KeyEvent.KEYCODE_BACK, android.view.KeyEvent.KEYCODE_MENU));
+
+    @Override
+    @SuppressLint("BlockedPrivateApi")
+    public boolean injectKey(int keyCode, boolean down) {
+        if (virtualDisplay == null || virtualDisplay.getDisplay() == null) return false;
+        if (!ALLOWED_KEY_CODES.contains(keyCode)) return false;
+        int displayId = virtualDisplay.getDisplay().getDisplayId();
+        long now = android.os.SystemClock.uptimeMillis();
+        // KeyEvent(downTime, eventTime, action, code, repeat, metaState, deviceId, scanCode, flags, source)
+        android.view.KeyEvent event = new android.view.KeyEvent(
+                now, now,
+                down ? android.view.KeyEvent.ACTION_DOWN : android.view.KeyEvent.ACTION_UP,
+                keyCode, 0, 0, 0, 0,
+                android.view.KeyEvent.FLAG_SOFT_KEYBOARD | android.view.KeyEvent.FLAG_KEEP_TOUCH_MODE,
+                android.view.InputDevice.SOURCE_KEYBOARD);
+        try {
+            Method setDisplayId = android.view.InputEvent.class.getDeclaredMethod("setDisplayId", int.class);
+            setDisplayId.setAccessible(true);
+            setDisplayId.invoke(event, displayId);
+            InputManager inputManager = (InputManager) baseContext.getSystemService(Context.INPUT_SERVICE);
+            if (inputManager == null) return false;
+            Method inject = InputManager.class.getDeclaredMethod("injectInputEvent", android.view.InputEvent.class, int.class);
+            inject.setAccessible(true);
+            Object accepted = inject.invoke(inputManager, event, 0);
+            return Boolean.TRUE.equals(accepted);
+        } catch (ReflectiveOperationException e) {
+            Log.w("BoxScreenService", "injectKey failed for " + keyCode, e);
+            return false;
+        }
+    }
+
     @Override
     public void sendKey(String keyCode) {
         if (virtualDisplay == null) throw new IllegalStateException("Virtual display is not running");

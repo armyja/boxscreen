@@ -11,6 +11,7 @@ interface IDisplayService {
     void releaseDisplay();
     void launchActivity(String packageName, String className);
     void sendKey(String keyCode);
+    boolean injectKey(int keyCode, boolean down);
     boolean closeTopTaskOnVirtualDisplay();
     boolean setMouseDisplay(String inputDescriptor, int displayId);
     int clearGamepadAssociations();

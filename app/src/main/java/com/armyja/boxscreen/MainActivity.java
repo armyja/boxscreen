@@ -1265,11 +1265,15 @@ public final class MainActivity extends Activity {
         }
 
         private void sendVirtualKey(String keyCode) {
-            if (displayService == null || virtualDisplayId < 0) return;
+            final IDisplayService service = displayService;
+            if (service == null || virtualDisplayId < 0) return;
+            int code = "BACK".equals(keyCode) ? android.view.KeyEvent.KEYCODE_BACK
+                    : "MENU".equals(keyCode) ? android.view.KeyEvent.KEYCODE_MENU : 0;
+            if (code == 0) return;
             try {
-                displayService.sendKey(keyCode);
+                if (service.injectKey(code, true)) service.injectKey(code, false);
             } catch (RemoteException | RuntimeException e) {
-                Log.w(TAG, "failed to send " + keyCode + " to virtual display", e);
+                Log.w(TAG, "failed to inject " + keyCode + " to virtual display", e);
             }
         }
 
