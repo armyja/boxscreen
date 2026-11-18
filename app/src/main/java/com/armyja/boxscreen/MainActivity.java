@@ -457,7 +457,7 @@ public final class MainActivity extends Activity {
                     new ComponentName(getPackageName(), PrivilegedDisplayService.class.getName()))
                     .daemon(false)
                     .processNameSuffix("display")
-                    .version(6);
+                    .version(7);
             Shizuku.bindUserService(shizukuServiceArgs, shizukuServiceConnection);
             status("正在连接 Shizuku 主机服务…");
         } catch (RuntimeException e) {
@@ -1264,17 +1264,35 @@ public final class MainActivity extends Activity {
             }
         }
 
+        private final java.util.concurrent.ExecutorService keyExecutor =
+                java.util.concurrent.Executors.newSingleThreadExecutor(r -> {
+                    Thread t = new Thread(r, "virtual-key");
+                    t.setDaemon(true);
+                    return t;
+                });
+        private volatile long lastKeyInjectAt;
+        private static final long KEY_INJECT_MIN_INTERVAL_MS = 60;
+
         private void sendVirtualKey(String keyCode) {
             final IDisplayService service = displayService;
-            if (service == null || virtualDisplayId < 0) return;
+            final int virtualId = virtualDisplayId;
+            if (service == null || virtualId < 0) return;
             int code = "BACK".equals(keyCode) ? android.view.KeyEvent.KEYCODE_BACK
                     : "MENU".equals(keyCode) ? android.view.KeyEvent.KEYCODE_MENU : 0;
             if (code == 0) return;
-            try {
-                if (service.injectKey(code, true)) service.injectKey(code, false);
-            } catch (RemoteException | RuntimeException e) {
-                Log.w(TAG, "failed to inject " + keyCode + " to virtual display", e);
-            }
+            final long now = android.os.SystemClock.uptimeMillis();
+            if (now - lastKeyInjectAt < KEY_INJECT_MIN_INTERVAL_MS) return;
+            lastKeyInjectAt = now;
+            // system_server may block inside the injection for seconds while a
+            // display transition waits for animations, so never run this on the
+            // main thread: a single background thread also keeps down/up order.
+            keyExecutor.execute(() -> {
+                try {
+                    if (service.injectKey(code, true)) service.injectKey(code, false);
+                } catch (RemoteException | RuntimeException e) {
+                    Log.w(TAG, "failed to inject " + keyCode + " to virtual display", e);
+                }
+            });
         }
 
         private void beginTouchGesture(MotionEvent source) {
