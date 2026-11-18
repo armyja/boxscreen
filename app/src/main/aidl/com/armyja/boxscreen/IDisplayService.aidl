@@ -13,6 +13,7 @@ interface IDisplayService {
     void sendKey(String keyCode);
     boolean injectKey(int keyCode, boolean down);
     boolean closeTopTaskOnVirtualDisplay();
+    boolean hasVirtualDisplayTask();
     boolean setMouseDisplay(String inputDescriptor, int displayId);
     int clearGamepadAssociations();
     boolean injectInputEvent(in MotionEvent event, int displayId);

@@ -457,7 +457,7 @@ public final class MainActivity extends Activity {
                     new ComponentName(getPackageName(), PrivilegedDisplayService.class.getName()))
                     .daemon(false)
                     .processNameSuffix("display")
-                    .version(9);
+                    .version(10);
             Shizuku.bindUserService(shizukuServiceArgs, shizukuServiceConnection);
             status("正在连接 Shizuku 主机服务…");
         } catch (RuntimeException e) {
@@ -1280,6 +1280,18 @@ public final class MainActivity extends Activity {
             final IDisplayService service = displayService;
             final int virtualId = virtualDisplayId;
             if (service == null || virtualId < 0) return;
+            // No app on the virtual display means no focused window to receive the
+            // key. Injecting into that state fails on system_server (no focused
+            // window) while its OPPO key interceptor still moves the display to top
+            // and waits for the animation, starving the main screen's focus. Skip.
+            // Check live, not just currentVirtualPackage, so self-exited apps count.
+            final boolean hasTask;
+            try {
+                hasTask = service.hasVirtualDisplayTask();
+            } catch (RemoteException | RuntimeException e) {
+                return;
+            }
+            if (!hasTask) return;
             int code = "BACK".equals(keyCode) ? android.view.KeyEvent.KEYCODE_BACK
                     : "MENU".equals(keyCode) ? android.view.KeyEvent.KEYCODE_MENU : 0;
             if (code == 0) return;

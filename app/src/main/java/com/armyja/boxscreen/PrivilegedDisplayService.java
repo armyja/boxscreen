@@ -546,6 +546,12 @@ public final class PrivilegedDisplayService extends IDisplayService.Stub {
     }
 
     @Override
+    public boolean hasVirtualDisplayTask() {
+        if (virtualDisplay == null || virtualDisplay.getDisplay() == null) return false;
+        return findTopTaskId(virtualDisplay.getDisplay().getDisplayId()) >= 0;
+    }
+
+    @Override
     @SuppressLint("BlockedPrivateApi")
     public boolean closeTopTaskOnVirtualDisplay() {
         if (virtualDisplay == null || virtualDisplay.getDisplay() == null) {
