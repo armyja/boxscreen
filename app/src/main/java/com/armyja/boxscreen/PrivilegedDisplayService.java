@@ -519,8 +519,13 @@ public final class PrivilegedDisplayService extends IDisplayService.Stub {
             if (inputManager == null) return false;
             Method inject = InputManager.class.getDeclaredMethod("injectInputEvent", android.view.InputEvent.class, int.class);
             inject.setAccessible(true);
-            Object accepted = inject.invoke(inputManager, event, 0);
-            return Boolean.TRUE.equals(accepted);
+            // INJECTION_ASYNC (1): the dispatcher enqueues the event and returns
+            // immediately. The synchronous mode waits until the target window
+            // handles the event, and when the virtual display is between tasks
+            // (no focused window, e.g. right after the last app exits) that wait
+            // blocks the caller for up to 5 seconds and trips an input ANR.
+            inject.invoke(inputManager, event, 1);
+            return true;
         } catch (ReflectiveOperationException e) {
             Log.w("BoxScreenService", "injectKey failed for " + keyCode, e);
             return false;
