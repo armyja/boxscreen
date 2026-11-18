@@ -86,9 +86,6 @@ public final class MainActivity extends Activity {
 
     private DisplayManager displayManager;
     private InputManager inputManager;
-    private int vdOverrideLongSide;
-    private int vdOverrideShortSide;
-    private Button resolutionButton;
     private Display externalDisplay;
     private int baseWidth;
     private int baseHeight;
@@ -226,8 +223,6 @@ public final class MainActivity extends Activity {
         showSystemApps = getPreferences(MODE_PRIVATE).getBoolean("show_system_apps", false);
         favoritePackages = new HashSet<>(getPreferences(MODE_PRIVATE).getStringSet("favorite_apps", Collections.emptySet()));
         android.content.SharedPreferences preferences = getPreferences(MODE_PRIVATE);
-        vdOverrideLongSide = preferences.getInt("vd_override_long", 0);
-        vdOverrideShortSide = preferences.getInt("vd_override_short", 0);
         mouseModePackages = new HashSet<>(preferences.getStringSet("mouse_mode_apps", Collections.emptySet()));
         densityCompatPackages = new HashSet<>(preferences.getStringSet("density_compat_apps", Collections.emptySet()));
         String savedRecentApps = preferences.getString("recent_apps", "");
@@ -362,12 +357,6 @@ public final class MainActivity extends Activity {
         content.addView(densityRow, margins(0, 4, 0, 0));
         densityView = text("虚拟屏 DPI：" + densityDpi, 13, true);
         densityRow.addView(densityView, new LinearLayout.LayoutParams(0, -2, 1f));
-        resolutionButton = button("虚拟屏 跟随外接屏");
-        LinearLayout.LayoutParams resolutionParams = new LinearLayout.LayoutParams(-2, -2);
-        resolutionParams.setMargins(0, 0, dp(4), 0);
-        densityRow.addView(resolutionButton, resolutionParams);
-        resolutionButton.setOnClickListener(v -> showResolutionPicker());
-        updateResolutionButton();
         Button stop = button("停止输出");
         densityRow.addView(stop, new LinearLayout.LayoutParams(-2, -2));
         stop.setOnClickListener(v -> stopOutput());
@@ -559,8 +548,8 @@ public final class MainActivity extends Activity {
 
     private void createVirtualDisplay(SurfaceTexture texture) {
         if (displayService == null || texture == null) return;
-        int width = outputWidth();
-        int height = outputHeight();
+        int width = portraitMode ? baseHeight : baseWidth;
+        int height = portraitMode ? baseWidth : baseHeight;
         try {
             texture.setDefaultBufferSize(width, height);
             Log.i(TAG, "create buffer=" + width + "x" + height + " dpi=" + densityDpi);
@@ -591,8 +580,8 @@ public final class MainActivity extends Activity {
 
     private void attachOutputSurface(SurfaceTexture texture) {
         if (texture == null || displayService == null) return;
-        int width = outputWidth();
-        int height = outputHeight();
+        int width = portraitMode ? baseHeight : baseWidth;
+        int height = portraitMode ? baseWidth : baseHeight;
         texture.setDefaultBufferSize(width, height);
         if (virtualDisplayId < 0) {
             createVirtualDisplay(texture);
@@ -708,94 +697,6 @@ public final class MainActivity extends Activity {
         resizeVirtualDisplay(true);
     }
 
-    /** Virtual display width after applying the manual resolution override (if any). */
-    private int outputWidth() {
-        int base = portraitMode ? baseHeight : baseWidth;
-        return vdOverrideLongSide > 0 ? Math.max(vdOverrideLongSide, vdOverrideShortSide) : base;
-    }
-
-    private int outputHeight() {
-        int base = portraitMode ? baseWidth : baseHeight;
-        return vdOverrideLongSide > 0 ? Math.min(vdOverrideLongSide, vdOverrideShortSide) : base;
-    }
-
-    private void applyResolutionOverride(int longSide, int shortSide) {
-        vdOverrideLongSide = longSide;
-        vdOverrideShortSide = shortSide;
-        getPreferences(MODE_PRIVATE).edit()
-                .putInt("vd_override_long", vdOverrideLongSide)
-                .putInt("vd_override_short", vdOverrideShortSide)
-                .apply();
-        updateResolutionButton();
-        if (virtualDisplayId >= 0) resizeVirtualDisplay();
-    }
-
-    private void showResolutionPicker() {
-        if (externalDisplay == null) {
-            status("未检测到外接显示器");
-            return;
-        }
-        java.util.LinkedHashMap<String, Display.Mode> modes = new java.util.LinkedHashMap<>();
-        for (Display.Mode mode : externalDisplay.getSupportedModes()) {
-            int w = Math.max(mode.getPhysicalWidth(), mode.getPhysicalHeight());
-            int h = Math.min(mode.getPhysicalWidth(), mode.getPhysicalHeight());
-            String key = w + "x" + h;
-            Display.Mode existing = modes.get(key);
-            if (existing == null || mode.getRefreshRate() > existing.getRefreshRate()) {
-                modes.put(key, mode);
-            }
-        }
-        final java.util.List<Display.Mode> candidates = new java.util.ArrayList<>(modes.values());
-        candidates.sort((a, b) -> Integer.compare(
-                b.getPhysicalWidth() * b.getPhysicalHeight(),
-                a.getPhysicalWidth() * a.getPhysicalHeight()));
-        final java.util.List<String> labels = new java.util.ArrayList<>();
-        Display.Mode current = externalDisplay.getMode();
-        labels.add("跟随外接屏（当前 " + Math.max(current.getPhysicalWidth(), current.getPhysicalHeight())
-                + "×" + Math.min(current.getPhysicalWidth(), current.getPhysicalHeight())
-                + " @" + Math.round(current.getRefreshRate()) + "Hz）");
-        for (Display.Mode mode : candidates) {
-            int w = Math.max(mode.getPhysicalWidth(), mode.getPhysicalHeight());
-            int h = Math.min(mode.getPhysicalWidth(), mode.getPhysicalHeight());
-            labels.add(w + "×" + h + "（最高 " + Math.round(mode.getRefreshRate()) + "Hz）");
-        }
-        new android.app.AlertDialog.Builder(this)
-                .setTitle("虚拟屏分辨率（来自显示器 EDID）")
-                .setItems(labels.toArray(new String[0]), (dialog, which) -> {
-                    if (which == 0) {
-                        applyResolutionOverride(0, 0);
-                        status("虚拟屏分辨率：跟随外接屏");
-                        return;
-                    }
-                    Display.Mode mode = candidates.get(which - 1);
-                    int w = Math.max(mode.getPhysicalWidth(), mode.getPhysicalHeight());
-                    int h = Math.min(mode.getPhysicalWidth(), mode.getPhysicalHeight());
-                    applyResolutionOverride(w, h);
-                    switchExternalDisplayMode(mode);
-                    status("虚拟屏分辨率已设为 " + w + "×" + h);
-                })
-                .show();
-    }
-
-    private void switchExternalDisplayMode(Display.Mode mode) {
-        if (displayService == null || externalDisplay == null) return;
-        try {
-            boolean ok = displayService.setDisplayMode(externalDisplay.getDisplayId(),
-                    mode.getPhysicalWidth(), mode.getPhysicalHeight(), mode.getRefreshRate());
-            Log.i(TAG, "request external display mode=" + mode.getPhysicalWidth() + "x"
-                    + mode.getPhysicalHeight() + " @" + mode.getRefreshRate() + " ok=" + ok);
-        } catch (RemoteException | RuntimeException e) {
-            Log.e(TAG, "failed to switch external display mode", e);
-        }
-    }
-
-    private void updateResolutionButton() {
-        if (resolutionButton == null) return;
-        resolutionButton.setText(vdOverrideLongSide > 0
-                ? "虚拟屏 " + vdOverrideLongSide + "×" + vdOverrideShortSide
-                : "虚拟屏 跟随外接屏");
-    }
-
     private void resizeVirtualDisplayForDensity() {
         syncPrimaryDensityForPackage(currentVirtualPackage);
         resizeVirtualDisplay(false);
@@ -807,8 +708,8 @@ public final class MainActivity extends Activity {
                     + " displayId=" + virtualDisplayId + " dpi=" + densityDpi);
             return;
         }
-        int width = outputWidth();
-        int height = outputHeight();
+        int width = portraitMode ? baseHeight : baseWidth;
+        int height = portraitMode ? baseWidth : baseHeight;
         try {
             Log.i(TAG, "resize=" + width + "x" + height + " dpi=" + densityDpi + " portrait=" + portraitMode);
             TextureView view = outputSurface;
@@ -855,8 +756,8 @@ public final class MainActivity extends Activity {
         final int expectedDisplayId = virtualDisplayId;
         final int expectedDensity = densityDpi;
         final boolean expectedPortrait = portraitMode;
-        final int width = outputWidth();
-        final int height = outputHeight();
+        final int width = portraitMode ? baseHeight : baseWidth;
+        final int height = portraitMode ? baseWidth : baseHeight;
         final int generation = ++densityRefreshGeneration;
         final int nudgePx = Math.max(1, Math.round(expectedDensity / 160f));
         final int nudgeWidth = width <= height ? Math.max(1, width - nudgePx) : width;
@@ -907,8 +808,8 @@ public final class MainActivity extends Activity {
 
     private void updateDensityStatus() {
         if (statusView == null) return;
-        int width = outputWidth();
-        int height = outputHeight();
+        int width = portraitMode ? baseHeight : baseWidth;
+        int height = portraitMode ? baseWidth : baseHeight;
         int dpWidth = Math.round(width * 160f / densityDpi);
         int dpHeight = Math.round(height * 160f / densityDpi);
         status("虚拟屏：" + width + "×" + height + " px / " + dpWidth + "×" + dpHeight
@@ -949,8 +850,8 @@ public final class MainActivity extends Activity {
 
     private void updateOutputLayout() {
         if (outputSurface == null || presentation == null) return;
-        int width = outputWidth();
-        int height = outputHeight();
+        int width = portraitMode ? baseHeight : baseWidth;
+        int height = portraitMode ? baseWidth : baseHeight;
         FrameLayout.LayoutParams params = new FrameLayout.LayoutParams(width, height, Gravity.CENTER);
         outputSurface.setLayoutParams(params);
         if (outputSurface.isAvailable()) outputSurface.getSurfaceTexture().setDefaultBufferSize(width, height);
