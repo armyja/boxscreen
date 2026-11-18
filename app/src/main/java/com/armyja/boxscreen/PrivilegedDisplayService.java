@@ -349,7 +349,9 @@ public final class PrivilegedDisplayService extends IDisplayService.Stub {
     @Override
     public boolean setDisplayMode(int displayId, int width, int height, float refreshRate) {
         if (displayId < 0 || width < 1 || height < 1) return false;
-        String rate = String.format(java.util.Locale.US, "%.2f", refreshRate);
+        // The framework matches refresh rates with exact float equality, so keep the
+        // EDID value verbatim (e.g. 120.00001 must not become 120.00).
+        String rate = Float.toString(refreshRate);
         String[] command = {"cmd", "display", "set-user-preferred-display-mode",
                 Integer.toString(width), Integer.toString(height), rate,
                 Integer.toString(displayId), "true"};
