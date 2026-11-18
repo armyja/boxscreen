@@ -378,7 +378,9 @@ public final class PrivilegedDisplayService extends IDisplayService.Stub {
             InputDevice device = inputManager.getInputDevice(id);
             if (device == null) continue;
             int sources = device.getSources();
-            boolean gamepad = (sources & (InputDevice.SOURCE_GAMEPAD | InputDevice.SOURCE_JOYSTICK)) != 0;
+            // Onboard switches and jack detectors report GAMEPAD in their class mask on
+            // some OEM builds; only real controllers expose joystick axes.
+            boolean gamepad = (sources & InputDevice.SOURCE_JOYSTICK) != 0;
             if (!gamepad) continue;
             String descriptor = device.getDescriptor();
             if (descriptor == null || descriptor.isEmpty()) continue;
