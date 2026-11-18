@@ -13,6 +13,7 @@ interface IDisplayService {
     void sendKey(String keyCode);
     boolean closeTopTaskOnVirtualDisplay();
     boolean setMouseDisplay(String inputDescriptor, int displayId);
+    int clearGamepadAssociations();
     boolean injectInputEvent(in MotionEvent event, int displayId);
     String getPrimaryDensity();
     void setPrimaryDensity(int dpi);

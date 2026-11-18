@@ -10,6 +10,7 @@ import android.content.res.Configuration;
 import android.content.pm.PackageManager;
 import android.content.pm.ResolveInfo;
 import android.hardware.display.DisplayManager;
+import android.hardware.input.InputManager;
 import android.media.AudioManager;
 import android.os.Handler;
 import android.os.Bundle;
@@ -84,6 +85,7 @@ public final class MainActivity extends Activity {
     private int densityRefreshGeneration;
 
     private DisplayManager displayManager;
+    private InputManager inputManager;
     private Display externalDisplay;
     private int baseWidth;
     private int baseHeight;
@@ -170,6 +172,14 @@ public final class MainActivity extends Activity {
         }
     };
 
+    private final InputManager.InputDeviceListener inputDeviceListener = new InputManager.InputDeviceListener() {
+        @Override public void onInputDeviceAdded(int deviceId) {
+            if (virtualDisplayId >= 0) clearGamepadDisplayAssociations();
+        }
+        @Override public void onInputDeviceRemoved(int deviceId) { }
+        @Override public void onInputDeviceChanged(int deviceId) { }
+    };
+
     private final DisplayManager.DisplayListener displayListener = new DisplayManager.DisplayListener() {
         @Override public void onDisplayAdded(int displayId) {
             externalDisplay = findExternalDisplay();
@@ -204,6 +214,10 @@ public final class MainActivity extends Activity {
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         displayManager = (DisplayManager) getSystemService(DISPLAY_SERVICE);
         displayManager.registerDisplayListener(displayListener, new Handler());
+        inputManager = (InputManager) getSystemService(INPUT_SERVICE);
+        if (inputManager != null) {
+            inputManager.registerInputDeviceListener(inputDeviceListener, new Handler());
+        }
         Shizuku.addRequestPermissionResultListener(permissionListener);
         externalDisplay = findExternalDisplay();
         showSystemApps = getPreferences(MODE_PRIVATE).getBoolean("show_system_apps", false);
@@ -556,6 +570,7 @@ public final class MainActivity extends Activity {
             } else {
                 autoEnableMouseIfAvailable();
             }
+            clearGamepadDisplayAssociations();
             launchPendingApp();
         } catch (Exception e) {
             Log.e(TAG, "create virtual display failed", e);
@@ -651,6 +666,19 @@ public final class MainActivity extends Activity {
         Log.i(TAG, "recreating external presentation on display=" + externalDisplay.getDisplayId()
                 + " while keeping virtual display=" + virtualDisplayId);
         showExternalOutput();
+    }
+
+    private void clearGamepadDisplayAssociations() {
+        if (displayService == null) return;
+        try {
+            int cleared = displayService.clearGamepadAssociations();
+            if (cleared > 0) {
+                Log.i(TAG, "cleared gamepad display associations count=" + cleared);
+                status("已解除 " + cleared + " 个手柄的屏幕绑定");
+            }
+        } catch (RemoteException | RuntimeException e) {
+            Log.e(TAG, "failed to clear gamepad display associations", e);
+        }
     }
 
     private void rebindMouseToExternalDisplay() {

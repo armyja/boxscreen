@@ -7,6 +7,7 @@ import android.hardware.display.DisplayManager;
 import android.hardware.display.VirtualDisplay;
 import android.hardware.display.VirtualDisplayConfig;
 import android.hardware.input.InputManager;
+import android.view.InputDevice;
 import android.os.Parcel;
 import android.os.RemoteException;
 import android.os.SystemClock;
@@ -343,6 +344,36 @@ public final class PrivilegedDisplayService extends IDisplayService.Stub {
             outputSurface.release();
             outputSurface = null;
         }
+    }
+
+    @Override
+    @SuppressLint("BlockedPrivateApi")
+    public int clearGamepadAssociations() {
+        InputManager inputManager = (InputManager) baseContext.getSystemService(Context.INPUT_SERVICE);
+        if (inputManager == null) return 0;
+        int cleared = 0;
+        for (int id : inputManager.getInputDeviceIds()) {
+            InputDevice device = inputManager.getInputDevice(id);
+            if (device == null) continue;
+            int sources = device.getSources();
+            boolean gamepad = (sources & (InputDevice.SOURCE_GAMEPAD | InputDevice.SOURCE_JOYSTICK)) != 0;
+            if (!gamepad) continue;
+            String descriptor = device.getDescriptor();
+            if (descriptor == null || descriptor.isEmpty()) continue;
+            try {
+                Method remove = InputManager.class.getDeclaredMethod(
+                        "removeUniqueIdAssociationByDescriptor", String.class);
+                remove.setAccessible(true);
+                remove.invoke(inputManager, descriptor);
+                cleared++;
+                Log.i("BoxScreenService", "cleared display association for gamepad="
+                        + device.getName() + " descriptor=" + descriptor);
+            } catch (ReflectiveOperationException e) {
+                Throwable cause = e.getCause() == null ? e : e.getCause();
+                Log.w("BoxScreenService", "unable to clear association for " + device.getName(), cause);
+            }
+        }
+        return cleared;
     }
 
     @Override
