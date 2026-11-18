@@ -448,8 +448,12 @@ public final class PrivilegedDisplayService extends IDisplayService.Stub {
             if (inputManager == null) throw new IllegalStateException("InputManager is unavailable");
             Method inject = InputManager.class.getDeclaredMethod("injectInputEvent", InputEvent.class, int.class);
             inject.setAccessible(true);
-            Object accepted = inject.invoke(inputManager, forwarded, 0);
-            return Boolean.TRUE.equals(accepted);
+            // INJECTION_ASYNC (1): enqueue and return. The synchronous mode waits
+            // for the target window to finish the event; during app teardown the
+            // virtual display can have a dying focused window and that wait would
+            // block the caller's main thread for up to 5 seconds (input ANR).
+            inject.invoke(inputManager, forwarded, 1);
+            return true;
         } catch (ReflectiveOperationException e) {
             Throwable cause = e.getCause() == null ? e : e.getCause();
             Log.e("BoxScreen", "input event injection failed: " + cause.getMessage(), cause);
