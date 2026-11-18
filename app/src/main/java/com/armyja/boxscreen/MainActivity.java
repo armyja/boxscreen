@@ -457,7 +457,7 @@ public final class MainActivity extends Activity {
                     new ComponentName(getPackageName(), PrivilegedDisplayService.class.getName()))
                     .daemon(false)
                     .processNameSuffix("display")
-                    .version(7);
+                    .version(8);
             Shizuku.bindUserService(shizukuServiceArgs, shizukuServiceConnection);
             status("正在连接 Shizuku 主机服务…");
         } catch (RuntimeException e) {
@@ -1264,9 +1264,9 @@ public final class MainActivity extends Activity {
             }
         }
 
-        private final java.util.concurrent.ExecutorService keyExecutor =
+        private final java.util.concurrent.ExecutorService virtualInputExecutor =
                 java.util.concurrent.Executors.newSingleThreadExecutor(r -> {
-                    Thread t = new Thread(r, "virtual-key");
+                    Thread t = new Thread(r, "virtual-input");
                     t.setDaemon(true);
                     return t;
                 });
@@ -1286,7 +1286,7 @@ public final class MainActivity extends Activity {
             // system_server may block inside the injection for seconds while a
             // display transition waits for animations, so never run this on the
             // main thread: a single background thread also keeps down/up order.
-            keyExecutor.execute(() -> {
+            virtualInputExecutor.execute(() -> {
                 try {
                     if (service.injectKey(code, true)) service.injectKey(code, false);
                 } catch (RemoteException | RuntimeException e) {
@@ -1331,16 +1331,21 @@ public final class MainActivity extends Activity {
                     new MotionEvent.PointerCoords[]{coordinates},
                     source == null ? 0 : source.getMetaState(), 0, 1f, 1f, 0, 0,
                     InputDevice.SOURCE_TOUCHSCREEN, 0);
-            try {
-                if (!displayService.injectInputEvent(touch, virtualDisplayId)) {
-                    Log.w(TAG, "InputManager rejected synthetic touch display=" + virtualDisplayId
-                            + " action=" + action + " x=" + virtualPointerX + " y=" + virtualPointerY);
+            final MotionEvent touchEvent = touch;
+            final IDisplayService service = displayService;
+            final int displayId = virtualDisplayId;
+            virtualInputExecutor.execute(() -> {
+                try {
+                    if (!service.injectInputEvent(touchEvent, displayId)) {
+                        Log.w(TAG, "InputManager rejected synthetic touch display=" + displayId
+                                + " action=" + action + " x=" + virtualPointerX + " y=" + virtualPointerY);
+                    }
+                } catch (RemoteException | RuntimeException e) {
+                    Log.e(TAG, "Unable to inject synthetic touch to virtual display", e);
+                } finally {
+                    touchEvent.recycle();
                 }
-            } catch (RemoteException | RuntimeException e) {
-                Log.e(TAG, "Unable to inject synthetic touch to virtual display", e);
-            } finally {
-                touch.recycle();
-            }
+            });
         }
 
         private void updateVirtualPointer(float x, float y) {
@@ -1992,32 +1997,36 @@ public final class MainActivity extends Activity {
             if (displayService == null || virtualDisplayId < 0 || externalDisplay == null) return;
             if (transitionFramesRemaining > 0) return;
             if (baseWidth <= 0 || baseHeight <= 0) return;
-            int virtualWidth = portraitMode ? baseHeight : baseWidth;
-            int virtualHeight = portraitMode ? baseWidth : baseHeight;
-            MotionEvent mapped = MotionEvent.obtain(source);
-            try {
-                if (portraitMode) {
-                    float scaleX = virtualWidth / (float) baseWidth;
-                    float scaleY = virtualHeight / (float) baseHeight;
-                    Matrix transform = new Matrix();
-                    transform.setValues(new float[]{
-                            0f, -scaleX, baseWidth * scaleX,
-                            scaleY, 0f, 0f,
-                            0f, 0f, 1f
-                    });
-                    mapped.transform(transform);
+            final int virtualWidth = portraitMode ? baseHeight : baseWidth;
+            final int virtualHeight = portraitMode ? baseWidth : baseHeight;
+            final MotionEvent mapped = MotionEvent.obtain(source);
+            final IDisplayService service = displayService;
+            final int displayId = virtualDisplayId;
+            virtualInputExecutor.execute(() -> {
+                try {
+                    if (portraitMode) {
+                        float scaleX = virtualWidth / (float) baseWidth;
+                        float scaleY = virtualHeight / (float) baseHeight;
+                        Matrix transform = new Matrix();
+                        transform.setValues(new float[]{
+                                0f, -scaleX, baseWidth * scaleX,
+                                scaleY, 0f, 0f,
+                                0f, 0f, 1f
+                        });
+                        mapped.transform(transform);
+                    }
+                    mapped.setLocation(virtualPointerX, virtualPointerY);
+                    if (!service.injectInputEvent(mapped, displayId)) {
+                        Log.w(TAG, "InputManager rejected mouse event display=" + displayId
+                                + " action=" + mapped.getActionMasked() + " x=" + mapped.getX()
+                                + " y=" + mapped.getY());
+                    }
+                } catch (RemoteException | RuntimeException e) {
+                    Log.e(TAG, "Unable to forward mouse event to virtual display", e);
+                } finally {
+                    mapped.recycle();
                 }
-                mapped.setLocation(virtualPointerX, virtualPointerY);
-                if (!displayService.injectInputEvent(mapped, virtualDisplayId)) {
-                    Log.w(TAG, "InputManager rejected mouse event display=" + virtualDisplayId
-                            + " action=" + mapped.getActionMasked() + " x=" + mapped.getX()
-                            + " y=" + mapped.getY());
-                }
-            } catch (RemoteException | RuntimeException e) {
-                Log.e(TAG, "Unable to forward mouse event to virtual display", e);
-            } finally {
-                mapped.recycle();
-            }
+            });
         }
 
         @Override
