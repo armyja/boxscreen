@@ -1700,8 +1700,12 @@ public final class MainActivity extends Activity {
                 if (removed) {
                     restorePrimaryDensity();
                     currentVirtualPackage = null;
-                    quickPanelVisible = false;
-                    statusBarVisible = false;
+                    // Closing the last app leaves the virtual display blank; show the
+                    // status bar and quick panel right away as the next affordance.
+                    // The regular dwell logic hides them again once the pointer leaves
+                    // their area, so mouse behaviour stays unchanged.
+                    quickPanelVisible = true;
+                    statusBarVisible = true;
                 } else {
                     status("虚拟屏上没有可关闭的应用任务");
                 }
