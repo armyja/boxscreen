@@ -457,7 +457,7 @@ public final class MainActivity extends Activity {
                     new ComponentName(getPackageName(), PrivilegedDisplayService.class.getName()))
                     .daemon(false)
                     .processNameSuffix("display")
-                    .version(8);
+                    .version(9);
             Shizuku.bindUserService(shizukuServiceArgs, shizukuServiceConnection);
             status("正在连接 Shizuku 主机服务…");
         } catch (RuntimeException e) {
@@ -1271,7 +1271,10 @@ public final class MainActivity extends Activity {
                     return t;
                 });
         private volatile long lastKeyInjectAt;
-        private static final long KEY_INJECT_MIN_INTERVAL_MS = 60;
+        // OPPO's key interceptor moves the target display to top and waits for its
+        // animation on every injected key, so rapid right-clicks used to starve the
+        // main screen's focus for seconds (pointer frozen). Throttle keys hard.
+        private static final long KEY_INJECT_MIN_INTERVAL_MS = 250;
 
         private void sendVirtualKey(String keyCode) {
             final IDisplayService service = displayService;
