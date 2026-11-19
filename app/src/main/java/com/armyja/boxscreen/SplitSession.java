@@ -27,6 +27,8 @@ final class SplitSession {
     private boolean active;
     private float ratio = 0.5f;
     private boolean reversed;
+    private long layoutGeneration;
+    private final android.os.Handler surfaceHandler = new android.os.Handler(android.os.Looper.getMainLooper());
 
     private record Stage(Object token, SurfaceControl surface) {}
 
@@ -99,7 +101,7 @@ final class SplitSession {
                 .getMethod("applyTransaction", transactionType).invoke(windowOrganizer, tx);
     }
 
-    void open(Object firstTask, Object secondTask, int width, int height) throws ReflectiveOperationException {
+    synchronized void open(Object firstTask, Object secondTask, int width, int height) throws ReflectiveOperationException {
         root = create("BoxScreenSplit", 1, null);
         first = create("BoxScreenSplitFirst", 6, root);
         second = create("BoxScreenSplitSecond", 6, root);
@@ -118,6 +120,7 @@ final class SplitSession {
         // The organizer-created stages may be hidden by the opening transition.
         android.os.SystemClock.sleep(900);
         showSurfaces(bounds);
+        stabilizeSurfaces(bounds);
     }
 
     private Rect[] bounds(int width, int height) {
@@ -188,7 +191,7 @@ final class SplitSession {
         }
     }
 
-    void fill(Object task, int width, int height) throws ReflectiveOperationException {
+    synchronized void fill(Object task, int width, int height) throws ReflectiveOperationException {
         Object tx = transaction();
         transactionType.getMethod("reparent", tokenType, tokenType, boolean.class)
                 .invoke(tx, task, second.token(), true);
@@ -197,24 +200,45 @@ final class SplitSession {
         applyLayout(tx, bounds);
         android.os.SystemClock.sleep(900);
         showSurfaces(bounds);
+        stabilizeSurfaces(bounds);
     }
 
-    void adjust(float ratio, boolean swap, int width, int height) throws ReflectiveOperationException {
+    synchronized void adjust(float ratio, boolean swap, int width, int height) throws ReflectiveOperationException {
         this.ratio = Math.max(1f / 3f, Math.min(2f / 3f, ratio));
         if (swap) reversed = !reversed;
         resize(width, height);
     }
 
-    void resize(int width, int height) throws ReflectiveOperationException {
+    synchronized void resize(int width, int height) throws ReflectiveOperationException {
         if (!active) return;
         Rect[] bounds = bounds(width, height);
         Object tx = transaction();
         applyLayout(tx, bounds);
         showSurfaces(bounds);
+        stabilizeSurfaces(bounds);
     }
 
-    void close() throws ReflectiveOperationException {
+    private void stabilizeSurfaces(Rect[] bounds) {
+        final long generation = ++layoutGeneration;
+        // The launch and resize transitions can write stage transforms after applyTransaction().
+        // Restore the current geometry once those transitions have had time to finish.
+        for (long delay : new long[]{120, 350, 750}) {
+            surfaceHandler.postDelayed(() -> {
+                synchronized (this) {
+                    if (!active || generation != layoutGeneration) return;
+                    try {
+                        showSurfaces(bounds);
+                    } catch (ReflectiveOperationException | RuntimeException e) {
+                        android.util.Log.w("BoxScreenSplit", "Could not restore split surface geometry", e);
+                    }
+                }
+            }, delay);
+        }
+    }
+
+    synchronized void close() throws ReflectiveOperationException {
         active = false;
+        layoutGeneration++;
         if (root == null) return;
         try {
             Method remove = transactionType.getMethod("removeRootTask", tokenType);

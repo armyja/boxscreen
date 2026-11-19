@@ -480,7 +480,7 @@ public final class MainActivity extends Activity {
                     new ComponentName(getPackageName(), PrivilegedDisplayService.class.getName()))
                     .daemon(false)
                     .processNameSuffix("display")
-                    .version(17);
+                    .version(18);
             Shizuku.bindUserService(shizukuServiceArgs, shizukuServiceConnection);
             status("正在连接 Shizuku 主机服务…");
         } catch (RuntimeException e) {
@@ -2493,8 +2493,14 @@ public final class MainActivity extends Activity {
             float y = portraitMode ? axis : getHeight() / 2f;
             float hw = panelDp(portraitMode ? 25 : 8);
             float hh = panelDp(portraitMode ? 8 : 25);
-            panelPaint.setColor(0xdd20252b);
-            canvas.drawRoundRect(x - hw, y - hh, x + hw, y + hh, panelDp(7), panelDp(7), panelPaint);
+            boolean hovered = forwarding && pointerVisible
+                    && Math.abs(virtualPointerX - x) <= hw + panelDp(8)
+                    && Math.abs(virtualPointerY - y) <= hh + panelDp(8);
+            if (hovered || splitDrag) {
+                panelPaint.setColor(0xdd20252b);
+                canvas.drawRoundRect(x - hw, y - hh, x + hw, y + hh,
+                        panelDp(7), panelDp(7), panelPaint);
+            }
             panelPaint.setColor(0xffeeeeee);
             for (int i = -1; i <= 1; i++) {
                 float step = i * panelDp(7);
