@@ -571,6 +571,48 @@ public final class PrivilegedDisplayService extends IDisplayService.Stub {
     }
 
     @Override
+    public synchronized void beginSplit(String packageName) {
+        if (virtualDisplay == null || splitSession != null) {
+            throw new IllegalStateException("当前无法开始分屏");
+        }
+        SplitSession next = null;
+        try {
+            next = new SplitSession(virtualDisplay.getDisplay().getDisplayId());
+            Object first = next.awaitTask(packageName, next.taskIds());
+            next.open(first, null, displayWidth, displayHeight);
+            splitSession = next;
+        } catch (Exception e) {
+            if (next != null) {
+                try { next.close(); } catch (Exception cleanup) { e.addSuppressed(cleanup); }
+            }
+            throw new IllegalStateException("无法开始分屏：" + describeFailure(e), e);
+        }
+    }
+
+    @Override
+    public synchronized void fillSplit(String packageName, String className) {
+        checkComponent(packageName, className);
+        if (splitSession == null) throw new IllegalStateException("分屏已关闭");
+        try {
+            Set<Integer> before = splitSession.taskIds();
+            startOnDisplay(packageName, className, true);
+            splitSession.fill(splitSession.awaitTask(packageName, before), displayWidth, displayHeight);
+        } catch (Exception e) {
+            throw new IllegalStateException("无法打开另一侧应用：" + describeFailure(e), e);
+        }
+    }
+
+    @Override
+    public synchronized void adjustSplit(float ratio, boolean swap) {
+        if (splitSession == null || !Float.isFinite(ratio)) return;
+        try {
+            splitSession.adjust(ratio, swap, displayWidth, displayHeight);
+        } catch (ReflectiveOperationException e) {
+            throw new IllegalStateException("无法调整分屏", e);
+        }
+    }
+
+    @Override
     public synchronized boolean closeSplit() {
         SplitSession session = splitSession;
         if (session == null) return false;

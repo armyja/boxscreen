@@ -110,9 +110,10 @@ public final class MainActivity extends Activity {
     private boolean startPending;
     private boolean reconnectOutputAfterDisplayChange;
     private String pendingLaunchPackage;
-    private record SplitPair(ResolveInfo first, ResolveInfo second) {}
-    private SplitPair pendingSplit;
     private boolean splitOpening;
+    private boolean splitActive;
+    private boolean splitChoosing;
+    private float splitRatio = 0.5f;
     private String pendingLaunchActivity;
     private boolean autoMouseSuppressed;
     private boolean phoneScreenDimmed;
@@ -438,13 +439,7 @@ public final class MainActivity extends Activity {
         appSearch.setTextColor(0xfff2f2f2);
         appSearch.setHintTextColor(0xff9b9b9b);
         appSearch.setHint("搜索应用");
-        LinearLayout searchRow = new LinearLayout(this);
-        searchRow.setGravity(Gravity.CENTER_VERTICAL);
-        searchRow.addView(appSearch, new LinearLayout.LayoutParams(0, -2, 1));
-        Button splitButton = button("分屏");
-        searchRow.addView(splitButton, new LinearLayout.LayoutParams(-2, -2));
-        splitButton.setOnClickListener(v -> showSplitPicker(null));
-        content.addView(searchRow, margins(0, 0, 0, 4));
+        content.addView(appSearch, margins(0, 0, 0, 4));
         appSearch.addTextChangedListener(new TextWatcher() {
             @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) { }
             @Override public void onTextChanged(CharSequence s, int start, int before, int count) { rebuildAppsGrid(); }
@@ -485,7 +480,7 @@ public final class MainActivity extends Activity {
                     new ComponentName(getPackageName(), PrivilegedDisplayService.class.getName()))
                     .daemon(false)
                     .processNameSuffix("display")
-                    .version(16);
+                    .version(17);
             Shizuku.bindUserService(shizukuServiceArgs, shizukuServiceConnection);
             status("正在连接 Shizuku 主机服务…");
         } catch (RuntimeException e) {
@@ -584,7 +579,7 @@ public final class MainActivity extends Activity {
             Log.i(TAG, "create buffer=" + width + "x" + height + " dpi=" + densityDpi);
             Surface surface = new Surface(texture);
             try {
-                boolean blockCapture = pendingSplit != null ? false : pendingLaunchPackage == null ? captureBlockedDisplay
+                boolean blockCapture = pendingLaunchPackage == null ? captureBlockedDisplay
                         : "com.netease.uuremote".equals(pendingLaunchPackage);
                 virtualDisplayId = displayService.createDisplay("BoxScreen", width, height,
                         densityDpi, surface, blockCapture);
@@ -1038,7 +1033,7 @@ public final class MainActivity extends Activity {
     }
 
     private void stopOutput() {
-        pendingSplit = null;
+        splitActive = splitChoosing = false;
         restorePrimaryDensity();
         Log.i(TAG, "stop displayId=" + virtualDisplayId);
         densityRefreshGeneration++;
@@ -1248,6 +1243,12 @@ public final class MainActivity extends Activity {
         };
 
         private static final int PANEL_NONE = 0;
+        private static final int PANEL_SPLIT = 1;
+        private boolean splitDrag;
+        private float splitDownAxis;
+        private int splitPickerOffset;
+        private ArrayList<ResolveInfo> splitPickerCache;
+        private boolean splitPickerPressed;
         private static final int PANEL_VOLUME_SLIDER = 3;
         private static final int PANEL_APPS = 4;
         private static final int PANEL_CLOSE_APP = 5;
@@ -1317,6 +1318,7 @@ public final class MainActivity extends Activity {
             updateStatusBarDwell();
             if (handleScreenshotPreviewTouch(event)) return true;
             if (handleQuickPanelTouch(event)) return true;
+            if (handleSplitTouch(event)) return true;
             if (isCurrentAppTouchMode()) forwardTouchModeEvent(event);
             else forwardMouseEvent(event);
             return true;
@@ -1348,6 +1350,16 @@ public final class MainActivity extends Activity {
             }
             if ((quickPanelVisible || statusBarVisible) && isOverQuickUi(virtualPointerX, virtualPointerY)) {
                 if (action == MotionEvent.ACTION_SCROLL) adjustVolume(event.getAxisValue(MotionEvent.AXIS_VSCROLL) > 0 ? 1 : -1);
+                return true;
+            }
+            if (splitChoosing && overSplitPicker()) {
+                if (action == MotionEvent.ACTION_SCROLL) {
+                    int direction = event.getAxisValue(MotionEvent.AXIS_VSCROLL) < 0 ? 1 : -1;
+                    splitPickerOffset = Math.max(0, Math.min(Math.max(0, (splitPickerApps().size() - 1)
+                                    / splitPickerColumns() * splitPickerColumns()),
+                            splitPickerOffset + direction * splitPickerColumns()));
+                    invalidate();
+                }
                 return true;
             }
             if (action == MotionEvent.ACTION_HOVER_EXIT) {
@@ -1730,6 +1742,9 @@ public final class MainActivity extends Activity {
                 return PANEL_NONE;
             }
             float compatCenterY = barHeight + panelDp(91);
+            if (!splitActive && currentVirtualPackage != null && !captureBlockedDisplay
+                    && x >= width - panelDp(150) && x <= width - panelDp(88)
+                    && Math.abs(y - compatCenterY) <= panelDp(18)) return PANEL_SPLIT;
             if (y >= compatCenterY - panelDp(17) && y <= compatCenterY + panelDp(17)) {
                 return PANEL_DENSITY_COMPAT;
             }
@@ -1754,7 +1769,12 @@ public final class MainActivity extends Activity {
         }
 
         private void activateQuickControl(int control, float x) {
-            if (control == PANEL_VOLUME_SLIDER) setStatusVolumeFromPointer(x);
+            if (control == PANEL_SPLIT) {
+                quickPanelVisible = statusBarVisible = false;
+                splitPickerOffset = 0;
+                splitPickerCache = null;
+                updateSplit(null);
+            } else if (control == PANEL_VOLUME_SLIDER) setStatusVolumeFromPointer(x);
             else if (control == PANEL_DPI_SLIDER) setDensityFromPointer(x, true);
             else if (control == PANEL_ORIENTATION) setPortraitMode(!portraitMode);
             else if (control == PANEL_INPUT_MODE) toggleCurrentInputMode();
@@ -1904,6 +1924,7 @@ public final class MainActivity extends Activity {
                 Log.i(TAG, "close foreground virtual display task result=" + removed
                         + " package=" + currentVirtualPackage);
                 if (removed) {
+                    splitActive = splitChoosing = false;
                     restorePrimaryDensity();
                     currentVirtualPackage = null;
                     // Closing the last app leaves the virtual display blank; show the
@@ -2044,6 +2065,15 @@ public final class MainActivity extends Activity {
                         width - panelDp(30), controlsCenterY, panelDp(26));
 
                 float compatY = barHeight + panelDp(91);
+                if (!splitActive && currentVirtualPackage != null && !captureBlockedDisplay) {
+                    panelPaint.setColor(0x99607888);
+                    canvas.drawRoundRect(width - panelDp(150), compatY - panelDp(17),
+                            width - panelDp(88), compatY + panelDp(17), panelDp(6), panelDp(6), panelPaint);
+                    panelTextPaint.setColor(0xe6ffffff);
+                    panelTextPaint.setTextSize(panelDp(13));
+                    panelTextPaint.setTextAlign(Paint.Align.CENTER);
+                    canvas.drawText("分屏", width - panelDp(119), compatY + panelDp(5), panelTextPaint);
+                }
                 boolean compat = currentVirtualPackage != null && densityCompatPackages.contains(currentVirtualPackage);
                 panelTextPaint.setTextSize(panelDp(13));
                 panelTextPaint.setTextAlign(Paint.Align.LEFT);
@@ -2343,9 +2373,140 @@ public final class MainActivity extends Activity {
             }
         }
 
+        private RectF splitPickerBounds() {
+            return portraitMode ? new RectF(0, getHeight() / 2f, getWidth(), getHeight())
+                    : new RectF(getWidth() / 2f, 0, getWidth(), getHeight());
+        }
+
+        private boolean overSplitPicker() {
+            return splitPickerBounds().contains(virtualPointerX, virtualPointerY);
+        }
+
+        private ArrayList<ResolveInfo> splitPickerApps() {
+            if (splitPickerCache != null) return splitPickerCache;
+            java.util.LinkedHashMap<String, ResolveInfo> ordered = new java.util.LinkedHashMap<>();
+            for (ResolveInfo app : quickPanelApps()) ordered.put(app.activityInfo.packageName, app);
+            ArrayList<ResolveInfo> others = new ArrayList<>(launcherByPackage.values());
+            others.sort((a, b) -> launcherLabel(a).compareToIgnoreCase(launcherLabel(b)));
+            for (ResolveInfo app : others) {
+                int flags = app.activityInfo.applicationInfo.flags;
+                if (!showSystemApps && (flags & (android.content.pm.ApplicationInfo.FLAG_SYSTEM
+                        | android.content.pm.ApplicationInfo.FLAG_UPDATED_SYSTEM_APP)) != 0) continue;
+                ordered.putIfAbsent(app.activityInfo.packageName, app);
+            }
+            ordered.remove(getPackageName());
+            ordered.remove(currentVirtualPackage);
+            ordered.remove("com.netease.uuremote");
+            splitPickerCache = new ArrayList<>(ordered.values());
+            return splitPickerCache;
+        }
+
+        private int splitPickerColumns() {
+            return Math.max(1, (int) (splitPickerBounds().width() / panelDp(88)));
+        }
+
+        private boolean handleSplitTouch(MotionEvent event) {
+            if (!splitActive) return false;
+            int action = event.getActionMasked();
+            float axis = portraitMode ? virtualPointerY : virtualPointerX;
+            float extent = portraitMode ? getHeight() : getWidth();
+            if (splitChoosing) {
+                if (action == MotionEvent.ACTION_DOWN) splitPickerPressed = overSplitPicker();
+                if (!splitPickerPressed) return false;
+                if (action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_CANCEL) {
+                    splitPickerPressed = false;
+                    if (action == MotionEvent.ACTION_UP && overSplitPicker()) {
+                        RectF area = splitPickerBounds();
+                        int columns = splitPickerColumns();
+                        int col = (int) ((virtualPointerX - area.left) / (area.width() / columns));
+                        int row = (int) Math.floor((virtualPointerY - area.top - panelDp(52)) / panelDp(74));
+                        ArrayList<ResolveInfo> apps = splitPickerApps();
+                        int index = splitPickerOffset + row * columns + col;
+                        if (row >= 0 && col >= 0 && col < columns && index < apps.size()) updateSplit(apps.get(index));
+                    }
+                }
+                return true;
+            }
+            float along = portraitMode ? virtualPointerX : virtualPointerY;
+            float midpoint = (portraitMode ? getWidth() : getHeight()) / 2f;
+            if (action == MotionEvent.ACTION_DOWN) {
+                splitDrag = Math.abs(axis - splitRatio * extent) <= panelDp(16)
+                        && Math.abs(along - midpoint) <= panelDp(42);
+                splitDownAxis = axis;
+            }
+            if (!splitDrag) return false;
+            if (action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_CANCEL) {
+                splitDrag = false;
+                if (action == MotionEvent.ACTION_UP) {
+                    boolean swap = Math.abs(axis - splitDownAxis) < panelDp(8);
+                    float ratio = swap ? splitRatio : Math.max(1f / 3f, Math.min(2f / 3f, axis / extent));
+                    try {
+                        displayService.adjustSplit(ratio, swap);
+                        splitRatio = ratio;
+                    } catch (Exception e) {
+                        status("分屏调整失败：" + e.getMessage());
+                    }
+                }
+            }
+            invalidate();
+            return true;
+        }
+
+        private void drawSplitUi(Canvas canvas) {
+            if (splitChoosing) {
+                RectF area = splitPickerBounds();
+                panelPaint.setColor(0xff1b2028);
+                canvas.drawRect(area, panelPaint);
+                panelTextPaint.setColor(0xe6ffffff);
+                panelTextPaint.setTextAlign(Paint.Align.CENTER);
+                panelTextPaint.setTextSize(panelDp(15));
+                canvas.drawText(portraitMode ? "选择下方应用" : "选择右侧应用",
+                        area.centerX(), area.top + panelDp(32), panelTextPaint);
+                ArrayList<ResolveInfo> apps = splitPickerApps();
+                int columns = splitPickerColumns();
+                float cellWidth = area.width() / columns;
+                float rowHeight = panelDp(74);
+                float top = area.top + panelDp(52);
+                canvas.save();
+                canvas.clipRect(area);
+                for (int i = splitPickerOffset; i < apps.size(); i++) {
+                    int slot = i - splitPickerOffset;
+                    float y = top + slot / columns * rowHeight;
+                    if (y >= area.bottom) break;
+                    float x = area.left + (slot % columns + 0.5f) * cellWidth;
+                    ResolveInfo app = apps.get(i);
+                    android.graphics.drawable.Drawable icon = launcherIcon(app);
+                    int half = Math.round(panelDp(16));
+                    icon.setBounds((int) x - half, (int) y, (int) x + half, (int) y + 2 * half);
+                    icon.draw(canvas);
+                    panelTextPaint.setTextSize(panelDp(12));
+                    canvas.drawText(panelDisplayLabel(app, cellWidth), x, y + panelDp(52), panelTextPaint);
+                }
+                canvas.restore();
+                return;
+            }
+            float extent = portraitMode ? getHeight() : getWidth();
+            float axis = splitRatio * extent;
+            if (splitDrag) axis = Math.max(extent / 3f, Math.min(extent * 2f / 3f,
+                    portraitMode ? virtualPointerY : virtualPointerX));
+            float x = portraitMode ? getWidth() / 2f : axis;
+            float y = portraitMode ? axis : getHeight() / 2f;
+            float hw = panelDp(portraitMode ? 25 : 8);
+            float hh = panelDp(portraitMode ? 8 : 25);
+            panelPaint.setColor(0xdd20252b);
+            canvas.drawRoundRect(x - hw, y - hh, x + hw, y + hh, panelDp(7), panelDp(7), panelPaint);
+            panelPaint.setColor(0xffeeeeee);
+            for (int i = -1; i <= 1; i++) {
+                float step = i * panelDp(7);
+                canvas.drawCircle(x + (portraitMode ? step : 0), y + (portraitMode ? 0 : step),
+                        panelDp(2), panelPaint);
+            }
+        }
+
         @Override
         protected void onDraw(Canvas canvas) {
             super.onDraw(canvas);
+            if (splitActive) drawSplitUi(canvas);
             if (statusBarVisible || quickPanelVisible) drawQuickUi(canvas);
             drawScreenshotPreview(canvas);
             if (!forwarding || !pointerVisible) return;
@@ -2369,6 +2530,7 @@ public final class MainActivity extends Activity {
     }
 
     private void releaseVirtualDisplay() {
+        splitActive = splitChoosing = false;
         if (displayService != null && virtualDisplayId >= 0) {
             try { displayService.releaseDisplay(); } catch (RemoteException ignored) { }
         }
@@ -2535,62 +2697,21 @@ public final class MainActivity extends Activity {
         }
     }
 
-    private void showSplitPicker(ResolveInfo first) {
-        if (splitOpening) return;
-        List<ResolveInfo> choices = new ArrayList<>();
-        for (ResolveInfo app : appEntries) {
-            String pkg = app.activityInfo.packageName;
-            if (getPackageName().equals(pkg) || "com.netease.uuremote".equals(pkg)) continue;
-            if (first != null && first.activityInfo.packageName.equals(pkg)) continue;
-            if (!showSystemApps && (app.activityInfo.applicationInfo.flags
-                    & android.content.pm.ApplicationInfo.FLAG_SYSTEM) != 0) continue;
-            choices.add(app);
-        }
-        if (choices.isEmpty()) {
-            status("没有可选应用，可以打开系统应用开关后重试");
+    private void updateSplit(ResolveInfo second) {
+        if (splitOpening || virtualDisplayId < 0 || displayService == null) return;
+        if (second == null && (currentVirtualPackage == null || captureBlockedDisplay || splitActive)) {
+            status("请先打开支持分屏的应用");
             return;
         }
-        choices.sort(java.util.Comparator.comparing(app ->
-                app.loadLabel(getPackageManager()).toString(), java.text.Collator.getInstance()));
-        CharSequence[] labels = new CharSequence[choices.size()];
-        for (int i = 0; i < labels.length; i++) labels[i] = choices.get(i).loadLabel(getPackageManager());
-        String side = first == null ? (portraitMode ? "上方" : "左侧") : (portraitMode ? "下方" : "右侧");
-        new android.app.AlertDialog.Builder(this).setTitle("选择" + side + "应用")
-                .setItems(labels, (dialog, position) -> {
-                    ResolveInfo selected = choices.get(position);
-                    if (first == null) showSplitPicker(selected);
-                    else requestSplit(new SplitPair(first, selected));
-                }).setNegativeButton("取消", null).show();
-    }
-
-    private void requestSplit(SplitPair pair) {
-        if (captureBlockedDisplay && virtualDisplayId >= 0) {
-            status("请先停止当前输出，再创建分屏");
-            return;
-        }
-        autoMouseSuppressed = false;
-        pendingLaunchPackage = pendingLaunchActivity = null;
-        pendingSplit = pair;
-        if (displayService == null || virtualDisplayId < 0) {
-            requestShizukuAndStart();
-        } else {
-            launchPendingApp();
-        }
-    }
-
-    private void openSplit(SplitPair pair) {
-        if (splitOpening || !restorePrimaryDensity()) return;
-        if (mousePointerView != null) mousePointerView.cancelTouchGesture();
-        autoEnableMouseIfAvailable();
         IDisplayService service = displayService;
         int targetDisplay = virtualDisplayId;
+        String firstPackage = currentVirtualPackage;
         splitOpening = true;
-        status("正在创建分屏…");
         new Thread(() -> {
             Exception failure = null;
             try {
-                service.launchSplit(pair.first().activityInfo.packageName, pair.first().activityInfo.name,
-                        pair.second().activityInfo.packageName, pair.second().activityInfo.name);
+                if (second == null) service.beginSplit(firstPackage);
+                else service.fillSplit(second.activityInfo.packageName, second.activityInfo.name);
             } catch (Exception e) {
                 failure = e;
             }
@@ -2599,20 +2720,21 @@ public final class MainActivity extends Activity {
                 splitOpening = false;
                 if (virtualDisplayId != targetDisplay || displayService != service) return;
                 if (result != null) {
-                    Log.e(TAG, "split launch failed", result);
-                    status("分屏创建失败：" + result.getMessage());
+                    Log.e(TAG, "split update failed", result);
+                    status("分屏操作失败：" + result.getMessage());
                     return;
                 }
-                currentVirtualPackage = null;
+                splitActive = true;
+                splitChoosing = second == null;
+                if (splitChoosing) splitRatio = 0.5f;
+                else currentVirtualPackage = null;
                 if (mousePointerView != null) mousePointerView.invalidate();
-                status("分屏已打开，外接屏的 × 可关闭整组");
             });
         }, "boxscreen-split").start();
     }
 
     private void launchPackage(String packageName, String activityName) {
         if (splitOpening) return;
-        pendingSplit = null;
         autoMouseSuppressed = false;
         if (displayService == null || virtualDisplayId < 0) {
             pendingLaunchPackage = packageName;
@@ -2645,6 +2767,7 @@ public final class MainActivity extends Activity {
             autoEnableMouseIfAvailable();
             Log.i(TAG, "launch=" + packageName + "/" + activityName + " display=" + virtualDisplayId);
             displayService.launchActivity(packageName, activityName);
+            splitActive = splitChoosing = false;
             currentVirtualPackage = packageName;
             recentAppPackages.remove(packageName);
             recentAppPackages.add(0, packageName);
@@ -2749,12 +2872,6 @@ public final class MainActivity extends Activity {
     }
 
     private void launchPendingApp() {
-        if (pendingSplit != null && displayService != null && virtualDisplayId >= 0) {
-            SplitPair pair = pendingSplit;
-            pendingSplit = null;
-            openSplit(pair);
-            return;
-        }
         if (pendingLaunchPackage == null || pendingLaunchActivity == null
                 || displayService == null || virtualDisplayId < 0) return;
         String packageName = pendingLaunchPackage;

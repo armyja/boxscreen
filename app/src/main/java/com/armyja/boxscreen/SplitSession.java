@@ -25,6 +25,8 @@ final class SplitSession {
     private Stage first;
     private Stage second;
     private boolean active;
+    private float ratio = 0.5f;
+    private boolean reversed;
 
     private record Stage(Object token, SurfaceControl surface) {}
 
@@ -108,7 +110,7 @@ final class SplitSession {
         transactionType.getMethod("setAdjacentRoots", pair.getClass()).invoke(tx, pair);
         Method reparent = transactionType.getMethod("reparent", tokenType, tokenType, boolean.class);
         reparent.invoke(tx, firstTask, first.token(), true);
-        reparent.invoke(tx, secondTask, second.token(), true);
+        if (secondTask != null) reparent.invoke(tx, secondTask, second.token(), true);
         transactionType.getMethod("reorder", tokenType, boolean.class).invoke(tx, root.token(), true);
         Rect[] bounds = bounds(width, height);
         setBounds(tx, bounds);
@@ -119,12 +121,13 @@ final class SplitSession {
         showSurfaces(bounds);
     }
 
-    private static Rect[] bounds(int width, int height) {
-        int half = (width >= height ? width : height) / 2;
+    private Rect[] bounds(int width, int height) {
+        int half = Math.round((width >= height ? width : height) * ratio);
         int gap = Math.min(6, Math.max(0, half - 1));
-        return width >= height
+        Rect[] result = width >= height
                 ? new Rect[]{new Rect(0, 0, half - gap, height), new Rect(half + gap, 0, width, height)}
                 : new Rect[]{new Rect(0, 0, width, half - gap), new Rect(0, half + gap, width, height)};
+        return reversed ? new Rect[]{result[1], result[0]} : result;
     }
 
     private void setBounds(Object tx, Rect[] bounds) throws ReflectiveOperationException {
@@ -156,6 +159,22 @@ final class SplitSession {
         } finally {
             type.getMethod("close").invoke(tx);
         }
+    }
+
+    void fill(Object task, int width, int height) throws ReflectiveOperationException {
+        Object tx = transaction();
+        transactionType.getMethod("reparent", tokenType, tokenType, boolean.class)
+                .invoke(tx, task, second.token(), true);
+        transactionType.getMethod("reorder", tokenType, boolean.class).invoke(tx, root.token(), true);
+        apply(tx);
+        android.os.SystemClock.sleep(900);
+        showSurfaces(bounds(width, height));
+    }
+
+    void adjust(float ratio, boolean swap, int width, int height) throws ReflectiveOperationException {
+        this.ratio = Math.max(1f / 3f, Math.min(2f / 3f, ratio));
+        if (swap) reversed = !reversed;
+        resize(width, height);
     }
 
     void resize(int width, int height) throws ReflectiveOperationException {
