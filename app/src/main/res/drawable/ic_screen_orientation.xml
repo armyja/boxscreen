@@ -3,19 +3,11 @@
     android:height="24dp"
     android:viewportWidth="24"
     android:viewportHeight="24">
-    <!-- Paired portrait/landscape device glyph, drawn with Android-style rounded strokes. -->
     <path
-        android:fillColor="#00000000"
-        android:strokeColor="#FFFFFFFF"
-        android:strokeWidth="2"
-        android:strokeLineCap="round"
-        android:strokeLineJoin="round"
-        android:pathData="M4,6.5h8.5a2,2 0,0 1,2 2v6.5a2,2 0,0 1,-2 2H4a2,2 0,0 1,-2 -2V8.5a2,2 0,0 1,2 -2zM17.8,2.5h3a2,2 0,0 1,2 2v15a2,2 0,0 1,-2 2h-3a2,2 0,0 1,-2 -2v-15a2,2 0,0 1,2 -2zM18.9,5h1.2" />
+        android:fillColor="#FFFFFFFF"
+        android:fillType="evenOdd"
+        android:pathData="M3,5.5h7a1.8,1.8 0,0 1,1.8 1.8v13.9A1.8,1.8 0,0 1,10 23H3a1.8,1.8 0,0 1,-1.8 -1.8V7.3A1.8,1.8 0,0 1,3 5.5zM2.8,7.1h7.4v12.7H2.8zM7.3,21.3a0.8,0.8 0,1 1,-1.6 0a0.8,0.8 0,1 1,1.6 0zM13.5,12.3h7.3a2,2 0,0 1,2 2V21a2,2 0,0 1,-2 2H13l0.5,-1.6h7.7v-7.5h-7.7z" />
     <path
-        android:fillColor="#00000000"
-        android:strokeColor="#FFFFFFFF"
-        android:strokeWidth="1.7"
-        android:strokeLineCap="round"
-        android:strokeLineJoin="round"
-        android:pathData="M5.3,4.7c2.2,-2.4 5.8,-2.7 8.5,-0.7m-3.3,0.1 3.8,0.2 -1.5,-3.3M18.7,19.3c-2.2,2.4 -5.8,2.7 -8.5,0.7m3.3,-0.1 -3.8,-0.2 1.5,3.3" />
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M12.6,1A6.8,6.8 0,0 1,19.4 7h1.1a0.4,0.4 0,0 1,0.3 0.7l-1.9,1.9a0.5,0.5 0,0 1,-0.7 0l-1.9,-1.9a0.4,0.4 0,0 1,0.3 -0.7h1.1a5.1,5.1 0,0 0,-5.1 -4.4a0.8,0.8 0,0 1,0 -1.6z" />
 </vector>

@@ -16,7 +16,6 @@ import android.os.Handler;
 import android.os.Bundle;
 import android.os.Build;
 import android.os.BatteryManager;
-import android.app.ActivityOptions;
 import android.os.IBinder;
 import android.os.RemoteException;
 import android.graphics.Canvas;
@@ -83,7 +82,7 @@ import rikka.shizuku.Shizuku;
 
 public final class MainActivity extends Activity {
     private static final String TAG = "BoxScreen";
-    private static final int PANEL_SCREENSHOT = 11;
+    private static final int PANEL_SCREENSHOT = 2;
     private static final int SHIZUKU_REQUEST = 410;
     private static final int MAX_DISPLAY_RECOVERY_ATTEMPTS = 12;
     private static final long DISPLAY_RECOVERY_DELAY_MS = 250;
@@ -153,8 +152,13 @@ public final class MainActivity extends Activity {
     private Bitmap screenshotPreviewBitmap;
     private Uri screenshotPreviewUri;
     private boolean screenshotPreviewExpanded;
+    private String screenshotPreviewMessage;
     private final Handler screenshotPreviewHandler = new Handler();
     private final Runnable hideScreenshotPreview = this::dismissScreenshotPreview;
+    private final Runnable clearScreenshotPreviewMessage = () -> {
+        screenshotPreviewMessage = null;
+        if (mousePointerView != null) mousePointerView.invalidate();
+    };
     private IDisplayService displayService;
     private Shizuku.UserServiceArgs shizukuServiceArgs;
     private final ServiceConnection shizukuServiceConnection = new ServiceConnection() {
@@ -685,21 +689,56 @@ public final class MainActivity extends Activity {
         screenshotPreviewUri = uri;
         screenshotPreviewBitmap = bitmap;
         screenshotPreviewExpanded = false;
+        screenshotPreviewMessage = null;
+        screenshotPreviewHandler.removeCallbacks(clearScreenshotPreviewMessage);
         screenshotPreviewHandler.removeCallbacks(hideScreenshotPreview);
         screenshotPreviewHandler.postDelayed(hideScreenshotPreview, 7000);
+        Log.i(TAG, "screenshot thumbnail shown; auto-dismiss in 7 seconds");
         if (mousePointerView != null) mousePointerView.invalidate();
         Log.i(TAG, "external screenshot thumbnail displayed uri=" + uri);
     }
 
     private void dismissScreenshotPreview() {
         screenshotPreviewHandler.removeCallbacks(hideScreenshotPreview);
+        screenshotPreviewHandler.removeCallbacks(clearScreenshotPreviewMessage);
+        if (screenshotPreviewBitmap != null) Log.i(TAG, "screenshot preview dismissed");
         if (screenshotPreviewBitmap != null && !screenshotPreviewBitmap.isRecycled()) {
             screenshotPreviewBitmap.recycle();
         }
         screenshotPreviewBitmap = null;
         screenshotPreviewUri = null;
         screenshotPreviewExpanded = false;
+        screenshotPreviewMessage = null;
         if (mousePointerView != null) mousePointerView.invalidate();
+    }
+
+    private void openScreenshotInGallery() {
+        Uri uri = screenshotPreviewUri;
+        if (uri == null) return;
+        Intent view = new Intent(Intent.ACTION_VIEW).setDataAndType(uri, "image/png")
+                .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+        try {
+            if (displayService == null || virtualDisplayId < 0) {
+                throw new IllegalStateException("虚拟屏尚未运行");
+            }
+            ResolveInfo gallery = getPackageManager().resolveActivity(view, 0);
+            if (gallery == null || gallery.activityInfo == null) {
+                throw new IllegalStateException("没有可打开图片的图库应用");
+            }
+            displayService.launchViewOnVirtualDisplay(gallery.activityInfo.packageName,
+                    gallery.activityInfo.name, uri.toString(), "image/png");
+            Log.i(TAG, "opened screenshot in gallery " + gallery.activityInfo.packageName
+                    + " on virtual display=" + virtualDisplayId + " uri=" + uri);
+            dismissScreenshotPreview();
+        } catch (RemoteException | RuntimeException e) {
+            Log.e(TAG, "failed to open screenshot in gallery", e);
+            screenshotPreviewMessage = e instanceof SecurityException
+                    ? "Android 不允许应用把系统图库启动到外接屏"
+                    : "无法在外接屏打开系统图库";
+            screenshotPreviewHandler.removeCallbacks(clearScreenshotPreviewMessage);
+            screenshotPreviewHandler.postDelayed(clearScreenshotPreviewMessage, 6000);
+            if (mousePointerView != null) mousePointerView.invalidate();
+        }
     }
 
     private void detachOutputSurfaceForRecreation() {
@@ -1152,6 +1191,8 @@ public final class MainActivity extends Activity {
         private final Paint outlinePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
         private final Paint panelPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
         private final Paint panelTextPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        private final Paint screenshotImagePaint = new Paint(
+                Paint.ANTI_ALIAS_FLAG | Paint.FILTER_BITMAP_FLAG | Paint.DITHER_FLAG);
         private int panelDensityDpi = densityDpi;
         private final Path pointerShape = new Path();
         private float pointerX;
@@ -1273,7 +1314,8 @@ public final class MainActivity extends Activity {
 
         @Override
         public boolean onGenericMotionEvent(MotionEvent event) {
-            if (!forwarding || !event.isFromSource(InputDevice.SOURCE_MOUSE)) return false;
+            if ((!forwarding && screenshotPreviewBitmap == null)
+                    || !event.isFromSource(InputDevice.SOURCE_MOUSE)) return false;
             int action = event.getActionMasked();
             if (action != MotionEvent.ACTION_HOVER_ENTER
                     && action != MotionEvent.ACTION_HOVER_MOVE
@@ -1285,6 +1327,7 @@ public final class MainActivity extends Activity {
             updateVirtualPointer(event.getRawX(), event.getRawY());
             showPointer();
             updateStatusBarDwell();
+            if (screenshotPreviewBitmap != null && handleScreenshotPreviewTouch(event)) return true;
             if (action == MotionEvent.ACTION_HOVER_EXIT) {
                 pointerOutside = true;
                 handler.removeCallbacks(revealStatusBar);
@@ -1548,7 +1591,7 @@ public final class MainActivity extends Activity {
 
         private float dpiSliderLeft() { return panelDp(118); }
 
-        private float dpiSliderRight() { return Math.max(dpiSliderLeft() + 1, getWidth() - panelDp(106)); }
+        private float dpiSliderRight() { return Math.max(dpiSliderLeft() + 1, getWidth() - panelDp(164)); }
 
         private void updateStatusBarDwell() {
             if (!forwarding) return;
@@ -1664,13 +1707,21 @@ public final class MainActivity extends Activity {
             float controlsTop = barHeight + panelDp(8);
             float controlsBottom = barHeight + panelDp(64);
             if (y >= controlsTop && y <= controlsBottom) {
-                if (x >= getWidth() - panelDp(48)) return PANEL_ORIENTATION;
-                if (x >= getWidth() - panelDp(94)) return PANEL_INPUT_MODE;
+                if (x >= getWidth() - panelDp(48) && x <= getWidth() - panelDp(12)) {
+                    return PANEL_SCREENSHOT;
+                }
+                if (x >= getWidth() - panelDp(94) && x <= getWidth() - panelDp(58)) {
+                    return PANEL_ORIENTATION;
+                }
+                if (x >= getWidth() - panelDp(152) && x <= getWidth() - panelDp(106)) {
+                    return PANEL_INPUT_MODE;
+                }
                 if (x >= dpiSliderLeft() && x <= dpiSliderRight()) return PANEL_DPI_SLIDER;
                 return PANEL_NONE;
             }
-            if (y >= barHeight + panelDp(70) && y < barHeight + panelDp(112)) {
-                return x <= panelDp(104) ? PANEL_SCREENSHOT : PANEL_DENSITY_COMPAT;
+            float compatCenterY = barHeight + panelDp(91);
+            if (y >= compatCenterY - panelDp(17) && y <= compatCenterY + panelDp(17)) {
+                return PANEL_DENSITY_COMPAT;
             }
             float appsTop = quickPanelAppsTop();
             float tileHeight = panelDp(58);
@@ -1698,7 +1749,10 @@ public final class MainActivity extends Activity {
             else if (control == PANEL_ORIENTATION) setPortraitMode(!portraitMode);
             else if (control == PANEL_INPUT_MODE) toggleCurrentInputMode();
             else if (control == PANEL_DENSITY_COMPAT) toggleDensityCompat();
-            else if (control == PANEL_SCREENSHOT) captureVirtualScreen();
+            else if (control == PANEL_SCREENSHOT) {
+                Log.i(TAG, "quick panel screenshot button activated x=" + x);
+                captureVirtualScreen();
+            }
             else if (control == PANEL_APPS) {
                 quickPanelVisible = true;
                 statusBarVisible = true;
@@ -1944,10 +1998,13 @@ public final class MainActivity extends Activity {
                 float controlsBottom = barHeight + panelDp(64);
                 float controlsCenterY = barHeight + panelDp(36);
                 panelPaint.setColor(0x6630343d);
-                canvas.drawRect(width - panelDp(94), controlsTop + panelDp(4), width - panelDp(8),
+                canvas.drawRect(width - panelDp(152), controlsTop + panelDp(4), width - panelDp(8),
                         controlsBottom - panelDp(4), panelPaint);
                 panelPaint.setColor(currentVirtualPackage == null || isCurrentAppTouchMode()
                         ? 0x997a5b32 : 0x664b6470);
+                canvas.drawRect(width - panelDp(152), controlsTop + panelDp(8), width - panelDp(106),
+                        controlsBottom - panelDp(8), panelPaint);
+                panelPaint.setColor(0x664b6470);
                 canvas.drawRect(width - panelDp(94), controlsTop + panelDp(8), width - panelDp(58),
                         controlsBottom - panelDp(8), panelPaint);
                 panelPaint.setColor(0x664b6470);
@@ -1969,24 +2026,21 @@ public final class MainActivity extends Activity {
                         controlsCenterY + panelDp(3), panelDp(4), panelDp(4), panelPaint);
                 canvas.drawCircle(sliderLeft + (sliderRight - sliderLeft) * densityRatio,
                         controlsCenterY, panelDp(8), panelPaint);
-                drawInputModeIcon(canvas, width - panelDp(76), controlsCenterY,
+                drawInputModeIcon(canvas, width - panelDp(129), controlsCenterY,
                         currentVirtualPackage == null || isCurrentAppTouchMode());
-                drawOrientationIcon(canvas, width - panelDp(30), controlsCenterY);
+                drawOrientationIcon(canvas, width - panelDp(76), controlsCenterY);
+                drawPanelVectorIcon(canvas, R.drawable.ic_screenshot,
+                        width - panelDp(30), controlsCenterY, panelDp(26));
 
                 float compatY = barHeight + panelDp(91);
                 boolean compat = currentVirtualPackage != null && densityCompatPackages.contains(currentVirtualPackage);
                 panelTextPaint.setTextSize(panelDp(13));
-                panelTextPaint.setTextAlign(Paint.Align.CENTER);
-                panelTextPaint.setColor(0xe6ffffff);
-                panelPaint.setColor(0x99607078);
-                canvas.drawRoundRect(panelDp(12), compatY - panelDp(17), panelDp(104),
-                        compatY + panelDp(17), panelDp(7), panelDp(7), panelPaint);
-                canvas.drawText("截图", panelDp(58), compatY + panelDp(5), panelTextPaint);
                 panelTextPaint.setTextAlign(Paint.Align.LEFT);
-                canvas.drawText("主屏 DPI 同步 · 当前应用", panelDp(120), compatY - panelDp(2), panelTextPaint);
+                panelTextPaint.setColor(0xe6ffffff);
+                canvas.drawText("主屏 DPI 同步 · 当前应用", panelDp(16), compatY - panelDp(2), panelTextPaint);
                 panelTextPaint.setTextSize(panelDp(10));
                 panelTextPaint.setColor(0xaaffffff);
-                canvas.drawText("手机主屏显示大小会变化", panelDp(120), compatY + panelDp(12), panelTextPaint);
+                canvas.drawText("手机主屏显示大小会变化", panelDp(16), compatY + panelDp(12), panelTextPaint);
                 panelPaint.setColor(compat ? 0xcc80cbc4 : 0x9977808d);
                 canvas.drawRoundRect(width - panelDp(55), compatY - panelDp(10), width - panelDp(15), compatY + panelDp(10), panelDp(10), panelDp(10), panelPaint);
                 panelPaint.setColor(0xffeeeeee);
@@ -2177,6 +2231,13 @@ public final class MainActivity extends Activity {
         private boolean handleScreenshotPreviewTouch(MotionEvent event) {
             if (screenshotPreviewBitmap == null) return false;
             int action = event.getActionMasked();
+            if (action == MotionEvent.ACTION_BUTTON_PRESS) {
+                if (event.getActionButton() != MotionEvent.BUTTON_PRIMARY) return true;
+                action = MotionEvent.ACTION_DOWN;
+            } else if (action == MotionEvent.ACTION_BUTTON_RELEASE) {
+                if (event.getActionButton() != MotionEvent.BUTTON_PRIMARY) return true;
+                action = MotionEvent.ACTION_UP;
+            }
             float x = virtualPointerX;
             float y = virtualPointerY;
             if (action == MotionEvent.ACTION_DOWN) {
@@ -2204,27 +2265,9 @@ public final class MainActivity extends Activity {
                         if (uri != null) getContentResolver().delete(uri, null, null);
                         dismissScreenshotPreview();
                     } else if (y >= buttonY && x > getWidth() * 0.64f) {
-                        Uri uri = screenshotPreviewUri;
-                        if (uri != null) {
-                            Intent share = new Intent(Intent.ACTION_SEND).setType("image/png")
-                                    .putExtra(Intent.EXTRA_STREAM, uri)
-                                    .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
-                            Intent chooser = Intent.createChooser(share, "分享截图");
-                            try {
-                                if (externalDisplay == null) throw new IllegalStateException("外接显示器不可用");
-                                Bundle options = ActivityOptions.makeBasic()
-                                        .setLaunchDisplayId(externalDisplay.getDisplayId()).toBundle();
-                                startActivity(chooser, options);
-                                Log.i(TAG, "share chooser launched display=" + externalDisplay.getDisplayId());
-                            } catch (RuntimeException e) {
-                                Log.e(TAG, "unable to open share chooser on external display", e);
-                                status("系统未允许在外接屏打开分享窗口");
-                                return true;
-                            }
-                        }
-                        dismissScreenshotPreview();
+                        openScreenshotInGallery();
                     } else {
-                        screenshotPreviewExpanded = false;
+                        dismissScreenshotPreview();
                     }
                 }
                 invalidate();
@@ -2244,7 +2287,7 @@ public final class MainActivity extends Activity {
                 canvas.drawRect(0, 0, getWidth(), getHeight(), panelPaint);
                 RectF imageBounds = fitBitmap(new RectF(bounds.left + panelDp(12), bounds.top + panelDp(12),
                         bounds.right - panelDp(12), bounds.bottom - panelDp(84)), bitmap);
-                canvas.drawBitmap(bitmap, null, imageBounds, null);
+                canvas.drawBitmap(bitmap, null, imageBounds, screenshotImagePaint);
                 float buttonY = getHeight() - panelDp(70);
                 panelPaint.setColor(0xff39434b);
                 canvas.drawRoundRect(panelDp(24), buttonY, getWidth() * 0.36f,
@@ -2254,7 +2297,7 @@ public final class MainActivity extends Activity {
                 panelTextPaint.setTextSize(panelDp(16));
                 canvas.drawText("删除", (panelDp(24) + getWidth() * 0.36f) / 2f,
                         buttonY + panelDp(31), panelTextPaint);
-                canvas.drawText("分享", (getWidth() * 0.64f + getWidth() - panelDp(24)) / 2f,
+                canvas.drawText("图库打开", (getWidth() * 0.64f + getWidth() - panelDp(24)) / 2f,
                         buttonY + panelDp(31), panelTextPaint);
                 float closeX = getWidth() / 2f;
                 float closeY = buttonY + panelDp(24);
@@ -2273,10 +2316,19 @@ public final class MainActivity extends Activity {
                 canvas.drawRoundRect(card, panelDp(10), panelDp(10), panelPaint);
                 RectF imageBounds = fitBitmap(new RectF(card.left + panelDp(8), card.top + panelDp(8),
                         card.right - panelDp(8), card.bottom - panelDp(36)), bitmap);
-                canvas.drawBitmap(bitmap, null, imageBounds, null);
+                canvas.drawBitmap(bitmap, null, imageBounds, screenshotImagePaint);
                 panelTextPaint.setTextSize(panelDp(12));
                 canvas.drawText("截图已保存 · 点击预览", card.centerX(),
                         card.bottom - panelDp(12), panelTextPaint);
+            }
+            if (screenshotPreviewMessage != null) {
+                panelPaint.setColor(0xee20252b);
+                RectF message = new RectF(panelDp(24), getHeight() - panelDp(116),
+                        getWidth() - panelDp(24), getHeight() - panelDp(24));
+                canvas.drawRoundRect(message, panelDp(12), panelDp(12), panelPaint);
+                panelTextPaint.setTextSize(panelDp(14));
+                panelTextPaint.setTextAlign(Paint.Align.CENTER);
+                canvas.drawText(screenshotPreviewMessage, message.centerX(), message.centerY(), panelTextPaint);
             }
         }
 

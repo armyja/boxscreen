@@ -10,6 +10,7 @@ interface IDisplayService {
     void resizeDisplaySize(int width, int height, int densityDpi);
     void releaseDisplay();
     void launchActivity(String packageName, String className);
+    void launchViewOnVirtualDisplay(String packageName, String className, String uri, String mimeType);
     void sendKey(String keyCode);
     boolean injectKey(int keyCode, boolean down);
     boolean closeTopTaskOnVirtualDisplay();

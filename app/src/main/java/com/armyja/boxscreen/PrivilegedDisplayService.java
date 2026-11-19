@@ -505,6 +505,24 @@ public final class PrivilegedDisplayService extends IDisplayService.Stub {
                 "-n", packageName + "/" + className});
     }
 
+    @Override
+    public void launchViewOnVirtualDisplay(String packageName, String className, String uri,
+            String mimeType) {
+        if (virtualDisplay == null || virtualDisplay.getDisplay() == null) {
+            throw new IllegalStateException("Virtual display is not running");
+        }
+        if (packageName == null || !packageName.matches("[A-Za-z0-9_]+(\\.[A-Za-z0-9_]+)+")
+                || className == null || !className.matches("[A-Za-z0-9_.$]+")
+                || uri == null || !uri.matches("content://[A-Za-z0-9_./:%?=&-]+")
+                || mimeType == null || !mimeType.matches("[A-Za-z0-9.+-]+/[A-Za-z0-9.+-]+")) {
+            throw new IllegalArgumentException("Invalid image viewer request");
+        }
+        run(new String[]{"/system/bin/am", "start", "--display",
+                Integer.toString(virtualDisplay.getDisplay().getDisplayId()),
+                "--grant-read-uri-permission", "-a", "android.intent.action.VIEW",
+                "-d", uri, "-t", mimeType, "-n", packageName + "/" + className});
+    }
+
     private static final Set<Integer> ALLOWED_KEY_CODES = new HashSet<>(Arrays.asList(
             android.view.KeyEvent.KEYCODE_BACK, android.view.KeyEvent.KEYCODE_MENU));
 
