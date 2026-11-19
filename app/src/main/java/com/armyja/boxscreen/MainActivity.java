@@ -1373,8 +1373,12 @@ public final class MainActivity extends Activity {
         };
 
         private boolean splitDrag;
-        /** 0.3 = 70% transparent: the handle hints at the split without covering content. */
-        private static final float SPLIT_HANDLE_OPACITY = 0.3f;
+        /**
+         * Very light by design: the handle only hints at the split. The dark rim stays dimmer
+         * than the white core so it does not read as a grey smudge over light content.
+         */
+        private static final float SPLIT_HANDLE_RIM_OPACITY = 0.08f;
+        private static final float SPLIT_HANDLE_CORE_OPACITY = 0.20f;
         private boolean splitLayoutChanging;
 
         /** The handle sits high on the divider so dialogs and floating IMEs rarely reach it. */
@@ -3032,13 +3036,11 @@ public final class MainActivity extends Activity {
             float hw = portraitMode ? 32 : 6;
             float hh = portraitMode ? 6 : 32;
             float radius = Math.min(hw, hh);
-            // 70% transparent (30% opaque) so the handle reads as a hint, not as an overlay.
-            int handleAlpha = Math.round(255 * SPLIT_HANDLE_OPACITY);
             panelPaint.setColor(0xff000000);
-            panelPaint.setAlpha(handleAlpha);
+            panelPaint.setAlpha(Math.round(255 * SPLIT_HANDLE_RIM_OPACITY));
             canvas.drawRoundRect(cx - hw, cy - hh, cx + hw, cy + hh, radius, radius, panelPaint);
             panelPaint.setColor(0xffffffff);
-            panelPaint.setAlpha(handleAlpha);
+            panelPaint.setAlpha(Math.round(255 * SPLIT_HANDLE_CORE_OPACITY));
             canvas.drawRoundRect(cx - hw + 2, cy - hh + 2, cx + hw - 2, cy + hh - 2,
                     radius - 1, radius - 1, panelPaint);
             panelPaint.setAlpha(255);
