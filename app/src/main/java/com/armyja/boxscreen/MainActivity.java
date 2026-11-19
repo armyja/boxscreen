@@ -1277,6 +1277,10 @@ public final class MainActivity extends Activity {
         private boolean splitKillAwaitRelease;
         private final Runnable splitKillLongPress = () -> {
             if (!splitActive || splitChoosing) return;
+            // A real drag cancels the menu: once the divider has been moved, the press means
+            // "resize", not "open the close-app menu".
+            float axisNow = portraitMode ? virtualPointerY : virtualPointerX;
+            if (Math.abs(axisNow - this.splitDownAxis) > panelDp(6)) return;
             // The menu replaces the drag: the handle goes back to the current split ratio and
             // the rest of this press is ignored until the button is released.
             splitDrag = false;
@@ -2546,6 +2550,13 @@ public final class MainActivity extends Activity {
                 }
             }
             if (!splitDrag) return false;
+            if (action == MotionEvent.ACTION_MOVE) {
+                if (Math.abs(axis - splitDownAxis) > panelDp(6)) {
+                    handler.removeCallbacks(splitKillLongPress);
+                }
+                invalidate();
+                return true;
+            }
             if (action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_CANCEL) {
                 splitDrag = false;
                 handler.removeCallbacks(splitKillLongPress);
