@@ -2729,16 +2729,6 @@ public final class MainActivity extends Activity {
             }
         }
 
-        private String panelPackageLabel(String packageName) {
-            try {
-                PackageManager manager = getContext().getPackageManager();
-                return manager.getApplicationLabel(
-                        manager.getApplicationInfo(packageName, 0)).toString();
-            } catch (Exception e) {
-                return packageName;
-            }
-        }
-
         private int splitKillMenuItemAt(float x, float y) {
             RectF[] clusters = splitKillClusters();
             for (int side = 0; side < 2; side++) {
