@@ -650,7 +650,6 @@ public final class PrivilegedDisplayService extends IDisplayService.Stub {
                     if (!onTarget) continue;
                     if (line.contains("ty=INPUT_METHOD")
                             || line.contains("ty=APPLICATION_ATTACHED_DIALOG")
-                            || line.contains("ty=APPLICATION_OVERLAY")
                             || line.contains("ChooserActivity")) {
                         return true;
                     }

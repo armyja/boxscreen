@@ -2676,9 +2676,13 @@ public final class MainActivity extends Activity {
                 // Only the press decides whether this gesture is a handle drag. Once the drag
                 // is running the pointer is deliberately far from the old divider, so the
                 // remaining MOVE/UP events must not be re-tested against it.
-                boolean nearHandle = !splitOverlayShown
-                        && Math.abs(axis - splitRatio * extent) <= panelDp(10)
-                        && Math.abs(along - splitHandleAlong()) <= panelDp(22);
+                // The visual handle is 12x64px; the grab area has to be at least that big,
+                // with margin, or aiming at its end misses the gesture entirely.
+                boolean overlayNow = splitOverlayShown
+                        && android.os.SystemClock.uptimeMillis() - splitOverlayCheckedAt < 1500;
+                boolean nearHandle = !overlayNow
+                        && Math.abs(axis - splitRatio * extent) <= panelDp(16)
+                        && Math.abs(along - splitHandleAlong()) <= panelDp(56);
                 splitDrag = nearHandle;
                 splitDownAxis = axis;
                 splitKillLongPressTriggered = false;
