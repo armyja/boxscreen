@@ -484,7 +484,7 @@ public final class MainActivity extends Activity {
                     new ComponentName(getPackageName(), PrivilegedDisplayService.class.getName()))
                     .daemon(false)
                     .processNameSuffix("display")
-                    .version(21);
+                    .version(22);
             Shizuku.bindUserService(shizukuServiceArgs, shizukuServiceConnection);
             status("正在连接 Shizuku 主机服务…");
         } catch (RuntimeException e) {
@@ -1024,6 +1024,7 @@ public final class MainActivity extends Activity {
             mousePointerView.remapVirtualPointerPosition(oldWidth, oldHeight, newWidth, newHeight);
         }
         portraitMode = portrait;
+        splitRatio = SplitGeometry.clamp(splitRatio, newWidth, newHeight);
         densityDpi = portraitMode ? portraitDensityDpi : landscapeDensityDpi;
         if (mousePointerView != null) mousePointerView.applyPanelDensity();
         syncPrimaryDensityForPackage(currentVirtualPackage);
@@ -2456,7 +2457,7 @@ public final class MainActivity extends Activity {
                 splitDrag = false;
                 if (action == MotionEvent.ACTION_UP) {
                     boolean swap = Math.abs(axis - splitDownAxis) < panelDp(8);
-                    float ratio = swap ? splitRatio : Math.max(1f / 3f, Math.min(2f / 3f, axis / extent));
+                    float ratio = swap ? splitRatio : SplitGeometry.clamp(axis / extent, getWidth(), getHeight());
                     try {
                         displayService.adjustSplit(ratio, swap);
                         splitRatio = ratio;
@@ -2508,8 +2509,8 @@ public final class MainActivity extends Activity {
             }
             float extent = portraitMode ? getHeight() : getWidth();
             float axis = splitRatio * extent;
-            if (splitDrag) axis = Math.max(extent / 3f, Math.min(extent * 2f / 3f,
-                    portraitMode ? virtualPointerY : virtualPointerX));
+            if (splitDrag) axis = extent * SplitGeometry.clamp(
+                    (portraitMode ? virtualPointerY : virtualPointerX) / extent, getWidth(), getHeight());
             float x = portraitMode ? getWidth() / 2f : axis;
             float y = portraitMode ? axis : getHeight() / 2f;
             float hw = panelDp(portraitMode ? 25 : 8);

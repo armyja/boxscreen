@@ -572,11 +572,13 @@ public final class PrivilegedDisplayService extends IDisplayService.Stub {
 
     @Override
     public synchronized void beginSplit(String packageName) {
-        if (virtualDisplay == null || splitSession != null) {
-            throw new IllegalStateException("当前无法开始分屏");
-        }
+        if (virtualDisplay == null) throw new IllegalStateException("当前无法开始分屏");
         SplitSession next = null;
         try {
+            if (splitSession != null) {
+                splitSession.beginAgain(packageName, displayWidth, displayHeight);
+                return;
+            }
             next = new SplitSession(virtualDisplay.getDisplay().getDisplayId());
             Object first = next.awaitTask(packageName, next.taskIds());
             next.open(first, null, displayWidth, displayHeight);
@@ -624,9 +626,7 @@ public final class PrivilegedDisplayService extends IDisplayService.Stub {
     public synchronized String expandSplit(boolean firstSide) {
         if (splitSession == null) throw new IllegalStateException("分屏已关闭");
         try {
-            String pkg = splitSession.expand(firstSide);
-            splitSession = null;
-            return pkg;
+            return splitSession.expand(firstSide, displayWidth, displayHeight);
         } catch (ReflectiveOperationException e) {
             throw new IllegalStateException("无法退出分屏：" + describeFailure(e), e);
         }

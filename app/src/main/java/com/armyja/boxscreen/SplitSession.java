@@ -31,6 +31,7 @@ final class SplitSession {
     private Object firstAppToken;
     private Object secondAppToken;
     private boolean active;
+    private Stage expandedStage;
     private float ratio = 0.5f;
     private boolean reversed;
     private long layoutGeneration;
@@ -133,7 +134,7 @@ final class SplitSession {
 
     private Rect[] bounds(int width, int height) {
         int half = Math.round((width >= height ? width : height) * ratio);
-        int gap = Math.min(6, Math.max(0, half - 1));
+        int gap = Math.min(SplitGeometry.HALF_GAP_PX, Math.max(0, half - 1));
         Rect[] result = width >= height
                 ? new Rect[]{new Rect(0, 0, half - gap, height), new Rect(half + gap, 0, width, height)}
                 : new Rect[]{new Rect(0, 0, width, half - gap), new Rect(0, half + gap, width, height)};
@@ -263,7 +264,7 @@ final class SplitSession {
     }
 
     synchronized String[] packages() throws ReflectiveOperationException {
-        if (!active) return null;
+        if (!active || expandedStage != null) return null;
         Object one = stageTask(first, null);
         Object two = stageTask(second, null);
         firstAppToken = one == null ? null : token(one);
@@ -273,34 +274,105 @@ final class SplitSession {
         return reversed ? new String[]{b, a} : new String[]{a, b};
     }
 
-    synchronized String expand(boolean firstSide) throws ReflectiveOperationException {
-        Object app = stageTask(firstSide == reversed ? second : first, null);
-        if (app == null) app = stageTask(firstSide == reversed ? first : second, null);
-        if (app == null) throw new IllegalStateException("分屏中没有可以放大的应用");
-        Object appToken = token(app);
-        int appId = app.getClass().getField("taskId").getInt(app);
+    synchronized boolean isExpanded() {
+        return expandedStage != null;
+    }
+
+    synchronized void beginAgain(String packageName, int width, int height)
+            throws ReflectiveOperationException {
+        if (expandedStage == null) throw new IllegalStateException("当前已处于分屏");
+        Object task = stageTask(expandedStage, packageName);
+        if (task == null) throw new IllegalStateException("当前应用已退出");
+        reversed = expandedStage == second;
+        firstAppToken = expandedStage == first ? token(task) : null;
+        secondAppToken = expandedStage == second ? token(task) : null;
         Object tx = transaction();
-        transactionType.getMethod("reparent", tokenType, tokenType, boolean.class)
-                .invoke(tx, appToken, null, true);
-        transactionType.getMethod("setWindowingMode", tokenType, int.class).invoke(tx, appToken, 1);
-        transactionType.getMethod("setBounds", tokenType, Rect.class).invoke(tx, appToken, null);
-        transactionType.getMethod("reorder", tokenType, boolean.class).invoke(tx, appToken, true);
+        transactionType.getMethod("setWindowingMode", tokenType, int.class)
+                .invoke(tx, expandedStage.token(), 6);
+        transactionType.getMethod("setWindowingMode", tokenType, int.class)
+                .invoke(tx, token(task), 0);
+        Object pair = Array.newInstance(tokenType, 2);
+        Array.set(pair, 0, first.token());
+        Array.set(pair, 1, second.token());
+        transactionType.getMethod("setAdjacentRoots", pair.getClass()).invoke(tx, pair);
+        expandedStage = null;
+        ratio = 0.5f;
+        Rect[] bounds = bounds(width, height);
+        applyLayout(tx, bounds);
+        showSurfaces(bounds);
+        stabilizeSurfaces(bounds);
+    }
+
+    synchronized String expand(boolean firstSide, int width, int height) throws ReflectiveOperationException {
+        Stage keep = firstSide == reversed ? second : first;
+        Stage other = keep == first ? second : first;
+        Object app = stageTask(keep, null);
+        if (app == null) {
+            Stage previous = keep;
+            keep = other;
+            other = previous;
+            app = stageTask(keep, null);
+        }
+        if (app == null) throw new IllegalStateException("分屏中没有可以放大的应用");
+        Object tx = transaction();
+        transactionType.getMethod("clearAdjacentRoots", tokenType).invoke(tx, keep.token());
+        Object otherApp = stageTask(other, null);
+        if (otherApp != null) {
+            transactionType.getMethod("removeTask", tokenType).invoke(tx, token(otherApp));
+        }
+        transactionType.getMethod("setWindowingMode", tokenType, int.class)
+                .invoke(tx, keep.token(), 1);
+        transactionType.getMethod("setWindowingMode", tokenType, int.class)
+                .invoke(tx, token(app), 1);
+        expandedStage = keep;
+        firstAppToken = keep == first ? token(app) : null;
+        secondAppToken = keep == second ? token(app) : null;
+        applyExpandedLayout(tx, width, height);
+        return packageOf(app);
+    }
+
+    private void applyExpandedLayout(Object tx, int width, int height)
+            throws ReflectiveOperationException {
+        Rect full = new Rect(0, 0, width, height);
+        Method set = transactionType.getMethod("setBounds", tokenType, Rect.class);
+        set.invoke(tx, expandedStage.token(), full);
+        Object app = stageTask(expandedStage, null);
+        if (app != null) set.invoke(tx, token(app), full);
+        transactionType.getMethod("reorder", tokenType, boolean.class)
+                .invoke(tx, expandedStage.token(), true);
+        attachStageGeometry(tx, expandedStage, full);
         apply(tx);
-        // Never remove the split root until the preserved task is confirmed outside it.
-        if (!taskIds().contains(appId)) throw new IllegalStateException("系统未将应用移出分屏");
-        String pkg = packageOf(app);
-        close();
-        return pkg;
+        showExpandedSurface(full);
+        stabilizeSurfaces(new Rect[]{full, full});
+    }
+
+    private void showExpandedSurface(Rect full) throws ReflectiveOperationException {
+        Class<?> type = Class.forName("android.view.SurfaceControl$Transaction");
+        Object tx = type.getConstructor().newInstance();
+        try {
+            type.getMethod("show", SurfaceControl.class).invoke(tx, root.surface());
+            setStageGeometry(type, tx, expandedStage, full);
+            Stage other = expandedStage == first ? second : first;
+            type.getMethod("hide", SurfaceControl.class).invoke(tx, other.surface());
+            type.getMethod("apply").invoke(tx);
+        } finally {
+            type.getMethod("close").invoke(tx);
+        }
     }
 
     synchronized void adjust(float ratio, boolean swap, int width, int height) throws ReflectiveOperationException {
-        this.ratio = Math.max(1f / 3f, Math.min(2f / 3f, ratio));
+        this.ratio = SplitGeometry.clamp(ratio, width, height);
         if (swap) reversed = !reversed;
         resize(width, height);
     }
 
     synchronized void resize(int width, int height) throws ReflectiveOperationException {
         if (!active) return;
+        if (expandedStage != null) {
+            applyExpandedLayout(transaction(), width, height);
+            return;
+        }
+        ratio = SplitGeometry.clamp(ratio, width, height);
         Rect[] bounds = bounds(width, height);
         Object tx = transaction();
         applyLayout(tx, bounds);
@@ -317,7 +389,8 @@ final class SplitSession {
                 synchronized (this) {
                     if (!active || generation != layoutGeneration) return;
                     try {
-                        showSurfaces(bounds);
+                        if (expandedStage == null) showSurfaces(bounds);
+                        else showExpandedSurface(bounds[0]);
                     } catch (ReflectiveOperationException | RuntimeException e) {
                         android.util.Log.w("BoxScreenSplit", "Could not restore split surface geometry", e);
                     }
@@ -339,7 +412,7 @@ final class SplitSession {
             for (Stage stage : new Stage[]{first, second, root}) {
                 if (stage != null) stage.surface().release();
             }
-            first = second = root = null;
+            first = second = root = expandedStage = null;
             firstAppToken = secondAppToken = null;
         }
     }
