@@ -590,11 +590,11 @@ public final class PrivilegedDisplayService extends IDisplayService.Stub {
     }
 
     @Override
-    public synchronized void fillSplit(String packageName, String className) {
+    public synchronized void fillSplit(String packageName, String className, boolean firstSide) {
         checkComponent(packageName, className);
         if (splitSession == null) throw new IllegalStateException("分屏已关闭");
         try {
-            splitSession.fill(packageName, className, displayWidth, displayHeight);
+            splitSession.fill(packageName, className, firstSide, displayWidth, displayHeight);
         } catch (Exception e) {
             throw new IllegalStateException("无法打开另一侧应用：" + describeFailure(e), e);
         }
@@ -607,6 +607,28 @@ public final class PrivilegedDisplayService extends IDisplayService.Stub {
             splitSession.adjust(ratio, swap, displayWidth, displayHeight);
         } catch (ReflectiveOperationException e) {
             throw new IllegalStateException("无法调整分屏", e);
+        }
+    }
+
+    @Override
+    public synchronized String[] getSplitPackages() {
+        if (splitSession == null) return null;
+        try {
+            return splitSession.packages();
+        } catch (ReflectiveOperationException e) {
+            throw new IllegalStateException("无法读取分栏状态", e);
+        }
+    }
+
+    @Override
+    public synchronized String expandSplit(boolean firstSide) {
+        if (splitSession == null) throw new IllegalStateException("分屏已关闭");
+        try {
+            String pkg = splitSession.expand(firstSide);
+            splitSession = null;
+            return pkg;
+        } catch (ReflectiveOperationException e) {
+            throw new IllegalStateException("无法退出分屏：" + describeFailure(e), e);
         }
     }
 

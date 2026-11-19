@@ -203,11 +203,13 @@ final class SplitSession {
         }
     }
 
-    synchronized void fill(String packageName, String className, int width, int height)
+    synchronized void fill(String packageName, String className, boolean firstSide, int width, int height)
             throws ReflectiveOperationException {
+        Stage target = firstSide == reversed ? second : first;
+        if (stageTask(target, null) != null) throw new IllegalStateException("该分栏已有应用");
         ActivityOptions options = ActivityOptions.makeBasic().setLaunchDisplayId(displayId);
         ActivityOptions.class.getMethod("setLaunchRootTask", tokenType)
-                .invoke(options, second.token());
+                .invoke(options, target.token());
         Intent launch = new Intent(Intent.ACTION_MAIN)
                 .addCategory(Intent.CATEGORY_LAUNCHER)
                 .setComponent(ComponentName.createRelative(packageName, className))
@@ -221,7 +223,9 @@ final class SplitSession {
         int result = (Integer) start.invoke(activityTaskManager, null, "com.android.shell",
                 null, launch, null, null, null, 0, 0, null, options.toBundle(), userId);
         if (result < 0) throw new IllegalStateException("系统拒绝在分栏中启动应用：" + result);
-        secondAppToken = awaitStageTask(second, packageName);
+        Object launched = awaitStageTask(target, packageName);
+        if (target == first) firstAppToken = launched;
+        else secondAppToken = launched;
         Object tx = transaction();
         transactionType.getMethod("reorder", tokenType, boolean.class)
                 .invoke(tx, root.token(), true);
@@ -231,19 +235,62 @@ final class SplitSession {
         stabilizeSurfaces(bounds);
     }
 
+    private Object stageTask(Stage stage, String packageName) throws ReflectiveOperationException {
+        if (stage == null) return null;
+        List<?> tasks = (List<?>) organizerType.getMethod("getChildTasks", tokenType, int[].class)
+                .invoke(organizer, stage.token(), null);
+        if (tasks == null) return null;
+        for (Object task : tasks) {
+            ComponentName top = (ComponentName) task.getClass().getField("topActivity").get(task);
+            if (top != null && (packageName == null || packageName.equals(top.getPackageName()))) return task;
+        }
+        return null;
+    }
+
     private Object awaitStageTask(Stage stage, String packageName) throws ReflectiveOperationException {
-        Method children = organizerType.getMethod("getChildTasks", tokenType, int[].class);
         for (int attempt = 0; attempt < 30; attempt++) {
-            List<?> tasks = (List<?>) children.invoke(organizer, stage.token(), null);
-            if (tasks != null) {
-                for (Object task : tasks) {
-                    ComponentName top = (ComponentName) task.getClass().getField("topActivity").get(task);
-                    if (top != null && packageName.equals(top.getPackageName())) return token(task);
-                }
-            }
+            Object task = stageTask(stage, packageName);
+            if (task != null) return token(task);
             android.os.SystemClock.sleep(50);
         }
         throw new IllegalStateException("系统未把应用放进指定分栏：" + packageName);
+    }
+
+    private String packageOf(Object task) throws ReflectiveOperationException {
+        if (task == null) return null;
+        ComponentName top = (ComponentName) task.getClass().getField("topActivity").get(task);
+        return top == null ? null : top.getPackageName();
+    }
+
+    synchronized String[] packages() throws ReflectiveOperationException {
+        if (!active) return null;
+        Object one = stageTask(first, null);
+        Object two = stageTask(second, null);
+        firstAppToken = one == null ? null : token(one);
+        secondAppToken = two == null ? null : token(two);
+        String a = packageOf(one);
+        String b = packageOf(two);
+        return reversed ? new String[]{b, a} : new String[]{a, b};
+    }
+
+    synchronized String expand(boolean firstSide) throws ReflectiveOperationException {
+        Object app = stageTask(firstSide == reversed ? second : first, null);
+        if (app == null) app = stageTask(firstSide == reversed ? first : second, null);
+        if (app == null) throw new IllegalStateException("分屏中没有可以放大的应用");
+        Object appToken = token(app);
+        int appId = app.getClass().getField("taskId").getInt(app);
+        Object tx = transaction();
+        transactionType.getMethod("reparent", tokenType, tokenType, boolean.class)
+                .invoke(tx, appToken, null, true);
+        transactionType.getMethod("setWindowingMode", tokenType, int.class).invoke(tx, appToken, 1);
+        transactionType.getMethod("setBounds", tokenType, Rect.class).invoke(tx, appToken, null);
+        transactionType.getMethod("reorder", tokenType, boolean.class).invoke(tx, appToken, true);
+        apply(tx);
+        // Never remove the split root until the preserved task is confirmed outside it.
+        if (!taskIds().contains(appId)) throw new IllegalStateException("系统未将应用移出分屏");
+        String pkg = packageOf(app);
+        close();
+        return pkg;
     }
 
     synchronized void adjust(float ratio, boolean swap, int width, int height) throws ReflectiveOperationException {
