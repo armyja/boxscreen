@@ -191,6 +191,7 @@ public final class MainActivity extends Activity {
                 startPending = false;
                 showExternalOutput();
             }
+            syncSplitState();
         }
         @Override public void onServiceDisconnected(ComponentName name) {
             displayService = null;
@@ -298,6 +299,7 @@ public final class MainActivity extends Activity {
         externalDisplay = findExternalDisplay();
         if (monitorView != null) updateMonitorLabel();
         if (appGrid != null) refreshLaunchableApps();
+        syncSplitState();
     }
 
     @Override public void onConfigurationChanged(Configuration newConfig) {
@@ -3196,6 +3198,40 @@ public final class MainActivity extends Activity {
         if (!splitActive || virtualDisplayId < 0 || displayService == null) return;
         if (!splitOpening) refreshSplitState();
         if (splitActive) splitCheckHandler.postDelayed(splitCheck, 850);
+    }
+
+    /**
+     * The split itself lives in the shell service, so the pane state outlives this activity
+     * (activity restart, new build install, low-memory kill). Adopt whatever the service
+     * reports instead of trusting the in-memory flag only.
+     */
+    private void syncSplitState() {
+        if (displayService == null || virtualDisplayId < 0) return;
+        try {
+            String[] pair = displayService.getSplitPackages();
+            if (pair == null || pair.length != 2) {
+                if (splitActive) {
+                    splitActive = splitChoosing = false;
+                    if (mousePointerView != null) mousePointerView.invalidate();
+                }
+                return;
+            }
+            boolean changed = !java.util.Objects.equals(splitFirstPackage, pair[0])
+                    || !java.util.Objects.equals(splitSecondPackage, pair[1]);
+            splitFirstPackage = pair[0];
+            splitSecondPackage = pair[1];
+            splitActive = true;
+            splitChoosing = pair[0] == null || pair[1] == null;
+            splitPickerFirst = pair[0] == null;
+            if (changed && mousePointerView != null) {
+                mousePointerView.splitPickerOffset = 0;
+                mousePointerView.splitPickerCache = null;
+            }
+            if (mousePointerView != null) mousePointerView.invalidate();
+            scheduleSplitCheck();
+        } catch (RemoteException | RuntimeException e) {
+            Log.w(TAG, "could not sync split state", e);
+        }
     }
 
     private void refreshSplitState() {
