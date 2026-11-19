@@ -1271,6 +1271,17 @@ public final class MainActivity extends Activity {
         private static final int PANEL_SPLIT = 1;
         private long splitInputDownTime = Long.MIN_VALUE;
         private boolean splitInputTouchMode;
+        private boolean splitKillMenuVisible;
+        private int splitKillMenuPressed = -1;
+        private boolean splitKillLongPressTriggered;
+        private final Runnable splitKillLongPress = () -> {
+            if (!splitActive || splitChoosing) return;
+            splitKillLongPressTriggered = true;
+            splitKillMenuVisible = true;
+            splitKillMenuPressed = -1;
+            invalidate();
+        };
+
         private boolean splitDrag;
         private boolean splitLayoutChanging;
         private Bitmap splitPreviousFrame;
@@ -1350,6 +1361,7 @@ public final class MainActivity extends Activity {
             updateStatusBarDwell();
             if (handleScreenshotPreviewTouch(event)) return true;
             if (handleQuickPanelTouch(event)) return true;
+            if (handleSplitKillMenuTouch(event)) return true;
             if (handleSplitTouch(event)) return true;
             if (splitActive && event.getActionMasked() == MotionEvent.ACTION_DOWN) {
                 splitLastFirst = isPointerInFirstSplitPane();
@@ -2522,10 +2534,18 @@ public final class MainActivity extends Activity {
             if (action == MotionEvent.ACTION_DOWN) {
                 splitDrag = Math.abs(axis - splitRatio * extent) <= panelDp(20);
                 splitDownAxis = axis;
+                splitKillLongPressTriggered = false;
+                if (splitDrag) handler.postDelayed(splitKillLongPress, 500);
             }
             if (!splitDrag) return false;
             if (action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_CANCEL) {
                 splitDrag = false;
+                handler.removeCallbacks(splitKillLongPress);
+                if (splitKillLongPressTriggered) {
+                    splitKillLongPressTriggered = false;
+                    invalidate();
+                    return true;
+                }
                 if (action == MotionEvent.ACTION_UP) {
                     boolean swap = Math.abs(axis - splitDownAxis) < panelDp(8);
                     float ratio = swap ? splitRatio : SplitGeometry.clamp(axis / extent, getWidth(), getHeight());
@@ -2627,6 +2647,108 @@ public final class MainActivity extends Activity {
             super.onDetachedFromWindow();
         }
 
+        private RectF splitKillMenuBounds() {
+            float extent = portraitMode ? getHeight() : getWidth();
+            float divider = Math.round(splitRatio * extent);
+            float width = panelDp(190);
+            float height = panelDp(96);
+            float cx = portraitMode ? getWidth() / 2f : divider;
+            float cy = portraitMode ? divider : getHeight() / 2f;
+            float left = Math.max(panelDp(8), Math.min(getWidth() - width - panelDp(8), cx - width / 2f));
+            float top = Math.max(panelDp(8), Math.min(getHeight() - height - panelDp(8), cy - height / 2f));
+            return new RectF(left, top, left + width, top + height);
+        }
+
+        private void drawSplitKillMenu(Canvas canvas) {
+            RectF bounds = splitKillMenuBounds();
+            float rowHeight = (bounds.height() - panelDp(12)) / 2f;
+            panelPaint.setColor(0xf01b2028);
+            canvas.drawRoundRect(bounds, panelDp(10), panelDp(10), panelPaint);
+            panelTextPaint.setTextAlign(Paint.Align.CENTER);
+            panelTextPaint.setTextSize(panelDp(14));
+            boolean landscape = !portraitMode;
+            for (int i = 0; i < 2; i++) {
+                boolean firstSide = i == 0;
+                String packageName = firstSide ? splitFirstPackage : splitSecondPackage;
+                String side = landscape ? (firstSide ? "左侧" : "右侧") : (firstSide ? "上方" : "下方");
+                float top = bounds.top + panelDp(6) + i * rowHeight;
+                if (splitKillMenuPressed == i) {
+                    panelPaint.setColor(0x55304a56);
+                    canvas.drawRoundRect(bounds.left + panelDp(6), top, bounds.right - panelDp(6),
+                            top + rowHeight, panelDp(8), panelDp(8), panelPaint);
+                }
+                panelTextPaint.setColor(packageName == null ? 0x66ffffff : 0xe6ffffff);
+                String label = packageName == null ? "关闭" + side + "应用（空）" : "关闭" + side + "应用";
+                canvas.drawText(label, bounds.centerX(), top + rowHeight / 2f + panelDp(5), panelTextPaint);
+            }
+            splitKillMenuPressed = Math.max(-1, splitKillMenuPressed);
+        }
+
+        private int splitKillMenuItemAt(float x, float y) {
+            RectF bounds = splitKillMenuBounds();
+            if (x < bounds.left || x > bounds.right || y < bounds.top || y > bounds.bottom) return -1;
+            float rowHeight = (bounds.height() - panelDp(12)) / 2f;
+            return y < bounds.top + panelDp(6) + rowHeight ? 0 : 1;
+        }
+
+        /** Returns true when the touch belongs to the "close pane app" menu. */
+        private boolean handleSplitKillMenuTouch(MotionEvent event) {
+            if (!splitKillMenuVisible) return false;
+            int action = event.getActionMasked();
+            if (action == MotionEvent.ACTION_DOWN) {
+                splitKillMenuPressed = splitKillMenuItemAt(virtualPointerX, virtualPointerY);
+                invalidate();
+                return true;
+            }
+            if (action == MotionEvent.ACTION_MOVE) {
+                int item = splitKillMenuItemAt(virtualPointerX, virtualPointerY);
+                if (item != splitKillMenuPressed) {
+                    splitKillMenuPressed = item;
+                    invalidate();
+                }
+                return true;
+            }
+            if (action == MotionEvent.ACTION_UP) {
+                int item = splitKillMenuItemAt(virtualPointerX, virtualPointerY);
+                boolean confirmed = item >= 0 && item == splitKillMenuPressed;
+                splitKillMenuVisible = false;
+                splitKillMenuPressed = -1;
+                invalidate();
+                if (confirmed) killSplitSide(item == 0);
+                return true;
+            }
+            if (action == MotionEvent.ACTION_CANCEL) {
+                splitKillMenuVisible = false;
+                splitKillMenuPressed = -1;
+                invalidate();
+                return true;
+            }
+            return true;
+        }
+
+        private void killSplitSide(boolean firstSide) {
+            final IDisplayService service = displayService;
+            final int targetDisplay = virtualDisplayId;
+            if (service == null || targetDisplay < 0) return;
+            new Thread(() -> {
+                String killed = null;
+                try {
+                    killed = service.killSplitSide(firstSide);
+                } catch (RemoteException | RuntimeException e) {
+                    Log.e(TAG, "failed to close split side", e);
+                }
+                final String name = killed;
+                runOnUiThread(() -> {
+                    if (displayService != service) return;
+                    refreshSplitState();
+                    applyDensitySync();
+                    refreshVirtualDisplayLayout("close split side");
+                    status(name == null ? "该栏没有运行中的应用" : "已关闭 " + name);
+                    invalidate();
+                });
+            }, "boxscreen-split-kill").start();
+        }
+
         private void drawSplitUi(Canvas canvas) {
             float divider = Math.round(splitRatio * (portraitMode ? getHeight() : getWidth()));
             float gap = SplitGeometry.HALF_GAP_PX;
@@ -2699,6 +2821,7 @@ public final class MainActivity extends Activity {
                         screenshotImagePaint);
             }
             if (splitActive) drawSplitUi(canvas);
+            if (splitKillMenuVisible) drawSplitKillMenu(canvas);
             if (statusBarVisible || quickPanelVisible) drawQuickUi(canvas);
             drawScreenshotPreview(canvas);
             if (!forwarding || !pointerVisible) return;

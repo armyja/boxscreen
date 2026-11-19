@@ -2,6 +2,7 @@ package com.armyja.boxscreen;
 
 import android.app.ActivityOptions;
 import android.content.ComponentName;
+import android.util.Log;
 import android.content.Intent;
 import android.os.Bundle;
 import android.graphics.Rect;
@@ -309,6 +310,40 @@ final class SplitSession {
         String a = packageOf(one);
         String b = packageOf(two);
         return reversed ? new String[]{b, a} : new String[]{a, b};
+    }
+
+    /**
+     * Force-stop the app in one pane so it restarts from its initial state, then drop its task
+     * so the pane falls back to the app picker. Returns the killed package, or null when the
+     * pane is already empty.
+     */
+    synchronized String killSide(boolean firstSide) throws ReflectiveOperationException {
+        Stage stage = firstSide ? first : second;
+        if (stage == null) return null;
+        Object task = stageTask(stage, null);
+        if (task == null) return null;
+        int taskId = task.getClass().getField("taskId").getInt(task);
+        String packageName = packageOf(task);
+        if (packageName != null) {
+            try {
+                Process process = new ProcessBuilder("/system/bin/am", "force-stop", packageName)
+                        .redirectErrorStream(true).start();
+                process.waitFor(3, java.util.concurrent.TimeUnit.SECONDS);
+                Log.i("BoxScreenSplit", "force-stop " + packageName + " pane="
+                        + (firstSide ? "first" : "second"));
+            } catch (Exception error) {
+                Log.w("BoxScreenSplit", "force-stop failed for " + packageName, error);
+            }
+        }
+        try {
+            Method removeTask = activityTaskManager.getClass().getMethod("removeTask", int.class);
+            removeTask.invoke(activityTaskManager, taskId);
+        } catch (ReflectiveOperationException error) {
+            Log.w("BoxScreenSplit", "removeTask failed for " + taskId, error);
+        }
+        if (firstSide) firstAppToken = null;
+        else secondAppToken = null;
+        return packageName;
     }
 
     synchronized boolean isExpanded() {
