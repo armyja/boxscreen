@@ -1274,9 +1274,14 @@ public final class MainActivity extends Activity {
         private boolean splitKillMenuVisible;
         private int splitKillMenuPressed = -1;
         private boolean splitKillLongPressTriggered;
+        private boolean splitKillAwaitRelease;
         private final Runnable splitKillLongPress = () -> {
             if (!splitActive || splitChoosing) return;
+            // The menu replaces the drag: the handle goes back to the current split ratio and
+            // the rest of this press is ignored until the button is released.
+            splitDrag = false;
             splitKillLongPressTriggered = true;
+            splitKillAwaitRelease = true;
             splitKillMenuVisible = true;
             splitKillMenuPressed = -1;
             invalidate();
@@ -1396,6 +1401,7 @@ public final class MainActivity extends Activity {
                     handler.postDelayed(hideStatusBar, 500);
                 }
             }
+            if (splitKillMenuVisible) return true;
             if ((quickPanelVisible || statusBarVisible) && isOverQuickUi(virtualPointerX, virtualPointerY)) {
                 if (action == MotionEvent.ACTION_SCROLL) adjustVolume(event.getAxisValue(MotionEvent.AXIS_VSCROLL) > 0 ? 1 : -1);
                 return true;
@@ -2535,7 +2541,9 @@ public final class MainActivity extends Activity {
                 splitDrag = Math.abs(axis - splitRatio * extent) <= panelDp(20);
                 splitDownAxis = axis;
                 splitKillLongPressTriggered = false;
-                if (splitDrag) handler.postDelayed(splitKillLongPress, 500);
+                if (splitDrag && !splitKillMenuVisible) {
+                    handler.postDelayed(splitKillLongPress, 500);
+                }
             }
             if (!splitDrag) return false;
             if (action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_CANCEL) {
@@ -2695,6 +2703,14 @@ public final class MainActivity extends Activity {
         private boolean handleSplitKillMenuTouch(MotionEvent event) {
             if (!splitKillMenuVisible) return false;
             int action = event.getActionMasked();
+            if (splitKillAwaitRelease) {
+                // The press that opened the menu must not also pick an item: wait for the
+                // button to be released, then the next click chooses.
+                if (action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_CANCEL) {
+                    splitKillAwaitRelease = false;
+                }
+                return true;
+            }
             if (action == MotionEvent.ACTION_DOWN) {
                 splitKillMenuPressed = splitKillMenuItemAt(virtualPointerX, virtualPointerY);
                 invalidate();
