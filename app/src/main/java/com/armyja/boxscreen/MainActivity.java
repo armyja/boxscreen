@@ -2429,7 +2429,12 @@ public final class MainActivity extends Activity {
         private ArrayList<ResolveInfo> splitPickerApps() {
             if (splitPickerCache != null) return splitPickerCache;
             java.util.LinkedHashMap<String, ResolveInfo> ordered = new java.util.LinkedHashMap<>();
-            for (ResolveInfo app : quickPanelApps()) ordered.put(app.activityInfo.packageName, app);
+            // Apps the user opened on BoxScreen belong at the top of this picker.
+            for (String pkg : recentAppPackages) {
+                ResolveInfo app = launcherByPackage.get(pkg);
+                if (app != null) ordered.put(pkg, app);
+            }
+            for (ResolveInfo app : quickPanelApps()) ordered.putIfAbsent(app.activityInfo.packageName, app);
             ArrayList<ResolveInfo> others = new ArrayList<>(launcherByPackage.values());
             others.sort((a, b) -> launcherLabel(a).compareToIgnoreCase(launcherLabel(b)));
             for (ResolveInfo app : others) {
@@ -2789,6 +2794,9 @@ public final class MainActivity extends Activity {
                 if (splitChoosing) {
                     splitRatio = 0.5f;
                     splitLastFirst = true;
+                    splitPickerFirst = false;
+                    splitFirstPackage = firstPackage;
+                    splitSecondPackage = null;
                 } else {
                     currentVirtualPackage = null;
                     splitLastFirst = targetFirst;
