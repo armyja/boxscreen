@@ -1380,20 +1380,6 @@ public final class MainActivity extends Activity {
             return (portraitMode ? getWidth() : getHeight()) * 0.18f;
         }
 
-        /** Scale factor for the handle tolerances, taken from a 1440px-tall reference. */
-        private float splitHandleScale() {
-            int shorter = Math.min(getWidth(), getHeight());
-            return shorter <= 0 ? 1f : shorter / 1440f;
-        }
-
-        /** How close the pointer has to be to the divider before the handle is drawn. */
-        private boolean splitHandleNearPointer(float pointerAcross, float pointerAlong,
-                                               float extent) {
-            float unit = splitHandleScale();
-            return Math.abs(pointerAcross - splitRatio * extent) <= 24f * unit
-                    && Math.abs(pointerAlong - splitHandleAlong()) <= 44f * unit;
-        }
-
         private Bitmap splitPreviousFrame;
         private int splitFreshFrames;
         private final Runnable splitFrameTimeout = this::finishSplitLayoutChange;
@@ -1472,17 +1458,9 @@ public final class MainActivity extends Activity {
             if (transitionFramesRemaining > 0) return true;
             updateVirtualPointer(event.getRawX(), event.getRawY());
             showPointer();
-            if (splitActive && splitLayoutChanging) {
-                if (event.getActionMasked() == MotionEvent.ACTION_UP
-                        || event.getActionMasked() == MotionEvent.ACTION_CANCEL) {
-                    splitDrag = false;
-                }
-                return true;
-            }
+            if (splitActive && splitLayoutChanging) return true;
             updateStatusBarDwell();
-            if (splitDrag && handleSplitTouch(event)) return true;
             if (handleScreenshotPreviewTouch(event)) return true;
-            if (splitDrag) return true;
             if (handleQuickPanelTouch(event)) return true;
             if (handleSplitKillMenuTouch(event)) return true;
             if (handleSplitTouch(event)) return true;
@@ -1499,14 +1477,6 @@ public final class MainActivity extends Activity {
             if ((!forwarding && screenshotPreviewBitmap == null)
                     || !event.isFromSource(InputDevice.SOURCE_MOUSE)) return false;
             int action = event.getActionMasked();
-            // A drag must never outlive the button: if a release was swallowed (layout change
-            // in flight, pointer leaving the window), hover reports no button and we reset.
-            if (splitDrag && (event.getButtonState() & MotionEvent.BUTTON_PRIMARY) == 0) {
-                splitDrag = false;
-                handler.removeCallbacks(splitKillLongPress);
-                splitKillLongPressTriggered = false;
-                invalidate();
-            }
             if (action != MotionEvent.ACTION_HOVER_ENTER
                     && action != MotionEvent.ACTION_HOVER_MOVE
                     && action != MotionEvent.ACTION_HOVER_EXIT
@@ -1516,11 +1486,6 @@ public final class MainActivity extends Activity {
             if (transitionFramesRemaining > 0) return true;
             updateVirtualPointer(event.getRawX(), event.getRawY());
             showPointer();
-            if (splitDrag && (action == MotionEvent.ACTION_BUTTON_RELEASE
-                    || action == MotionEvent.ACTION_BUTTON_PRESS)) {
-                finishSplitDrag(false);
-                return true;
-            }
             if (splitActive && splitLayoutChanging) return true;
             updateStatusBarDwell();
             if (screenshotPreviewBitmap != null && handleScreenshotPreviewTouch(event)) return true;
@@ -2677,9 +2642,8 @@ public final class MainActivity extends Activity {
                 // remaining MOVE/UP events must not be re-tested against it.
                 // The visual handle is 12x64px; the grab area has to be at least that big,
                 // with margin, or aiming at its end misses the gesture entirely.
-                float unit = splitHandleScale();
-                boolean nearHandle = Math.abs(axis - splitRatio * extent) <= 32f * unit
-                        && Math.abs(along - splitHandleAlong()) <= 56f * unit;
+                boolean nearHandle = Math.abs(axis - splitRatio * extent) <= panelDp(16)
+                        && Math.abs(along - splitHandleAlong()) <= panelDp(56);
                 splitDrag = nearHandle;
                 splitDownAxis = axis;
                 splitKillLongPressTriggered = false;
@@ -2701,30 +2665,19 @@ public final class MainActivity extends Activity {
                 return true;
             }
             if (action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_CANCEL) {
-                finishSplitDrag(action == MotionEvent.ACTION_CANCEL);
-            }
-            invalidate();
-            return true;
-        }
-
-        /**
-         * Ends a divider drag. Both the touch-style ACTION_UP and the mouse-style
-         * ACTION_BUTTON_RELEASE land here, so a release can never be lost.
-         */
-        private boolean finishSplitDrag(boolean cancel) {
-            if (!splitDrag) return false;
-            splitDrag = false;
-            handler.removeCallbacks(splitKillLongPress);
-            boolean menuOpened = splitKillLongPressTriggered;
-            splitKillLongPressTriggered = false;
-            if (!cancel && !menuOpened) {
-                float axis = portraitMode ? virtualPointerY : virtualPointerX;
-                float extent = portraitMode ? getHeight() : getWidth();
-                boolean swap = Math.abs(axis - splitDownAxis) < panelDp(4);
-                float ratio = swap ? splitRatio
-                        : SplitGeometry.clamp(axis / extent, getWidth(), getHeight());
-                if (swap || Math.abs(ratio - splitRatio) * extent >= 1f) {
-                    changeSplitLayout(ratio, swap);
+                splitDrag = false;
+                handler.removeCallbacks(splitKillLongPress);
+                if (splitKillLongPressTriggered) {
+                    splitKillLongPressTriggered = false;
+                    invalidate();
+                    return true;
+                }
+                if (action == MotionEvent.ACTION_UP) {
+                    boolean swap = Math.abs(axis - splitDownAxis) < panelDp(4);
+                    float ratio = swap ? splitRatio : SplitGeometry.clamp(axis / extent, getWidth(), getHeight());
+                    if (swap || Math.abs(ratio - splitRatio) * extent >= 1f) {
+                        changeSplitLayout(ratio, swap);
+                    }
                 }
             }
             invalidate();
@@ -2814,7 +2767,6 @@ public final class MainActivity extends Activity {
             handler.removeCallbacks(splitFrameTimeout);
             splitFreshFrames = 0;
             splitLayoutChanging = false;
-            splitDrag = false;
             // Drop the reference; the renderer may still hold the bitmap from the last frame.
             splitPreviousFrame = null;
             invalidate();
@@ -3046,7 +2998,6 @@ public final class MainActivity extends Activity {
             }
             float extent = portraitMode ? getHeight() : getWidth();
             float axis = splitRatio * extent;
-            float dividerAxis = axis;
             if (splitDrag) {
                 axis = extent * SplitGeometry.clamp(
                         (portraitMode ? virtualPointerY : virtualPointerX) / extent,
@@ -3070,10 +3021,9 @@ public final class MainActivity extends Activity {
             // Only drawn while the pointer is near it (or while dragging): the rest of the
             // time the virtual display has no overlay at all.
             float along = splitHandleAlong();
-            float pointerAcross = portraitMode ? virtualPointerY : virtualPointerX;
-            float pointerAlong = portraitMode ? virtualPointerX : virtualPointerY;
             boolean handleHovered = forwarding && pointerVisible
-                    && splitHandleNearPointer(pointerAcross, pointerAlong, extent);
+                    && Math.abs(axis - splitRatio * extent) <= panelDp(16)
+                    && Math.abs(along - splitHandleAlong()) <= panelDp(56);
             if (!splitDrag && !handleHovered) return;
             float cx = portraitMode ? along : axis;
             float cy = portraitMode ? axis : along;
