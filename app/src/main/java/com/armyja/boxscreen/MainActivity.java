@@ -1480,7 +1480,9 @@ public final class MainActivity extends Activity {
                 return true;
             }
             updateStatusBarDwell();
+            if (splitDrag && handleSplitTouch(event)) return true;
             if (handleScreenshotPreviewTouch(event)) return true;
+            if (splitDrag) return true;
             if (handleQuickPanelTouch(event)) return true;
             if (handleSplitKillMenuTouch(event)) return true;
             if (handleSplitTouch(event)) return true;
@@ -1514,6 +1516,11 @@ public final class MainActivity extends Activity {
             if (transitionFramesRemaining > 0) return true;
             updateVirtualPointer(event.getRawX(), event.getRawY());
             showPointer();
+            if (splitDrag && (action == MotionEvent.ACTION_BUTTON_RELEASE
+                    || action == MotionEvent.ACTION_BUTTON_PRESS)) {
+                finishSplitDrag(false);
+                return true;
+            }
             if (splitActive && splitLayoutChanging) return true;
             updateStatusBarDwell();
             if (screenshotPreviewBitmap != null && handleScreenshotPreviewTouch(event)) return true;
@@ -2694,19 +2701,30 @@ public final class MainActivity extends Activity {
                 return true;
             }
             if (action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_CANCEL) {
-                splitDrag = false;
-                handler.removeCallbacks(splitKillLongPress);
-                if (splitKillLongPressTriggered) {
-                    splitKillLongPressTriggered = false;
-                    invalidate();
-                    return true;
-                }
-                if (action == MotionEvent.ACTION_UP) {
-                    boolean swap = Math.abs(axis - splitDownAxis) < panelDp(4);
-                    float ratio = swap ? splitRatio : SplitGeometry.clamp(axis / extent, getWidth(), getHeight());
-                    if (swap || Math.abs(ratio - splitRatio) * extent >= 1f) {
-                        changeSplitLayout(ratio, swap);
-                    }
+                finishSplitDrag(action == MotionEvent.ACTION_CANCEL);
+            }
+            invalidate();
+            return true;
+        }
+
+        /**
+         * Ends a divider drag. Both the touch-style ACTION_UP and the mouse-style
+         * ACTION_BUTTON_RELEASE land here, so a release can never be lost.
+         */
+        private boolean finishSplitDrag(boolean cancel) {
+            if (!splitDrag) return false;
+            splitDrag = false;
+            handler.removeCallbacks(splitKillLongPress);
+            boolean menuOpened = splitKillLongPressTriggered;
+            splitKillLongPressTriggered = false;
+            if (!cancel && !menuOpened) {
+                float axis = portraitMode ? virtualPointerY : virtualPointerX;
+                float extent = portraitMode ? getHeight() : getWidth();
+                boolean swap = Math.abs(axis - splitDownAxis) < panelDp(4);
+                float ratio = swap ? splitRatio
+                        : SplitGeometry.clamp(axis / extent, getWidth(), getHeight());
+                if (swap || Math.abs(ratio - splitRatio) * extent >= 1f) {
+                    changeSplitLayout(ratio, swap);
                 }
             }
             invalidate();
