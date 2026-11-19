@@ -211,6 +211,47 @@ final class SplitSession {
         ActivityOptions options = ActivityOptions.makeBasic().setLaunchDisplayId(displayId);
         ActivityOptions.class.getMethod("setLaunchRootTask", tokenType)
                 .invoke(options, target.token());
+        Integer existingTaskId = findReusableTask(packageName);
+        if (existingTaskId != null) {
+            Object resume = transaction();
+            transactionType.getMethod("startTask", int.class, Bundle.class)
+                    .invoke(resume, existingTaskId, options.toBundle());
+            apply(resume);
+        } else {
+            startNewStageActivity(packageName, className, options);
+        }
+        Object launched = awaitStageTask(target, packageName, existingTaskId);
+        if (existingTaskId != null) {
+            android.util.Log.i("BoxScreenSplit", "reused task=" + existingTaskId
+                    + " package=" + packageName + " display=" + displayId);
+        }
+        if (target == first) firstAppToken = launched;
+        else secondAppToken = launched;
+        Object tx = transaction();
+        transactionType.getMethod("reorder", tokenType, boolean.class)
+                .invoke(tx, root.token(), true);
+        Rect[] bounds = bounds(width, height);
+        applyLayout(tx, bounds);
+        showSurfaces(bounds);
+        stabilizeSurfaces(bounds);
+    }
+
+    private Integer findReusableTask(String packageName) throws ReflectiveOperationException {
+        for (Object task : roots()) {
+            ComponentName base = (ComponentName) task.getClass().getField("baseActivity").get(task);
+            ComponentName top = (ComponentName) task.getClass().getField("topActivity").get(task);
+            if (top == null) continue;
+            if (packageName.equals(top.getPackageName())
+                    || (base != null && packageName.equals(base.getPackageName()))) {
+                int taskId = task.getClass().getField("taskId").getInt(task);
+                if (taskId > 0) return taskId;
+            }
+        }
+        return null;
+    }
+
+    private void startNewStageActivity(String packageName, String className, ActivityOptions options)
+            throws ReflectiveOperationException {
         Intent launch = new Intent(Intent.ACTION_MAIN)
                 .addCategory(Intent.CATEGORY_LAUNCHER)
                 .setComponent(ComponentName.createRelative(packageName, className))
@@ -224,16 +265,6 @@ final class SplitSession {
         int result = (Integer) start.invoke(activityTaskManager, null, "com.android.shell",
                 null, launch, null, null, null, 0, 0, null, options.toBundle(), userId);
         if (result < 0) throw new IllegalStateException("系统拒绝在分栏中启动应用：" + result);
-        Object launched = awaitStageTask(target, packageName);
-        if (target == first) firstAppToken = launched;
-        else secondAppToken = launched;
-        Object tx = transaction();
-        transactionType.getMethod("reorder", tokenType, boolean.class)
-                .invoke(tx, root.token(), true);
-        Rect[] bounds = bounds(width, height);
-        applyLayout(tx, bounds);
-        showSurfaces(bounds);
-        stabilizeSurfaces(bounds);
     }
 
     private Object stageTask(Stage stage, String packageName) throws ReflectiveOperationException {
@@ -248,13 +279,19 @@ final class SplitSession {
         return null;
     }
 
-    private Object awaitStageTask(Stage stage, String packageName) throws ReflectiveOperationException {
+    private Object awaitStageTask(Stage stage, String packageName, Integer existingTaskId)
+            throws ReflectiveOperationException {
         for (int attempt = 0; attempt < 30; attempt++) {
-            Object task = stageTask(stage, packageName);
-            if (task != null) return token(task);
+            Object task = stageTask(stage, existingTaskId == null ? packageName : null);
+            if (task != null && (existingTaskId == null
+                    || task.getClass().getField("taskId").getInt(task) == existingTaskId)) {
+                return token(task);
+            }
             android.os.SystemClock.sleep(50);
         }
-        throw new IllegalStateException("系统未把应用放进指定分栏：" + packageName);
+        throw new IllegalStateException(existingTaskId == null
+                ? "系统未把应用放进指定分栏：" + packageName
+                : "系统未能将原有任务移入分栏，已保留原任务：" + packageName);
     }
 
     private String packageOf(Object task) throws ReflectiveOperationException {

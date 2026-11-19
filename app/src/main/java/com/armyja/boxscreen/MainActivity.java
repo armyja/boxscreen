@@ -2912,6 +2912,7 @@ public final class MainActivity extends Activity {
                 } else {
                     currentVirtualPackage = null;
                     splitLastFirst = targetFirst;
+                    refreshVirtualDisplayLayout("fill split pane");
                 }
                 refreshSplitState();
                 scheduleSplitCheck();
