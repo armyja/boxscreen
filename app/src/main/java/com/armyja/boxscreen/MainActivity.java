@@ -1828,7 +1828,7 @@ public final class MainActivity extends Activity {
                 return PANEL_NONE;
             }
             float compatCenterY = barHeight + panelDp(91);
-            if ((splitActive || currentVirtualPackage != null) && !captureBlockedDisplay
+            if (!splitActive && currentVirtualPackage != null && !captureBlockedDisplay
                     && x >= width - panelDp(72) && x <= width - panelDp(6)
                     && Math.abs(y - compatCenterY) <= panelDp(18)) return PANEL_SPLIT;
             if (y >= compatCenterY - panelDp(17) && y <= compatCenterY + panelDp(17)) {
@@ -2154,14 +2154,16 @@ public final class MainActivity extends Activity {
                 float compatY = barHeight + panelDp(91);
                 // Split/fullscreen action sits at the far right edge so it never separates the
                 // "主屏 DPI 同步" label from its switch.
-                if ((splitActive || currentVirtualPackage != null) && !captureBlockedDisplay) {
+                // Maximising a pane is handled by the divider menu, so the panel only offers the
+                // one action that the menu cannot: entering split mode.
+                if (!splitActive && currentVirtualPackage != null && !captureBlockedDisplay) {
                     panelPaint.setColor(0x99607888);
                     canvas.drawRoundRect(width - panelDp(68), compatY - panelDp(17),
                             width - panelDp(10), compatY + panelDp(17), panelDp(6), panelDp(6), panelPaint);
                     panelTextPaint.setColor(0xe6ffffff);
                     panelTextPaint.setTextSize(panelDp(13));
                     panelTextPaint.setTextAlign(Paint.Align.CENTER);
-                    canvas.drawText(splitActive ? "全屏" : "分屏", width - panelDp(39), compatY + panelDp(5), panelTextPaint);
+                    canvas.drawText("分屏", width - panelDp(39), compatY + panelDp(5), panelTextPaint);
                 }
                 boolean compat = currentVirtualPackage != null && densityCompatPackages.contains(currentVirtualPackage);
                 panelTextPaint.setTextSize(panelDp(13));
@@ -2847,10 +2849,9 @@ public final class MainActivity extends Activity {
 
         private void drawSplitUi(Canvas canvas) {
             float divider = Math.round(splitRatio * (portraitMode ? getHeight() : getWidth()));
-            float gap = SplitGeometry.HALF_GAP_PX;
-            panelPaint.setColor(0xff000000);
-            if (portraitMode) canvas.drawRect(0, divider - gap, getWidth(), divider + gap, panelPaint);
-            else canvas.drawRect(divider - gap, 0, divider + gap, getHeight(), panelPaint);
+            // The panes are already separated by a system gap, so drawing our own full-height
+            // black band here only covered system windows (share sheet, floating IME) that span
+            // the split. Keep the gap as-is and draw just the handle below.
             if (splitChoosing) {
                 RectF area = splitPickerBounds();
                 panelPaint.setColor(0xff1b2028);
