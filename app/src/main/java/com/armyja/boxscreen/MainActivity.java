@@ -3094,7 +3094,10 @@ public final class MainActivity extends Activity {
     }
 
     private void updateAppGridColumns(int widthPx) {
-        if (appGrid == null || widthPx <= 0) return;
+        if (appGrid == null || widthPx <= 0) {
+            Log.i(TAG, "grid columns skipped width=" + widthPx + " grid=" + (appGrid != null));
+            return;
+        }
         float density = getResources().getDisplayMetrics().density;
         int availableDp = Math.max(1, Math.round(widthPx / density));
         int columns = Math.max(2, Math.min(8, availableDp / 80));
@@ -3118,6 +3121,8 @@ public final class MainActivity extends Activity {
 
     private void rebuildAppsGrid() {
         if (appGrid == null) return;
+        Log.i(TAG, "grid rebuild requested gridWidth=" + appGrid.getWidth()
+                + " columns=" + appColumns + " children=" + appGrid.getChildCount());
         if (appGrid.getWidth() <= 0) {
             // The grid is between layouts (rotation, density change). Retry once it has a
             // size instead of leaving the list empty.
@@ -3152,6 +3157,9 @@ public final class MainActivity extends Activity {
         });
         int cellWidth = appGrid.getWidth() > 0 && appColumns > 0
                 ? appGrid.getWidth() / appColumns : 0;
+        Log.i(TAG, "grid rebuild width=" + appGrid.getWidth() + " columns=" + appColumns
+                + " cellWidth=" + cellWidth + " columnCount=" + appGrid.getColumnCount()
+                + " childrenBefore=" + appGrid.getChildCount());
         for (ResolveInfo app : visible) {
             String packageName = app.activityInfo.packageName;
             LinearLayout tile = new LinearLayout(this);
@@ -3184,6 +3192,18 @@ public final class MainActivity extends Activity {
             cell.height = -2;
             cell.columnSpec = GridLayout.spec(GridLayout.UNDEFINED, 1f);
             appGrid.addView(tile, cell);
+            if (appGrid.getChildCount() == 1) {
+                appGrid.post(() -> {
+                    if (appGrid == null) return;
+                    View first = appGrid.getChildAt(0);
+                    View second = appGrid.getChildCount() > 1 ? appGrid.getChildAt(1) : null;
+                    Log.i(TAG, "grid laid out " + appGrid.getWidth() + "x" + appGrid.getHeight()
+                            + " columnCount=" + appGrid.getColumnCount()
+                            + " children=" + appGrid.getChildCount()
+                            + " first=" + describeGridChild(first)
+                            + " second=" + describeGridChild(second));
+                });
+            }
             tile.setOnClickListener(v -> launchPackage(packageName, app.activityInfo.name));
             favorite.setOnCheckedChangeListener((button, checked) -> {
                 if (checked) favoritePackages.add(packageName); else favoritePackages.remove(packageName);
@@ -3192,6 +3212,12 @@ public final class MainActivity extends Activity {
                 if (mousePointerView != null) mousePointerView.invalidate();
             });
         }
+    }
+
+    private String describeGridChild(View view) {
+        if (view == null) return "-";
+        return view.getWidth() + "x" + view.getHeight()
+                + "@" + view.getLeft() + "," + view.getTop();
     }
 
     private void updateSplit(ResolveInfo second) {
