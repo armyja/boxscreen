@@ -406,9 +406,23 @@ final class SplitSession {
         if (app == null) throw new IllegalStateException("分屏中没有可以放大的应用");
         Object tx = transaction();
         transactionType.getMethod("clearAdjacentRoots", tokenType).invoke(tx, keep.token());
+        // Maximising hides the other pane's app instead of killing it: the task moves out of the
+        // split root to the display area and is marked hidden, so the app keeps running and can
+        // be brought back with its state intact.
         Object otherApp = stageTask(other, null);
         if (otherApp != null) {
-            transactionType.getMethod("removeTask", tokenType).invoke(tx, token(otherApp));
+            try {
+                transactionType.getMethod("reparent", tokenType, tokenType, boolean.class)
+                        .invoke(tx, token(otherApp), null, false);
+            } catch (Throwable ignored) {
+                // Some builds reject a null parent; hiding in place still keeps the task alive.
+            }
+            try {
+                transactionType.getMethod("setHidden", tokenType, boolean.class)
+                        .invoke(tx, token(otherApp), true);
+            } catch (Throwable error) {
+                Log.w("BoxScreenSplit", "could not hide the other pane", error);
+            }
         }
         transactionType.getMethod("setWindowingMode", tokenType, int.class)
                 .invoke(tx, keep.token(), 1);
