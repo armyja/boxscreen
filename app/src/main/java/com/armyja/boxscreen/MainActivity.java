@@ -269,6 +269,26 @@ public final class MainActivity extends Activity {
         }
     };
 
+    /**
+     * The phone panel is laid out once and must fit whatever density the device reports. A
+     * DPI-sync override or a restore after an update can swing it from ~400 to 560 dpi, which
+     * pushes the app list below the fold on a short landscape screen. Pin the panel's own
+     * density so the layout (and the visible app list) never depends on that global value.
+     */
+    @Override
+    protected void attachBaseContext(android.content.Context base) {
+        android.content.res.Configuration config =
+                new android.content.res.Configuration(base.getResources().getConfiguration());
+        // Keep the panel near the density it was designed for: about 1000dp across the long
+        // side, but never coarser than 480 dpi (which is what used to hide the app list).
+        int currentDpi = config.densityDpi;
+        int longSidePx = Math.round(Math.max(config.screenWidthDp, config.screenHeightDp)
+                * currentDpi / 160f);
+        int targetDpi = longSidePx > 0 ? Math.round(longSidePx / 1000f * 160f) : 400;
+        config.densityDpi = Math.max(320, Math.min(480, targetDpi));
+        super.attachBaseContext(base.createConfigurationContext(config));
+    }
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
