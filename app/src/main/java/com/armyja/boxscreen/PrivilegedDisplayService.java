@@ -77,6 +77,12 @@ public final class PrivilegedDisplayService extends IDisplayService.Stub {
     }
 
     @Override
+    public synchronized int getVirtualDisplayId() {
+        return virtualDisplay == null || virtualDisplay.getDisplay() == null
+                ? -1 : virtualDisplay.getDisplay().getDisplayId();
+    }
+
+    @Override
     public synchronized int createDisplay(String name, int width, int height, int densityDpi, Surface surface,
             boolean blockPointerCapture) {
         if (width < 1 || height < 1 || densityDpi < 1 || surface == null || !surface.isValid()) {

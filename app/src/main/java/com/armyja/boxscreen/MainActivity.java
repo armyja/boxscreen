@@ -630,7 +630,33 @@ public final class MainActivity extends Activity {
         int height = portraitMode ? baseWidth : baseHeight;
         texture.setDefaultBufferSize(width, height);
         if (virtualDisplayId < 0) {
-            createVirtualDisplay(texture);
+            // The display lives in the shell service and can outlive this activity (new
+            // build installed, activity recreated). Re-attach to it instead of creating a
+            // second virtual display and losing the running split.
+            int existing = -1;
+            try {
+                existing = displayService.getVirtualDisplayId();
+            } catch (RemoteException | RuntimeException e) {
+                Log.w(TAG, "could not read the existing virtual display", e);
+            }
+            if (existing < 0) {
+                createVirtualDisplay(texture);
+                return;
+            }
+            Surface surface = new Surface(texture);
+            try {
+                displayService.setDisplaySurface(surface);
+            } catch (RemoteException | RuntimeException e) {
+                Log.e(TAG, "could not re-attach the existing virtual display", e);
+            } finally {
+                surface.release();
+            }
+            virtualDisplayId = existing;
+            Log.i(TAG, "re-attached existing virtual display id=" + existing);
+            status("已接回运行中的虚拟屏 display ID=" + existing);
+            syncSplitState();
+            applyDensitySync();
+            refreshVirtualDisplayLayout("re-attach virtual display");
             return;
         }
 
