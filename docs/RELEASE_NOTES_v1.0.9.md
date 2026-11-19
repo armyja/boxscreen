@@ -23,7 +23,7 @@
 - 使用 BoxScreen 正式 Release 签名，可覆盖升级并保留应用设置。若设备上装的是签名不同的 Debug 版，需要先卸载 Debug 版；卸载会清除收藏和 DPI 设置。
 - APK：`BoxScreen-v1.0.9-OnePlus16-PYB110.apk`
 - 版本：`versionName 1.0.9`，`versionCode 12`
-- SHA-256：`866e37bcca531d583d496bcf625c1dfdcdd7bb8c18c0ef26b8b64ad2e0f78ca6`
+- SHA-256：`c77a793926cf3188eb8c328ac2f37a83231e11c708d1da29498f1eab7ea5941b`
 - 许可证：MIT。
 
 完整操作和限制见 [README](../README.md) 与[中文使用手册](USER_GUIDE_zh-CN.md)。
