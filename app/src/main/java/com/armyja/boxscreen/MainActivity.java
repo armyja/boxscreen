@@ -1388,6 +1388,11 @@ public final class MainActivity extends Activity {
                 if (action == MotionEvent.ACTION_SCROLL) adjustVolume(event.getAxisValue(MotionEvent.AXIS_VSCROLL) > 0 ? 1 : -1);
                 return true;
             }
+            if (splitActive && !splitChoosing
+                    && Math.abs((portraitMode ? virtualPointerY : virtualPointerX)
+                    - splitRatio * (portraitMode ? getHeight() : getWidth())) <= panelDp(20)) {
+                return true;
+            }
             if (splitChoosing && overSplitPicker()) {
                 if (action == MotionEvent.ACTION_SCROLL) {
                     int direction = event.getAxisValue(MotionEvent.AXIS_VSCROLL) < 0 ? 1 : -1;
@@ -2510,11 +2515,12 @@ public final class MainActivity extends Activity {
                 }
                 return true;
             }
-            float along = portraitMode ? virtualPointerX : virtualPointerY;
-            float midpoint = (portraitMode ? getWidth() : getHeight()) / 2f;
+            // The whole divider line is a drag target, not just the handle in the middle.
+            // Pressing near the divider must never reach the app underneath: a forwarded
+            // press turns into a long-press in the pane while the user is only grabbing the
+            // divider.
             if (action == MotionEvent.ACTION_DOWN) {
-                splitDrag = Math.abs(axis - splitRatio * extent) <= panelDp(16)
-                        && Math.abs(along - midpoint) <= panelDp(42);
+                splitDrag = Math.abs(axis - splitRatio * extent) <= panelDp(20);
                 splitDownAxis = axis;
             }
             if (!splitDrag) return false;
