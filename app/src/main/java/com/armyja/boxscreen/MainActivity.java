@@ -1380,6 +1380,19 @@ public final class MainActivity extends Activity {
             return (portraitMode ? getWidth() : getHeight()) * 0.18f;
         }
 
+        /** Scale factor for the handle tolerances, taken from a 1440px-tall reference. */
+        private float splitHandleScale() {
+            int shorter = Math.min(getWidth(), getHeight());
+            return shorter <= 0 ? 1f : shorter / 1440f;
+        }
+
+        /** How close the pointer has to be to the divider before the handle is drawn. */
+        private boolean splitHandleNearPointer(float axis, float extent, float along) {
+            float unit = splitHandleScale();
+            return Math.abs(axis - splitRatio * extent) <= 24f * unit
+                    && Math.abs(along - splitHandleAlong()) <= 44f * unit;
+        }
+
         private Bitmap splitPreviousFrame;
         private int splitFreshFrames;
         private final Runnable splitFrameTimeout = this::finishSplitLayoutChange;
@@ -2642,8 +2655,9 @@ public final class MainActivity extends Activity {
                 // remaining MOVE/UP events must not be re-tested against it.
                 // The visual handle is 12x64px; the grab area has to be at least that big,
                 // with margin, or aiming at its end misses the gesture entirely.
-                boolean nearHandle = Math.abs(axis - splitRatio * extent) <= panelDp(16)
-                        && Math.abs(along - splitHandleAlong()) <= panelDp(56);
+                float unit = splitHandleScale();
+                boolean nearHandle = Math.abs(axis - splitRatio * extent) <= 32f * unit
+                        && Math.abs(along - splitHandleAlong()) <= 56f * unit;
                 splitDrag = nearHandle;
                 splitDownAxis = axis;
                 splitKillLongPressTriggered = false;
@@ -2998,6 +3012,7 @@ public final class MainActivity extends Activity {
             }
             float extent = portraitMode ? getHeight() : getWidth();
             float axis = splitRatio * extent;
+            float dividerAxis = axis;
             if (splitDrag) {
                 axis = extent * SplitGeometry.clamp(
                         (portraitMode ? virtualPointerY : virtualPointerX) / extent,
@@ -3022,8 +3037,7 @@ public final class MainActivity extends Activity {
             // time the virtual display has no overlay at all.
             float along = splitHandleAlong();
             boolean handleHovered = forwarding && pointerVisible
-                    && Math.abs(axis - splitRatio * extent) <= panelDp(16)
-                    && Math.abs(along - splitHandleAlong()) <= panelDp(56);
+                    && splitHandleNearPointer(dividerAxis, extent, along);
             if (!splitDrag && !handleHovered) return;
             float cx = portraitMode ? along : axis;
             float cy = portraitMode ? axis : along;
