@@ -7,3 +7,5 @@ local.properties
 *.keystore
 keystore.properties
 local-signing.properties
+# Release artifacts are attached to GitHub Releases, not committed
+*.apk
