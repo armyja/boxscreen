@@ -1471,7 +1471,13 @@ public final class MainActivity extends Activity {
             if (transitionFramesRemaining > 0) return true;
             updateVirtualPointer(event.getRawX(), event.getRawY());
             showPointer();
-            if (splitActive && splitLayoutChanging) return true;
+            if (splitActive && splitLayoutChanging) {
+                if (event.getActionMasked() == MotionEvent.ACTION_UP
+                        || event.getActionMasked() == MotionEvent.ACTION_CANCEL) {
+                    splitDrag = false;
+                }
+                return true;
+            }
             updateStatusBarDwell();
             if (handleScreenshotPreviewTouch(event)) return true;
             if (handleQuickPanelTouch(event)) return true;
@@ -1490,6 +1496,14 @@ public final class MainActivity extends Activity {
             if ((!forwarding && screenshotPreviewBitmap == null)
                     || !event.isFromSource(InputDevice.SOURCE_MOUSE)) return false;
             int action = event.getActionMasked();
+            // A drag must never outlive the button: if a release was swallowed (layout change
+            // in flight, pointer leaving the window), hover reports no button and we reset.
+            if (splitDrag && (event.getButtonState() & MotionEvent.BUTTON_PRIMARY) == 0) {
+                splitDrag = false;
+                handler.removeCallbacks(splitKillLongPress);
+                splitKillLongPressTriggered = false;
+                invalidate();
+            }
             if (action != MotionEvent.ACTION_HOVER_ENTER
                     && action != MotionEvent.ACTION_HOVER_MOVE
                     && action != MotionEvent.ACTION_HOVER_EXIT
@@ -2781,6 +2795,7 @@ public final class MainActivity extends Activity {
             handler.removeCallbacks(splitFrameTimeout);
             splitFreshFrames = 0;
             splitLayoutChanging = false;
+            splitDrag = false;
             // Drop the reference; the renderer may still hold the bitmap from the last frame.
             splitPreviousFrame = null;
             invalidate();
