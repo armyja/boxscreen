@@ -113,8 +113,7 @@ final class SplitSession {
         if (secondTask != null) reparent.invoke(tx, secondTask, second.token(), true);
         transactionType.getMethod("reorder", tokenType, boolean.class).invoke(tx, root.token(), true);
         Rect[] bounds = bounds(width, height);
-        setBounds(tx, bounds);
-        apply(tx);
+        applyLayout(tx, bounds);
         active = true;
         // The organizer-created stages may be hidden by the opening transition.
         android.os.SystemClock.sleep(900);
@@ -136,6 +135,40 @@ final class SplitSession {
         set.invoke(tx, second.token(), bounds[1]);
     }
 
+    private void applyLayout(Object tx, Rect[] bounds) throws ReflectiveOperationException {
+        setBounds(tx, bounds);
+        attachStageGeometry(tx, first, bounds[0]);
+        attachStageGeometry(tx, second, bounds[1]);
+        apply(tx);
+    }
+
+    private void attachStageGeometry(Object layout, Stage stage, Rect bounds)
+            throws ReflectiveOperationException {
+        Class<?> type = Class.forName("android.view.SurfaceControl$Transaction");
+        Method attach;
+        try {
+            attach = transactionType.getMethod("setBoundsChangeTransaction", tokenType, type);
+        } catch (NoSuchMethodException ignored) {
+            // Older firmware still gets the explicit surface transaction after layout.
+            return;
+        }
+        Object geometry = type.getConstructor().newInstance();
+        // The WCT retains the transaction until it is parcelled and sent.
+        setStageGeometry(type, geometry, stage, bounds);
+        attach.invoke(layout, stage.token(), geometry);
+    }
+
+    private void setStageGeometry(Class<?> type, Object tx, Stage stage, Rect bounds)
+            throws ReflectiveOperationException {
+        Class<SurfaceControl> surface = SurfaceControl.class;
+        type.getMethod("show", surface).invoke(tx, stage.surface());
+        type.getMethod("setAlpha", surface, float.class).invoke(tx, stage.surface(), 1f);
+        type.getMethod("setPosition", surface, float.class, float.class)
+                .invoke(tx, stage.surface(), (float) bounds.left, (float) bounds.top);
+        type.getMethod("setWindowCrop", surface, int.class, int.class)
+                .invoke(tx, stage.surface(), bounds.width(), bounds.height());
+    }
+
     private void showSurfaces(Rect[] bounds) throws ReflectiveOperationException {
         Class<SurfaceControl> surface = SurfaceControl.class;
         Class<?> type = Class.forName("android.view.SurfaceControl$Transaction");
@@ -147,14 +180,8 @@ final class SplitSession {
                 show.invoke(tx, stage.surface());
                 alpha.invoke(tx, stage.surface(), 1f);
             }
-            Method position = type.getMethod("setPosition", surface, float.class, float.class);
-            Method crop = type.getMethod("setWindowCrop", surface, int.class, int.class);
-            Stage[] stages = {first, second};
-            for (int i = 0; i < stages.length; i++) {
-                Rect rect = bounds[i];
-                position.invoke(tx, stages[i].surface(), (float) rect.left, (float) rect.top);
-                crop.invoke(tx, stages[i].surface(), rect.width(), rect.height());
-            }
+            setStageGeometry(type, tx, first, bounds[0]);
+            setStageGeometry(type, tx, second, bounds[1]);
             type.getMethod("apply").invoke(tx);
         } finally {
             type.getMethod("close").invoke(tx);
@@ -166,9 +193,10 @@ final class SplitSession {
         transactionType.getMethod("reparent", tokenType, tokenType, boolean.class)
                 .invoke(tx, task, second.token(), true);
         transactionType.getMethod("reorder", tokenType, boolean.class).invoke(tx, root.token(), true);
-        apply(tx);
+        Rect[] bounds = bounds(width, height);
+        applyLayout(tx, bounds);
         android.os.SystemClock.sleep(900);
-        showSurfaces(bounds(width, height));
+        showSurfaces(bounds);
     }
 
     void adjust(float ratio, boolean swap, int width, int height) throws ReflectiveOperationException {
@@ -181,8 +209,7 @@ final class SplitSession {
         if (!active) return;
         Rect[] bounds = bounds(width, height);
         Object tx = transaction();
-        setBounds(tx, bounds);
-        apply(tx);
+        applyLayout(tx, bounds);
         showSurfaces(bounds);
     }
 
