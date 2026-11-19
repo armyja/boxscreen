@@ -1374,37 +1374,12 @@ public final class MainActivity extends Activity {
 
         private boolean splitDrag;
         private boolean splitLayoutChanging;
-        private volatile boolean splitOverlayShown;
-        private long splitOverlayCheckedAt;
 
         /** The handle sits high on the divider so dialogs and floating IMEs rarely reach it. */
         private float splitHandleAlong() {
             return (portraitMode ? getWidth() : getHeight()) * 0.18f;
         }
 
-        /** Ask the shell service once (cached) whether a system window covers the split. */
-        private void maybeCheckSplitOverlay() {
-            if (!splitActive || splitChoosing || displayService == null) return;
-            long now = android.os.SystemClock.uptimeMillis();
-            if (now - splitOverlayCheckedAt < 400) return;
-            splitOverlayCheckedAt = now;
-            IDisplayService service = displayService;
-            new Thread(() -> {
-                boolean shown = false;
-                try {
-                    shown = service.isVirtualDisplayOverlayShown();
-                } catch (RemoteException | RuntimeException e) {
-                    Log.w(TAG, "could not read split overlay state", e);
-                }
-                boolean value = shown;
-                post(() -> {
-                    if (splitOverlayShown != value) {
-                        splitOverlayShown = value;
-                        invalidate();
-                    }
-                });
-            }, "boxscreen-split-overlay").start();
-        }
         private Bitmap splitPreviousFrame;
         private int splitFreshFrames;
         private final Runnable splitFrameTimeout = this::finishSplitLayoutChange;
@@ -1502,17 +1477,6 @@ public final class MainActivity extends Activity {
             if ((!forwarding && screenshotPreviewBitmap == null)
                     || !event.isFromSource(InputDevice.SOURCE_MOUSE)) return false;
             int action = event.getActionMasked();
-            if (splitActive && !splitChoosing && !splitDrag
-                    && (action == MotionEvent.ACTION_HOVER_ENTER
-                    || action == MotionEvent.ACTION_HOVER_MOVE)) {
-                float axis = portraitMode ? virtualPointerY : virtualPointerX;
-                float extent = portraitMode ? getHeight() : getWidth();
-                float along = portraitMode ? virtualPointerX : virtualPointerY;
-                if (Math.abs(axis - splitRatio * extent) <= panelDp(20)
-                        && Math.abs(along - splitHandleAlong()) <= panelDp(22)) {
-                    maybeCheckSplitOverlay();
-                }
-            }
             if (action != MotionEvent.ACTION_HOVER_ENTER
                     && action != MotionEvent.ACTION_HOVER_MOVE
                     && action != MotionEvent.ACTION_HOVER_EXIT
@@ -2678,10 +2642,7 @@ public final class MainActivity extends Activity {
                 // remaining MOVE/UP events must not be re-tested against it.
                 // The visual handle is 12x64px; the grab area has to be at least that big,
                 // with margin, or aiming at its end misses the gesture entirely.
-                boolean overlayNow = splitOverlayShown
-                        && android.os.SystemClock.uptimeMillis() - splitOverlayCheckedAt < 1500;
-                boolean nearHandle = !overlayNow
-                        && Math.abs(axis - splitRatio * extent) <= panelDp(16)
+                boolean nearHandle = Math.abs(axis - splitRatio * extent) <= panelDp(16)
                         && Math.abs(along - splitHandleAlong()) <= panelDp(56);
                 splitDrag = nearHandle;
                 splitDownAxis = axis;
@@ -3055,10 +3016,15 @@ public final class MainActivity extends Activity {
                     canvas.drawRect(axis - 1.5f, 0, axis + 1.5f, getHeight(), panelPaint);
                 }
             }
-            if (splitOverlayShown) return;
             // Sausage handle: 12px across, 64px along, black rim with a white core, placed
             // high on the divider so floating IMEs and centred dialogs stay clear of it.
+            // Only drawn while the pointer is near it (or while dragging): the rest of the
+            // time the virtual display has no overlay at all.
             float along = splitHandleAlong();
+            boolean handleHovered = forwarding && pointerVisible
+                    && Math.abs(axis - splitRatio * extent) <= panelDp(16)
+                    && Math.abs(along - splitHandleAlong()) <= panelDp(56);
+            if (!splitDrag && !handleHovered) return;
             float cx = portraitMode ? along : axis;
             float cy = portraitMode ? axis : along;
             float hw = portraitMode ? 32 : 6;
