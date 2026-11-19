@@ -2925,6 +2925,7 @@ public final class MainActivity extends Activity {
                     refreshVirtualDisplayLayout("fill split pane");
                 }
                 refreshSplitState();
+                applyDensitySync();
                 scheduleSplitCheck();
             });
         }, "boxscreen-split").start();
@@ -2960,6 +2961,7 @@ public final class MainActivity extends Activity {
                 mousePointerView.splitPickerCache = null;
                 mousePointerView.invalidate();
             }
+            if (changed) applyDensitySync();
         } catch (RemoteException | RuntimeException e) {
             Log.w(TAG, "could not read split state", e);
         }
@@ -2971,7 +2973,7 @@ public final class MainActivity extends Activity {
             currentVirtualPackage = displayService.expandSplit(splitLastFirst);
             splitActive = splitChoosing = false;
             splitCheckHandler.removeCallbacks(splitCheck);
-            syncPrimaryDensityForPackage(currentVirtualPackage);
+            applyDensitySync();
             refreshVirtualDisplayLayout("expand split");
             if (mousePointerView != null) mousePointerView.invalidate();
             status("已退出分屏，正在刷新全屏画面");
@@ -3059,6 +3061,26 @@ public final class MainActivity extends Activity {
         }
     }
 
+    /**
+     * Package whose main-screen DPI sync should currently be in effect. Inside a split the
+     * synced app can be either pane, and it must stay synced when the other pane's app does
+     * not need it - otherwise a split that adds the sensitive app last renders incorrectly.
+     */
+    private String densitySyncTarget() {
+        if (!splitActive) return currentVirtualPackage;
+        if (splitFirstPackage != null && densityCompatPackages.contains(splitFirstPackage)) {
+            return splitFirstPackage;
+        }
+        if (splitSecondPackage != null && densityCompatPackages.contains(splitSecondPackage)) {
+            return splitSecondPackage;
+        }
+        return null;
+    }
+
+    private void applyDensitySync() {
+        syncPrimaryDensityForPackage(densitySyncTarget());
+    }
+
     private boolean syncPrimaryDensityForPackage(String packageName) {
         if (packageName == null || !densityCompatPackages.contains(packageName)) return restorePrimaryDensity();
         if (displayService == null) return false;
@@ -3089,16 +3111,18 @@ public final class MainActivity extends Activity {
     }
 
     private void toggleDensityCompat() {
-        if (currentVirtualPackage == null) {
+        String target = inputSettingsPackage();
+        if (target == null) {
             status("先打开应用，再设置主屏 DPI 同步");
             return;
         }
-        boolean enabled = !densityCompatPackages.contains(currentVirtualPackage);
-        if (enabled) densityCompatPackages.add(currentVirtualPackage);
-        else densityCompatPackages.remove(currentVirtualPackage);
+        boolean enabled = !densityCompatPackages.contains(target);
+        if (enabled) densityCompatPackages.add(target);
+        else densityCompatPackages.remove(target);
         getPreferences(MODE_PRIVATE).edit().putStringSet("density_compat_apps",
                 new HashSet<>(densityCompatPackages)).apply();
-        if (syncPrimaryDensityForPackage(currentVirtualPackage)) {
+        applyDensitySync();
+        if (densityCompatPackages.contains(target) == enabled) {
             status(enabled ? "已为当前应用同步主屏 DPI，手机显示大小会变化" : "已关闭当前应用的主屏 DPI 同步");
         }
     }
