@@ -499,7 +499,7 @@ public final class MainActivity extends Activity {
                     new ComponentName(getPackageName(), PrivilegedDisplayService.class.getName()))
                     .daemon(false)
                     .processNameSuffix("display")
-                    .version(22);
+                    .version(23);
             Shizuku.bindUserService(shizukuServiceArgs, shizukuServiceConnection);
             status("正在连接 Shizuku 主机服务…");
         } catch (RuntimeException e) {
@@ -1311,6 +1311,11 @@ public final class MainActivity extends Activity {
         private Bitmap splitPreviousFrame;
         private int splitFreshFrames;
         private final Runnable splitFrameTimeout = this::finishSplitLayoutChange;
+        private final Runnable splitLayoutWatchdog = () -> {
+            if (!splitLayoutChanging) return;
+            Log.w(TAG, "split layout watchdog cleared a stuck change");
+            finishSplitLayoutChange();
+        };
         private float splitDownAxis;
         private int splitPickerOffset;
         private ArrayList<ResolveInfo> splitPickerCache;
@@ -2593,6 +2598,9 @@ public final class MainActivity extends Activity {
                 if (action == MotionEvent.ACTION_UP) {
                     boolean swap = Math.abs(axis - splitDownAxis) < panelDp(8);
                     float ratio = swap ? splitRatio : SplitGeometry.clamp(axis / extent, getWidth(), getHeight());
+                    Log.i(TAG, "split handle release axis=" + axis + " extent=" + extent
+                            + " from=" + splitDownAxis + " swap=" + swap + " ratio=" + ratio
+                            + " current=" + splitRatio + " changing=" + splitLayoutChanging);
                     if (swap || Math.abs(ratio - splitRatio) * extent >= 1f) {
                         changeSplitLayout(ratio, swap);
                     }
@@ -2603,8 +2611,14 @@ public final class MainActivity extends Activity {
         }
 
         private void changeSplitLayout(float ratio, boolean swap) {
-            if (splitLayoutChanging || displayService == null) return;
+            if (splitLayoutChanging || displayService == null) {
+                Log.w(TAG, "split change skipped changing=" + splitLayoutChanging
+                        + " service=" + (displayService != null) + " ratio=" + ratio);
+                return;
+            }
             splitLayoutChanging = true;
+            handler.removeCallbacks(splitLayoutWatchdog);
+            handler.postDelayed(splitLayoutWatchdog, 1500);
             IDisplayService service = displayService;
             int targetDisplay = virtualDisplayId;
             Runnable apply = () -> applySplitLayout(service, targetDisplay, ratio, swap);
@@ -2638,6 +2652,10 @@ public final class MainActivity extends Activity {
         private void applySplitLayout(IDisplayService service, int targetDisplay, float ratio, boolean swap) {
             if (!splitActive || mousePointerView != this || virtualDisplayId != targetDisplay
                     || displayService != service) {
+                Log.w(TAG, "split change dropped active=" + splitActive
+                        + " view=" + (mousePointerView == this)
+                        + " display=" + virtualDisplayId + "/" + targetDisplay
+                        + " serviceSame=" + (displayService == service));
                 finishSplitLayoutChange();
                 return;
             }
@@ -2649,6 +2667,7 @@ public final class MainActivity extends Activity {
                     failure = e;
                 }
                 Exception result = failure;
+                if (result != null) Log.w(TAG, "adjustSplit failed", result);
                 handler.post(() -> {
                     if (mousePointerView != this || virtualDisplayId != targetDisplay
                             || displayService != service || !splitActive || result != null) {
