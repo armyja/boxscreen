@@ -115,8 +115,6 @@ public final class MainActivity extends Activity {
     private boolean splitChoosing;
     private boolean splitPickerFirst;
     private boolean splitLastFirst = true;
-    /** True when the first stage is currently drawn on the right/bottom side. */
-    private boolean splitReversed;
     private String splitFirstPackage;
     private String splitSecondPackage;
     private float splitRatio = 0.5f;
@@ -541,7 +539,7 @@ public final class MainActivity extends Activity {
                     new ComponentName(getPackageName(), PrivilegedDisplayService.class.getName()))
                     .daemon(false)
                     .processNameSuffix("display")
-                    .version(24);
+                    .version(25);
             Shizuku.bindUserService(shizukuServiceArgs, shizukuServiceConnection);
             status("正在连接 Shizuku 主机服务…");
         } catch (RuntimeException e) {
@@ -1547,6 +1545,10 @@ public final class MainActivity extends Activity {
                 forwardMouseEvent(event);
             }
             return true;
+        }
+
+        boolean isPointerInFirstPane() {
+            return isPointerInFirstSplitPane();
         }
 
         private boolean isPointerInFirstSplitPane() {
@@ -2827,9 +2829,8 @@ public final class MainActivity extends Activity {
             panelTextPaint.setTextAlign(Paint.Align.CENTER);
             for (int side = 0; side < 2; side++) {
                 RectF cluster = clusters[side];
-                // side 0 is the visual left/top pane; after a swap that is the second stage.
-                boolean firstStage = (side == 0) != splitReversed;
-                String packageName = firstStage ? splitFirstPackage : splitSecondPackage;
+                // getSplitPackages() already returns visual order: 0 = left/top pane.
+                String packageName = side == 0 ? splitFirstPackage : splitSecondPackage;
                 panelPaint.setColor(0xf01b2028);
                 canvas.drawRoundRect(cluster, panelDp(10), panelDp(10), panelPaint);
                 float cellWidth = cluster.width() / 3f;
@@ -2911,10 +2912,7 @@ public final class MainActivity extends Activity {
                 splitKillMenuVisible = false;
                 splitKillMenuPressed = -1;
                 invalidate();
-                if (confirmed) {
-                    boolean visualFirst = item / 3 == 0;
-                    runSplitKillAction(visualFirst != splitReversed, item % 3);
-                }
+                if (confirmed) runSplitKillAction(item / 3 == 0, item % 3);
                 return true;
             }
             if (action == MotionEvent.ACTION_CANCEL) {
@@ -3339,7 +3337,6 @@ public final class MainActivity extends Activity {
                     || !java.util.Objects.equals(splitSecondPackage, pair[1]);
             splitFirstPackage = pair[0];
             splitSecondPackage = pair[1];
-            splitReversed = displayService.isSplitReversed();
             splitActive = true;
             splitChoosing = pair[0] == null || pair[1] == null;
             splitPickerFirst = pair[0] == null;
@@ -3367,7 +3364,6 @@ public final class MainActivity extends Activity {
                     || !java.util.Objects.equals(splitSecondPackage, pair[1]);
             splitFirstPackage = pair[0];
             splitSecondPackage = pair[1];
-            splitReversed = displayService.isSplitReversed();
             splitChoosing = pair[0] == null || pair[1] == null;
             splitPickerFirst = pair[0] == null;
             if (changed && mousePointerView != null) {
@@ -3381,10 +3377,17 @@ public final class MainActivity extends Activity {
         }
     }
 
+    /** Visual side under the mouse, falling back to the last active pane. */
+    private boolean isPointerInFirstSplitPaneForPanel() {
+        if (mousePointerView != null) return mousePointerView.isPointerInFirstPane();
+        return splitLastFirst;
+    }
+
     private void expandCurrentSplit() {
         if (!splitActive || splitOpening || displayService == null) return;
         try {
-            currentVirtualPackage = displayService.expandSplit(splitLastFirst);
+            // expandSplit() takes the visual side: true = left/top pane.
+            currentVirtualPackage = displayService.expandSplit(isPointerInFirstSplitPaneForPanel());
             splitActive = splitChoosing = false;
             splitCheckHandler.removeCallbacks(splitCheck);
             applyDensitySync();

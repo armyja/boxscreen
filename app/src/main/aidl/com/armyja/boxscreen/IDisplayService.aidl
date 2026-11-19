@@ -29,6 +29,5 @@ interface IDisplayService {
     void fillSplit(String packageName, String className, boolean firstSide);
     void adjustSplit(float ratio, boolean swap);
     String[] getSplitPackages();
-    boolean isSplitReversed();
     String expandSplit(boolean firstSide);
 }

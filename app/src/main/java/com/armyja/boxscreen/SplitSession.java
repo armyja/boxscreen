@@ -305,11 +305,6 @@ final class SplitSession {
         return top == null ? null : top.getPackageName();
     }
 
-    /** True when the first stage is drawn on the right/bottom side. */
-    synchronized boolean reversed() {
-        return reversed;
-    }
-
     synchronized String[] packages() throws ReflectiveOperationException {
         if (!active || expandedStage != null) return null;
         Object one = stageTask(first, null);
@@ -325,8 +320,8 @@ final class SplitSession {
      * Hide the app in one pane without killing it: the task stays alive (and can be restored)
      * while the pane falls back to the app picker.
      */
-    synchronized boolean hideSide(boolean firstSide) throws ReflectiveOperationException {
-        Stage stage = firstSide ? first : second;
+    synchronized boolean hideSide(boolean visualFirst) throws ReflectiveOperationException {
+        Stage stage = visualFirst == reversed ? second : first;
         if (stage == null) return false;
         Object task = stageTask(stage, null);
         if (task == null) return false;
@@ -334,7 +329,7 @@ final class SplitSession {
         transactionType.getMethod("setHidden", tokenType, boolean.class)
                 .invoke(tx, token(task), true);
         apply(tx);
-        if (firstSide) firstAppToken = null;
+        if (stage == first) firstAppToken = null;
         else secondAppToken = null;
         return true;
     }
@@ -344,8 +339,8 @@ final class SplitSession {
      * so the pane falls back to the app picker. Returns the killed package, or null when the
      * pane is already empty.
      */
-    synchronized String killSide(boolean firstSide) throws ReflectiveOperationException {
-        Stage stage = firstSide ? first : second;
+    synchronized String killSide(boolean visualFirst) throws ReflectiveOperationException {
+        Stage stage = visualFirst == reversed ? second : first;
         if (stage == null) return null;
         Object task = stageTask(stage, null);
         if (task == null) return null;
@@ -357,7 +352,7 @@ final class SplitSession {
                         .redirectErrorStream(true).start();
                 process.waitFor(3, java.util.concurrent.TimeUnit.SECONDS);
                 Log.i("BoxScreenSplit", "force-stop " + packageName + " pane="
-                        + (firstSide ? "first" : "second"));
+                        + (stage == first ? "first" : "second"));
             } catch (Exception error) {
                 Log.w("BoxScreenSplit", "force-stop failed for " + packageName, error);
             }
@@ -368,7 +363,7 @@ final class SplitSession {
         } catch (ReflectiveOperationException error) {
             Log.w("BoxScreenSplit", "removeTask failed for " + taskId, error);
         }
-        if (firstSide) firstAppToken = null;
+        if (stage == first) firstAppToken = null;
         else secondAppToken = null;
         return packageName;
     }
