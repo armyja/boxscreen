@@ -20,4 +20,6 @@ interface IDisplayService {
     boolean injectInputEvent(in MotionEvent event, int displayId);
     String getPrimaryDensity();
     void setPrimaryDensity(int dpi);
+    void launchSplit(String firstPackage, String firstClass, String secondPackage, String secondClass);
+    boolean closeSplit();
 }

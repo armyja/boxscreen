@@ -43,6 +43,9 @@ public final class PrivilegedDisplayService extends IDisplayService.Stub {
 
     private final Context baseContext;
     private VirtualDisplay virtualDisplay;
+    private SplitSession splitSession;
+    private int displayWidth;
+    private int displayHeight;
     private Object virtualDevice;
     private static final String ASSOCIATION_MAC = "02:42:4f:58:53:02";
     private static final String ASSOCIATION_PROFILE = "android.app.role.COMPANION_DEVICE_APP_STREAMING";
@@ -74,7 +77,7 @@ public final class PrivilegedDisplayService extends IDisplayService.Stub {
     }
 
     @Override
-    public int createDisplay(String name, int width, int height, int densityDpi, Surface surface,
+    public synchronized int createDisplay(String name, int width, int height, int densityDpi, Surface surface,
             boolean blockPointerCapture) {
         if (width < 1 || height < 1 || densityDpi < 1 || surface == null || !surface.isValid()) {
             throw new IllegalArgumentException("Invalid display dimensions or surface");
@@ -100,6 +103,8 @@ public final class PrivilegedDisplayService extends IDisplayService.Stub {
                     + describeFailure(e), e);
         }
 
+        displayWidth = width;
+        displayHeight = height;
         int displayId = virtualDisplay.getDisplay().getDisplayId();
         try {
             setDisplayImePolicyLocal(displayId);
@@ -284,7 +289,7 @@ public final class PrivilegedDisplayService extends IDisplayService.Stub {
         resizeDisplayInternal(width, height, densityDpi, false);
     }
 
-    private void resizeDisplayInternal(int width, int height, int densityDpi,
+    private synchronized void resizeDisplayInternal(int width, int height, int densityDpi,
                                        boolean forceDensityOverride) {
         if (virtualDisplay == null) throw new IllegalStateException("Virtual display is not running");
         if (width < 1 || height < 1 || densityDpi < 1) {
@@ -294,6 +299,15 @@ public final class PrivilegedDisplayService extends IDisplayService.Stub {
         Log.i("BoxScreenService", "resize display=" + displayId + " to " + width + "x" + height
                 + " densityDpi=" + densityDpi);
         virtualDisplay.resize(width, height, densityDpi);
+        displayWidth = width;
+        displayHeight = height;
+        if (splitSession != null) {
+            try {
+                splitSession.resize(width, height);
+            } catch (ReflectiveOperationException e) {
+                throw new IllegalStateException("无法更新分屏布局", e);
+            }
+        }
         if (!forceDensityOverride) return;
         try {
             String result = run(new String[]{"/system/bin/wm", "density", Integer.toString(densityDpi),
@@ -325,7 +339,12 @@ public final class PrivilegedDisplayService extends IDisplayService.Stub {
     }
 
     @Override
-    public void releaseDisplay() {
+    public synchronized void releaseDisplay() {
+        try {
+            closeSplit();
+        } catch (RuntimeException e) {
+            Log.w("BoxScreenService", "failed to close split before releasing display", e);
+        }
         clearMouseAssociation();
         restoreDisplayImePolicy();
         if (virtualDisplay != null) {
@@ -493,16 +512,75 @@ public final class PrivilegedDisplayService extends IDisplayService.Stub {
         return super.onTransact(code, data, reply, flags);
     }
 
-    @Override
-    public void launchActivity(String packageName, String className) {
-        if (virtualDisplay == null) throw new IllegalStateException("Virtual display is not running");
+    private static void checkComponent(String packageName, String className) {
         if (packageName == null || !packageName.matches("[A-Za-z0-9_]+(\\.[A-Za-z0-9_]+)+")
                 || className == null || !className.matches("[A-Za-z0-9_.$]+")) {
             throw new IllegalArgumentException("Invalid activity component");
         }
-        run(new String[]{"/system/bin/am", "start", "--display",
-                Integer.toString(virtualDisplay.getDisplay().getDisplayId()),
-                "-n", packageName + "/" + className});
+    }
+
+    private void startOnDisplay(String packageName, String className, boolean separateTask) {
+        if (virtualDisplay == null) throw new IllegalStateException("Virtual display is not running");
+        checkComponent(packageName, className);
+        java.util.ArrayList<String> args = new java.util.ArrayList<>(Arrays.asList(
+                "/system/bin/am", "start", "--display",
+                Integer.toString(virtualDisplay.getDisplay().getDisplayId())));
+        if (separateTask) args.addAll(Arrays.asList("-f", "0x18000000"));
+        args.addAll(Arrays.asList("-n", packageName + "/" + className));
+        run(args.toArray(new String[0]));
+    }
+
+    @Override
+    public synchronized void launchActivity(String packageName, String className) {
+        checkComponent(packageName, className);
+        closeSplit();
+        startOnDisplay(packageName, className, false);
+    }
+
+    @Override
+    public synchronized void launchSplit(String firstPackage, String firstClass,
+            String secondPackage, String secondClass) {
+        checkComponent(firstPackage, firstClass);
+        checkComponent(secondPackage, secondClass);
+        if (firstPackage.equals(secondPackage)) throw new IllegalArgumentException("请选择不同的应用");
+        if (virtualDisplay == null) throw new IllegalStateException("Virtual display is not running");
+        SplitSession next = null;
+        try {
+            // Check that this firmware exposes the organizer before launching either app.
+            next = new SplitSession(virtualDisplay.getDisplay().getDisplayId());
+            closeSplit();
+            Set<Integer> before = next.taskIds();
+            startOnDisplay(firstPackage, firstClass, true);
+            Object first = next.awaitTask(firstPackage, before);
+            before = next.taskIds();
+            startOnDisplay(secondPackage, secondClass, true);
+            Object second = next.awaitTask(secondPackage, before);
+            next.open(first, second, displayWidth, displayHeight);
+            splitSession = next;
+        } catch (Exception e) {
+            if (next != null) {
+                try {
+                    next.close();
+                } catch (Exception cleanup) {
+                    e.addSuppressed(cleanup);
+                }
+            }
+            Log.e("BoxScreenService", "split launch failed", e);
+            throw new IllegalStateException("无法创建分屏：" + describeFailure(e), e);
+        }
+    }
+
+    @Override
+    public synchronized boolean closeSplit() {
+        SplitSession session = splitSession;
+        if (session == null) return false;
+        splitSession = null;
+        try {
+            session.close();
+            return true;
+        } catch (ReflectiveOperationException e) {
+            throw new IllegalStateException("无法关闭分屏", e);
+        }
     }
 
     @Override
@@ -587,6 +665,7 @@ public final class PrivilegedDisplayService extends IDisplayService.Stub {
     @Override
     @SuppressLint("BlockedPrivateApi")
     public boolean closeTopTaskOnVirtualDisplay() {
+        if (closeSplit()) return true;
         if (virtualDisplay == null || virtualDisplay.getDisplay() == null) {
             throw new IllegalStateException("Virtual display is not running");
         }

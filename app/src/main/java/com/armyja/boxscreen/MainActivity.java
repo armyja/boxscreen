@@ -110,6 +110,9 @@ public final class MainActivity extends Activity {
     private boolean startPending;
     private boolean reconnectOutputAfterDisplayChange;
     private String pendingLaunchPackage;
+    private record SplitPair(ResolveInfo first, ResolveInfo second) {}
+    private SplitPair pendingSplit;
+    private boolean splitOpening;
     private String pendingLaunchActivity;
     private boolean autoMouseSuppressed;
     private boolean phoneScreenDimmed;
@@ -435,7 +438,13 @@ public final class MainActivity extends Activity {
         appSearch.setTextColor(0xfff2f2f2);
         appSearch.setHintTextColor(0xff9b9b9b);
         appSearch.setHint("搜索应用");
-        content.addView(appSearch, margins(0, 0, 0, 4));
+        LinearLayout searchRow = new LinearLayout(this);
+        searchRow.setGravity(Gravity.CENTER_VERTICAL);
+        searchRow.addView(appSearch, new LinearLayout.LayoutParams(0, -2, 1));
+        Button splitButton = button("分屏");
+        searchRow.addView(splitButton, new LinearLayout.LayoutParams(-2, -2));
+        splitButton.setOnClickListener(v -> showSplitPicker(null));
+        content.addView(searchRow, margins(0, 0, 0, 4));
         appSearch.addTextChangedListener(new TextWatcher() {
             @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) { }
             @Override public void onTextChanged(CharSequence s, int start, int before, int count) { rebuildAppsGrid(); }
@@ -476,7 +485,7 @@ public final class MainActivity extends Activity {
                     new ComponentName(getPackageName(), PrivilegedDisplayService.class.getName()))
                     .daemon(false)
                     .processNameSuffix("display")
-                    .version(15);
+                    .version(16);
             Shizuku.bindUserService(shizukuServiceArgs, shizukuServiceConnection);
             status("正在连接 Shizuku 主机服务…");
         } catch (RuntimeException e) {
@@ -575,7 +584,7 @@ public final class MainActivity extends Activity {
             Log.i(TAG, "create buffer=" + width + "x" + height + " dpi=" + densityDpi);
             Surface surface = new Surface(texture);
             try {
-                boolean blockCapture = pendingLaunchPackage == null ? captureBlockedDisplay
+                boolean blockCapture = pendingSplit != null ? false : pendingLaunchPackage == null ? captureBlockedDisplay
                         : "com.netease.uuremote".equals(pendingLaunchPackage);
                 virtualDisplayId = displayService.createDisplay("BoxScreen", width, height,
                         densityDpi, surface, blockCapture);
@@ -1029,6 +1038,7 @@ public final class MainActivity extends Activity {
     }
 
     private void stopOutput() {
+        pendingSplit = null;
         restorePrimaryDensity();
         Log.i(TAG, "stop displayId=" + virtualDisplayId);
         densityRefreshGeneration++;
@@ -1886,6 +1896,7 @@ public final class MainActivity extends Activity {
         }
 
         private void closeCurrentVirtualApp() {
+            if (splitOpening) return;
             if (displayService == null || virtualDisplayId < 0) return;
             if (mousePointerView != null) mousePointerView.cancelTouchGesture();
             try {
@@ -1904,7 +1915,7 @@ public final class MainActivity extends Activity {
                 } else {
                     status("虚拟屏上没有可关闭的应用任务");
                 }
-            } catch (RemoteException e) {
+            } catch (RemoteException | RuntimeException e) {
                 Log.e(TAG, "unable to close foreground app on virtual display", e);
                 status("关闭虚拟屏应用失败：" + e.getMessage());
             }
@@ -2524,7 +2535,84 @@ public final class MainActivity extends Activity {
         }
     }
 
+    private void showSplitPicker(ResolveInfo first) {
+        if (splitOpening) return;
+        List<ResolveInfo> choices = new ArrayList<>();
+        for (ResolveInfo app : appEntries) {
+            String pkg = app.activityInfo.packageName;
+            if (getPackageName().equals(pkg) || "com.netease.uuremote".equals(pkg)) continue;
+            if (first != null && first.activityInfo.packageName.equals(pkg)) continue;
+            if (!showSystemApps && (app.activityInfo.applicationInfo.flags
+                    & android.content.pm.ApplicationInfo.FLAG_SYSTEM) != 0) continue;
+            choices.add(app);
+        }
+        if (choices.isEmpty()) {
+            status("没有可选应用，可以打开系统应用开关后重试");
+            return;
+        }
+        choices.sort(java.util.Comparator.comparing(app ->
+                app.loadLabel(getPackageManager()).toString(), java.text.Collator.getInstance()));
+        CharSequence[] labels = new CharSequence[choices.size()];
+        for (int i = 0; i < labels.length; i++) labels[i] = choices.get(i).loadLabel(getPackageManager());
+        String side = first == null ? (portraitMode ? "上方" : "左侧") : (portraitMode ? "下方" : "右侧");
+        new android.app.AlertDialog.Builder(this).setTitle("选择" + side + "应用")
+                .setItems(labels, (dialog, position) -> {
+                    ResolveInfo selected = choices.get(position);
+                    if (first == null) showSplitPicker(selected);
+                    else requestSplit(new SplitPair(first, selected));
+                }).setNegativeButton("取消", null).show();
+    }
+
+    private void requestSplit(SplitPair pair) {
+        if (captureBlockedDisplay && virtualDisplayId >= 0) {
+            status("请先停止当前输出，再创建分屏");
+            return;
+        }
+        autoMouseSuppressed = false;
+        pendingLaunchPackage = pendingLaunchActivity = null;
+        pendingSplit = pair;
+        if (displayService == null || virtualDisplayId < 0) {
+            requestShizukuAndStart();
+        } else {
+            launchPendingApp();
+        }
+    }
+
+    private void openSplit(SplitPair pair) {
+        if (splitOpening || !restorePrimaryDensity()) return;
+        if (mousePointerView != null) mousePointerView.cancelTouchGesture();
+        autoEnableMouseIfAvailable();
+        IDisplayService service = displayService;
+        int targetDisplay = virtualDisplayId;
+        splitOpening = true;
+        status("正在创建分屏…");
+        new Thread(() -> {
+            Exception failure = null;
+            try {
+                service.launchSplit(pair.first().activityInfo.packageName, pair.first().activityInfo.name,
+                        pair.second().activityInfo.packageName, pair.second().activityInfo.name);
+            } catch (Exception e) {
+                failure = e;
+            }
+            Exception result = failure;
+            runOnUiThread(() -> {
+                splitOpening = false;
+                if (virtualDisplayId != targetDisplay || displayService != service) return;
+                if (result != null) {
+                    Log.e(TAG, "split launch failed", result);
+                    status("分屏创建失败：" + result.getMessage());
+                    return;
+                }
+                currentVirtualPackage = null;
+                if (mousePointerView != null) mousePointerView.invalidate();
+                status("分屏已打开，外接屏的 × 可关闭整组");
+            });
+        }, "boxscreen-split").start();
+    }
+
     private void launchPackage(String packageName, String activityName) {
+        if (splitOpening) return;
+        pendingSplit = null;
         autoMouseSuppressed = false;
         if (displayService == null || virtualDisplayId < 0) {
             pendingLaunchPackage = packageName;
@@ -2661,6 +2749,12 @@ public final class MainActivity extends Activity {
     }
 
     private void launchPendingApp() {
+        if (pendingSplit != null && displayService != null && virtualDisplayId >= 0) {
+            SplitPair pair = pendingSplit;
+            pendingSplit = null;
+            openSplit(pair);
+            return;
+        }
         if (pendingLaunchPackage == null || pendingLaunchActivity == null
                 || displayService == null || virtualDisplayId < 0) return;
         String packageName = pendingLaunchPackage;
