@@ -2539,19 +2539,27 @@ public final class MainActivity extends Activity {
                 }
                 return true;
             }
-            // The whole divider line is a drag target, not just the handle in the middle.
-            // Pressing near the divider must never reach the app underneath: a forwarded
-            // press turns into a long-press in the pane while the user is only grabbing the
-            // divider.
+            // Only the handle near the middle of the divider can be grabbed. Presses elsewhere
+            // on the line are still swallowed (so they never turn into a long-press inside the
+            // app underneath) but do nothing.
+            float along = portraitMode ? virtualPointerX : virtualPointerY;
+            float midpoint = (portraitMode ? getWidth() : getHeight()) / 2f;
+            boolean nearLine = Math.abs(axis - splitRatio * extent) <= panelDp(20);
+            boolean nearHandle = nearLine && Math.abs(along - midpoint) <= panelDp(42);
             if (action == MotionEvent.ACTION_DOWN) {
-                splitDrag = Math.abs(axis - splitRatio * extent) <= panelDp(20);
+                splitDrag = nearHandle;
                 splitDownAxis = axis;
                 splitKillLongPressTriggered = false;
-                if (splitDrag && !splitKillMenuVisible) {
+                if (nearHandle && !splitKillMenuVisible) {
                     handler.postDelayed(splitKillLongPress, 500);
                 }
             }
-            if (!splitDrag) return false;
+            if (!nearLine) return false;
+            if (!splitDrag) {
+                // Swallow the stray press on the divider line, but keep the handle put.
+                invalidate();
+                return true;
+            }
             if (action == MotionEvent.ACTION_MOVE) {
                 if (Math.abs(axis - splitDownAxis) > panelDp(6)) {
                     handler.removeCallbacks(splitKillLongPress);
