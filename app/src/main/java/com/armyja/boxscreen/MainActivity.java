@@ -1275,6 +1275,45 @@ public final class MainActivity extends Activity {
         private int splitKillMenuPressed = -1;
         private boolean splitKillLongPressTriggered;
         private boolean splitKillAwaitRelease;
+        private volatile boolean splitOverlayShown;
+
+        void startOverlayPoll() {
+            handler.removeCallbacks(splitOverlayPoll);
+            handler.post(splitOverlayPoll);
+        }
+
+        void stopOverlayPoll() {
+            handler.removeCallbacks(splitOverlayPoll);
+            splitOverlayShown = false;
+        }
+
+        private final Runnable splitOverlayPoll = new Runnable() {
+            @Override
+            public void run() {
+                final IDisplayService service = displayService;
+                if (!splitActive || service == null) {
+                    splitOverlayShown = false;
+                    return;
+                }
+                new Thread(() -> {
+                    boolean shown = false;
+                    try {
+                        shown = service.isVirtualDisplayOverlayShown();
+                    } catch (RemoteException | RuntimeException e) {
+                        Log.w(TAG, "could not read split overlay state", e);
+                    }
+                    final boolean value = shown;
+                    handler.post(() -> {
+                        if (splitOverlayShown != value) {
+                            splitOverlayShown = value;
+                            invalidate();
+                        }
+                    });
+                }, "boxscreen-split-overlay").start();
+                handler.postDelayed(this, 600);
+            }
+        };
+
         private final Runnable splitKillLongPress = () -> {
             if (!splitActive || splitChoosing) return;
             // A real drag cancels the menu: once the divider has been moved, the press means
@@ -2518,7 +2557,7 @@ public final class MainActivity extends Activity {
         }
 
         private boolean handleSplitTouch(MotionEvent event) {
-            if (!splitActive) return false;
+            if (!splitActive || splitOverlayShown) return false;
             int action = event.getActionMasked();
             float axis = portraitMode ? virtualPointerY : virtualPointerX;
             float extent = portraitMode ? getHeight() : getWidth();
@@ -2848,6 +2887,7 @@ public final class MainActivity extends Activity {
         }
 
         private void drawSplitUi(Canvas canvas) {
+            if (splitOverlayShown) return;
             float divider = Math.round(splitRatio * (portraitMode ? getHeight() : getWidth()));
             // The panes are already separated by a system gap, so drawing our own full-height
             // black band here only covered system windows (share sheet, floating IME) that span
@@ -3138,6 +3178,7 @@ public final class MainActivity extends Activity {
                     return;
                 }
                 splitActive = true;
+                if (mousePointerView != null) mousePointerView.startOverlayPoll();
                 splitChoosing = second == null;
                 if (splitChoosing) {
                     splitRatio = 0.5f;
@@ -3173,7 +3214,10 @@ public final class MainActivity extends Activity {
             String[] pair = displayService.getSplitPackages();
             if (pair == null || pair.length != 2) {
                 splitActive = splitChoosing = false;
-                if (mousePointerView != null) mousePointerView.invalidate();
+                if (mousePointerView != null) {
+                    mousePointerView.stopOverlayPoll();
+                    mousePointerView.invalidate();
+                }
                 return;
             }
             boolean changed = !java.util.Objects.equals(splitFirstPackage, pair[0])

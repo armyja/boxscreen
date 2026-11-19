@@ -24,6 +24,7 @@ interface IDisplayService {
     boolean closeSplit();
     String killSplitSide(boolean firstSide);
     boolean hideSplitSide(boolean firstSide);
+    boolean isVirtualDisplayOverlayShown();
     void beginSplit(String packageName);
     void fillSplit(String packageName, String className, boolean firstSide);
     void adjustSplit(float ratio, boolean swap);

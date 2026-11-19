@@ -632,6 +632,52 @@ public final class PrivilegedDisplayService extends IDisplayService.Stub {
         }
     }
 
+    /**
+     * True when a system window that spans the split (IME, share/chooser dialog, attached
+     * dialog) is showing on the virtual display. The split handle must stay out of the way then.
+     */
+    @Override
+    public boolean isVirtualDisplayOverlayShown() {
+        if (virtualDisplay == null || virtualDisplay.getDisplay() == null) return false;
+        int displayId = virtualDisplay.getDisplay().getDisplayId();
+        Process process = null;
+        try {
+            process = new ProcessBuilder("/system/bin/dumpsys", "window", "windows")
+                    .redirectErrorStream(true).start();
+            try (BufferedReader reader = new BufferedReader(
+                    new InputStreamReader(process.getInputStream()))) {
+                boolean inTargetDisplay = false;
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    String trimmed = line.trim();
+                    if (trimmed.startsWith("Window #")) {
+                        inTargetDisplay = false;
+                        continue;
+                    }
+                    if (line.contains("mDisplayId=" + displayId)) {
+                        inTargetDisplay = true;
+                        continue;
+                    }
+                    if (!inTargetDisplay) continue;
+                    if (line.contains("ty=INPUT_METHOD")
+                            || line.contains("ty=APPLICATION_ATTACHED_DIALOG")
+                            || line.contains("ty=APPLICATION_OVERLAY")
+                            || line.contains("ChooserActivity")
+                            || line.contains("ty=WALLPAPER") ) {
+                        return true;
+                    }
+                }
+            }
+            process.waitFor(3, TimeUnit.SECONDS);
+            return false;
+        } catch (Exception e) {
+            Log.w("BoxScreenService", "could not inspect virtual display windows", e);
+            return false;
+        } finally {
+            if (process != null) process.destroy();
+        }
+    }
+
     @Override
     public synchronized boolean hideSplitSide(boolean firstSide) {
         if (splitSession == null) throw new IllegalStateException("分屏已关闭");
