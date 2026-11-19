@@ -357,9 +357,16 @@ public final class PrivilegedDisplayService extends IDisplayService.Stub {
             if (device == null) continue;
             int sources = device.getSources();
             // Onboard switches and jack detectors report GAMEPAD in their class mask on
-            // some OEM builds; only real controllers expose joystick axes.
+            // some OEM builds; only real controllers expose joystick axes. Some 2.4G
+            // receivers also fold extra sources into the mouse device, so never touch
+            // anything that reports a pointer (mouse/touchpad) or keyboard class.
             boolean gamepad = (sources & InputDevice.SOURCE_JOYSTICK) != 0;
-            if (!gamepad) continue;
+            boolean pointer = (sources & (InputDevice.SOURCE_CLASS_POINTER
+                    | InputDevice.SOURCE_CLASS_BUTTON)) != 0
+                    && (sources & (InputDevice.SOURCE_MOUSE | InputDevice.SOURCE_TOUCHPAD)) != 0;
+            boolean keyboardLike = (sources & InputDevice.SOURCE_KEYBOARD) != 0
+                    && (sources & (InputDevice.SOURCE_GAMEPAD | InputDevice.SOURCE_JOYSTICK)) != 0;
+            if (!gamepad || pointer || keyboardLike) continue;
             String descriptor = device.getDescriptor();
             if (descriptor == null || descriptor.isEmpty()) continue;
             try {

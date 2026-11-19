@@ -457,7 +457,7 @@ public final class MainActivity extends Activity {
                     new ComponentName(getPackageName(), PrivilegedDisplayService.class.getName()))
                     .daemon(false)
                     .processNameSuffix("display")
-                    .version(12);
+                    .version(13);
             Shizuku.bindUserService(shizukuServiceArgs, shizukuServiceConnection);
             status("正在连接 Shizuku 主机服务…");
         } catch (RuntimeException e) {
@@ -566,12 +566,14 @@ public final class MainActivity extends Activity {
             }
             updateMouseRouteButton();
             status("虚拟屏已创建，系统 display ID=" + virtualDisplayId);
+            // Clear stale gamepad associations BEFORE enabling mouse routing: the
+            // sweep must never race with or undo the mouse association added here.
+            clearGamepadDisplayAssociations();
             if (mouseBound && boundMouseDescriptor != null) {
                 rebindMouseToExternalDisplay();
             } else {
                 autoEnableMouseIfAvailable();
             }
-            clearGamepadDisplayAssociations();
             launchPendingApp();
         } catch (Exception e) {
             Log.e(TAG, "create virtual display failed", e);
