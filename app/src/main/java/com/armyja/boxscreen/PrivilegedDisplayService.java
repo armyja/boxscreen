@@ -633,6 +633,16 @@ public final class PrivilegedDisplayService extends IDisplayService.Stub {
     }
 
     @Override
+    public synchronized boolean hideSplitSide(boolean firstSide) {
+        if (splitSession == null) throw new IllegalStateException("分屏已关闭");
+        try {
+            return splitSession.hideSide(firstSide);
+        } catch (ReflectiveOperationException e) {
+            throw new IllegalStateException("无法最小化该栏应用", e);
+        }
+    }
+
+    @Override
     public synchronized String killSplitSide(boolean firstSide) {
         if (splitSession == null) throw new IllegalStateException("分屏已关闭");
         try {

@@ -313,6 +313,24 @@ final class SplitSession {
     }
 
     /**
+     * Hide the app in one pane without killing it: the task stays alive (and can be restored)
+     * while the pane falls back to the app picker.
+     */
+    synchronized boolean hideSide(boolean firstSide) throws ReflectiveOperationException {
+        Stage stage = firstSide ? first : second;
+        if (stage == null) return false;
+        Object task = stageTask(stage, null);
+        if (task == null) return false;
+        Object tx = transaction();
+        transactionType.getMethod("setHidden", tokenType, boolean.class)
+                .invoke(tx, token(task), true);
+        apply(tx);
+        if (firstSide) firstAppToken = null;
+        else secondAppToken = null;
+        return true;
+    }
+
+    /**
      * Force-stop the app in one pane so it restarts from its initial state, then drop its task
      * so the pane falls back to the app picker. Returns the killed package, or null when the
      * pane is already empty.

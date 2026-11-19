@@ -23,6 +23,7 @@ interface IDisplayService {
     void launchSplit(String firstPackage, String firstClass, String secondPackage, String secondClass);
     boolean closeSplit();
     String killSplitSide(boolean firstSide);
+    boolean hideSplitSide(boolean firstSide);
     void beginSplit(String packageName);
     void fillSplit(String packageName, String className, boolean firstSide);
     void adjustSplit(float ratio, boolean swap);

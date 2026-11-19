@@ -2669,8 +2669,8 @@ public final class MainActivity extends Activity {
         private RectF splitKillMenuBounds() {
             float extent = portraitMode ? getHeight() : getWidth();
             float divider = Math.round(splitRatio * extent);
-            float width = panelDp(190);
-            float height = panelDp(96);
+            float width = panelDp(276);
+            float height = panelDp(132);
             float cx = portraitMode ? getWidth() / 2f : divider;
             float cy = portraitMode ? divider : getHeight() / 2f;
             float left = Math.max(panelDp(8), Math.min(getWidth() - width - panelDp(8), cx - width / 2f));
@@ -2678,36 +2678,70 @@ public final class MainActivity extends Activity {
             return new RectF(left, top, left + width, top + height);
         }
 
+        private static final String[] SPLIT_KILL_ACTIONS = {"最小化", "最大化", "关闭"};
+
         private void drawSplitKillMenu(Canvas canvas) {
             RectF bounds = splitKillMenuBounds();
-            float rowHeight = (bounds.height() - panelDp(12)) / 2f;
+            float headerHeight = panelDp(18);
+            float rowHeight = (bounds.height() - headerHeight - panelDp(10)) / 2f;
             panelPaint.setColor(0xf01b2028);
             canvas.drawRoundRect(bounds, panelDp(10), panelDp(10), panelPaint);
             panelTextPaint.setTextAlign(Paint.Align.CENTER);
-            panelTextPaint.setTextSize(panelDp(14));
             boolean landscape = !portraitMode;
-            for (int i = 0; i < 2; i++) {
-                boolean firstSide = i == 0;
+            for (int row = 0; row < 2; row++) {
+                boolean firstSide = row == 0;
+                String side = landscape ? (firstSide ? "左侧" : "右侧")
+                        : (firstSide ? "上方" : "下方");
                 String packageName = firstSide ? splitFirstPackage : splitSecondPackage;
-                String side = landscape ? (firstSide ? "左侧" : "右侧") : (firstSide ? "上方" : "下方");
-                float top = bounds.top + panelDp(6) + i * rowHeight;
-                if (splitKillMenuPressed == i) {
-                    panelPaint.setColor(0x55304a56);
-                    canvas.drawRoundRect(bounds.left + panelDp(6), top, bounds.right - panelDp(6),
-                            top + rowHeight, panelDp(8), panelDp(8), panelPaint);
+                float rowTop = bounds.top + headerHeight + panelDp(4) + row * rowHeight;
+                panelTextPaint.setTextSize(panelDp(10));
+                panelTextPaint.setColor(0xaaffffff);
+                canvas.drawText(side + (packageName == null ? "（空）"
+                                : " · " + panelPackageLabel(packageName)),
+                        bounds.centerX(), rowTop + panelDp(10), panelTextPaint);
+                float cellWidth = (bounds.width() - panelDp(12)) / 3f;
+                for (int col = 0; col < 3; col++) {
+                    float cellLeft = bounds.left + panelDp(6) + col * cellWidth;
+                    float cellTop = rowTop + panelDp(14);
+                    float cellBottom = rowTop + rowHeight - panelDp(2);
+                    int index = row * 3 + col;
+                    boolean enabled = packageName != null;
+                    if (splitKillMenuPressed == index) {
+                        panelPaint.setColor(0x55304a56);
+                        canvas.drawRoundRect(cellLeft, cellTop, cellLeft + cellWidth - panelDp(4),
+                                cellBottom, panelDp(8), panelDp(8), panelPaint);
+                    }
+                    panelTextPaint.setTextSize(panelDp(12));
+                    panelTextPaint.setColor(enabled ? 0xe6ffffff : 0x66ffffff);
+                    canvas.drawText(SPLIT_KILL_ACTIONS[col],
+                            cellLeft + (cellWidth - panelDp(4)) / 2f,
+                            (cellTop + cellBottom) / 2f + panelDp(4), panelTextPaint);
                 }
-                panelTextPaint.setColor(packageName == null ? 0x66ffffff : 0xe6ffffff);
-                String label = packageName == null ? "关闭" + side + "应用（空）" : "关闭" + side + "应用";
-                canvas.drawText(label, bounds.centerX(), top + rowHeight / 2f + panelDp(5), panelTextPaint);
             }
-            splitKillMenuPressed = Math.max(-1, splitKillMenuPressed);
+        }
+
+        private String panelPackageLabel(String packageName) {
+            try {
+                PackageManager manager = getContext().getPackageManager();
+                return manager.getApplicationLabel(
+                        manager.getApplicationInfo(packageName, 0)).toString();
+            } catch (Exception e) {
+                return packageName;
+            }
         }
 
         private int splitKillMenuItemAt(float x, float y) {
             RectF bounds = splitKillMenuBounds();
             if (x < bounds.left || x > bounds.right || y < bounds.top || y > bounds.bottom) return -1;
-            float rowHeight = (bounds.height() - panelDp(12)) / 2f;
-            return y < bounds.top + panelDp(6) + rowHeight ? 0 : 1;
+            float headerHeight = panelDp(18);
+            float rowHeight = (bounds.height() - headerHeight - panelDp(10)) / 2f;
+            int row = y < bounds.top + headerHeight + panelDp(4) + rowHeight ? 0 : 1;
+            float rowTop = bounds.top + headerHeight + panelDp(4) + row * rowHeight;
+            float cellWidth = (bounds.width() - panelDp(12)) / 3f;
+            if (y < rowTop + panelDp(14)) return -1;
+            int col = (int) ((x - bounds.left - panelDp(6)) / cellWidth);
+            if (col < 0 || col > 2) return -1;
+            return row * 3 + col;
         }
 
         /** Returns true when the touch belongs to the "close pane app" menu. */
@@ -2741,7 +2775,7 @@ public final class MainActivity extends Activity {
                 splitKillMenuVisible = false;
                 splitKillMenuPressed = -1;
                 invalidate();
-                if (confirmed) killSplitSide(item == 0);
+                if (confirmed) runSplitKillAction(item / 3 == 0, item % 3);
                 return true;
             }
             if (action == MotionEvent.ACTION_CANCEL) {
@@ -2753,27 +2787,48 @@ public final class MainActivity extends Activity {
             return true;
         }
 
-        private void killSplitSide(boolean firstSide) {
+        private void runSplitKillAction(boolean firstSide, int action) {
             final IDisplayService service = displayService;
             final int targetDisplay = virtualDisplayId;
             if (service == null || targetDisplay < 0) return;
             new Thread(() -> {
-                String killed = null;
+                String name = null;
+                String failure = null;
                 try {
-                    killed = service.killSplitSide(firstSide);
+                    if (action == 0) {
+                        name = service.hideSplitSide(firstSide) ? "" : null;
+                    } else if (action == 1) {
+                        name = service.expandSplit(firstSide);
+                    } else {
+                        name = service.killSplitSide(firstSide);
+                    }
                 } catch (RemoteException | RuntimeException e) {
-                    Log.e(TAG, "failed to close split side", e);
+                    Log.e(TAG, "split pane action failed", e);
+                    failure = e.getMessage();
                 }
-                final String name = killed;
+                final String resultName = name;
+                final String resultFailure = failure;
                 runOnUiThread(() -> {
                     if (displayService != service) return;
                     refreshSplitState();
                     applyDensitySync();
-                    refreshVirtualDisplayLayout("close split side");
-                    status(name == null ? "该栏没有运行中的应用" : "已关闭 " + name);
+                    refreshVirtualDisplayLayout("split pane action");
+                    if (resultFailure != null) {
+                        status("操作失败：" + resultFailure);
+                    } else if (resultName == null) {
+                        status(action == 0 ? "该栏没有运行中的应用" : "该栏没有运行中的应用");
+                    } else if (action == 1) {
+                        splitActive = splitChoosing = false;
+                        currentVirtualPackage = resultName;
+                        status("已放大 " + resultName);
+                    } else if (action == 0) {
+                        status("已最小化，可选择其他应用");
+                    } else {
+                        status("已关闭 " + resultName);
+                    }
                     invalidate();
                 });
-            }, "boxscreen-split-kill").start();
+            }, "boxscreen-split-action").start();
         }
 
         private void drawSplitUi(Canvas canvas) {
