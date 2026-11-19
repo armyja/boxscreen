@@ -24,6 +24,8 @@ final class SplitSession {
     private Stage root;
     private Stage first;
     private Stage second;
+    private Object firstAppToken;
+    private Object secondAppToken;
     private boolean active;
     private float ratio = 0.5f;
     private boolean reversed;
@@ -102,6 +104,8 @@ final class SplitSession {
     }
 
     synchronized void open(Object firstTask, Object secondTask, int width, int height) throws ReflectiveOperationException {
+        firstAppToken = firstTask;
+        secondAppToken = secondTask;
         root = create("BoxScreenSplit", 1, null);
         first = create("BoxScreenSplitFirst", 6, root);
         second = create("BoxScreenSplitSecond", 6, root);
@@ -136,6 +140,10 @@ final class SplitSession {
         Method set = transactionType.getMethod("setBounds", tokenType, Rect.class);
         set.invoke(tx, first.token(), bounds[0]);
         set.invoke(tx, second.token(), bounds[1]);
+        // ColorOS may keep an entering task's surface under the display area during reparent.
+        // Size and position the application task too, so it cannot retain its fullscreen origin.
+        if (firstAppToken != null) set.invoke(tx, firstAppToken, bounds[0]);
+        if (secondAppToken != null) set.invoke(tx, secondAppToken, bounds[1]);
     }
 
     private void applyLayout(Object tx, Rect[] bounds) throws ReflectiveOperationException {
@@ -192,6 +200,7 @@ final class SplitSession {
     }
 
     synchronized void fill(Object task, int width, int height) throws ReflectiveOperationException {
+        secondAppToken = task;
         Object tx = transaction();
         transactionType.getMethod("reparent", tokenType, tokenType, boolean.class)
                 .invoke(tx, task, second.token(), true);
@@ -250,6 +259,7 @@ final class SplitSession {
                 if (stage != null) stage.surface().release();
             }
             first = second = root = null;
+            firstAppToken = secondAppToken = null;
         }
     }
 }
