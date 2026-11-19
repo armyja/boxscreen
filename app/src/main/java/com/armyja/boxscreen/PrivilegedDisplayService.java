@@ -594,9 +594,7 @@ public final class PrivilegedDisplayService extends IDisplayService.Stub {
         checkComponent(packageName, className);
         if (splitSession == null) throw new IllegalStateException("分屏已关闭");
         try {
-            Set<Integer> before = splitSession.taskIds();
-            startOnDisplay(packageName, className, true);
-            splitSession.fill(splitSession.awaitTask(packageName, before), displayWidth, displayHeight);
+            splitSession.fill(packageName, className, displayWidth, displayHeight);
         } catch (Exception e) {
             throw new IllegalStateException("无法打开另一侧应用：" + describeFailure(e), e);
         }

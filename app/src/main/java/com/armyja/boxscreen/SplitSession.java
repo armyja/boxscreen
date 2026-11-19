@@ -1,6 +1,9 @@
 package com.armyja.boxscreen;
 
+import android.app.ActivityOptions;
 import android.content.ComponentName;
+import android.content.Intent;
+import android.os.Bundle;
 import android.graphics.Rect;
 import android.os.IBinder;
 import android.view.SurfaceControl;
@@ -15,6 +18,7 @@ import java.util.Set;
 final class SplitSession {
     private final int displayId;
     private final Object organizer;
+    private final Object activityTaskManager;
     private final Object windowOrganizer;
     private final Class<?> organizerType = Class.forName("android.window.ITaskOrganizerController");
     private final Class<?> transactionType = Class.forName("android.window.WindowContainerTransaction");
@@ -38,10 +42,10 @@ final class SplitSession {
         this.displayId = displayId;
         IBinder binder = (IBinder) Class.forName("android.os.ServiceManager")
                 .getMethod("getService", String.class).invoke(null, "activity_task");
-        Object atm = Class.forName("android.app.IActivityTaskManager$Stub")
+        activityTaskManager = Class.forName("android.app.IActivityTaskManager$Stub")
                 .getMethod("asInterface", IBinder.class).invoke(null, binder);
         windowOrganizer = Class.forName("android.app.IActivityTaskManager")
-                .getMethod("getWindowOrganizerController").invoke(atm);
+                .getMethod("getWindowOrganizerController").invoke(activityTaskManager);
         organizer = Class.forName("android.window.IWindowOrganizerController")
                 .getMethod("getTaskOrganizerController").invoke(windowOrganizer);
         organizerType.getMethod("createTask", paramsType);
@@ -199,17 +203,47 @@ final class SplitSession {
         }
     }
 
-    synchronized void fill(Object task, int width, int height) throws ReflectiveOperationException {
-        secondAppToken = task;
+    synchronized void fill(String packageName, String className, int width, int height)
+            throws ReflectiveOperationException {
+        ActivityOptions options = ActivityOptions.makeBasic().setLaunchDisplayId(displayId);
+        ActivityOptions.class.getMethod("setLaunchRootTask", tokenType)
+                .invoke(options, second.token());
+        Intent launch = new Intent(Intent.ACTION_MAIN)
+                .addCategory(Intent.CATEGORY_LAUNCHER)
+                .setComponent(ComponentName.createRelative(packageName, className))
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_MULTIPLE_TASK);
+        Method start = Class.forName("android.app.IActivityTaskManager").getMethod(
+                "startActivityAsUser", Class.forName("android.app.IApplicationThread"),
+                String.class, String.class, Intent.class, String.class, IBinder.class,
+                String.class, int.class, int.class, Class.forName("android.app.ProfilerInfo"),
+                Bundle.class, int.class);
+        int userId = android.os.Process.myUid() / 100000;
+        int result = (Integer) start.invoke(activityTaskManager, null, "com.android.shell",
+                null, launch, null, null, null, 0, 0, null, options.toBundle(), userId);
+        if (result < 0) throw new IllegalStateException("系统拒绝在分栏中启动应用：" + result);
+        secondAppToken = awaitStageTask(second, packageName);
         Object tx = transaction();
-        transactionType.getMethod("reparent", tokenType, tokenType, boolean.class)
-                .invoke(tx, task, second.token(), true);
-        transactionType.getMethod("reorder", tokenType, boolean.class).invoke(tx, root.token(), true);
+        transactionType.getMethod("reorder", tokenType, boolean.class)
+                .invoke(tx, root.token(), true);
         Rect[] bounds = bounds(width, height);
         applyLayout(tx, bounds);
-        android.os.SystemClock.sleep(900);
         showSurfaces(bounds);
         stabilizeSurfaces(bounds);
+    }
+
+    private Object awaitStageTask(Stage stage, String packageName) throws ReflectiveOperationException {
+        Method children = organizerType.getMethod("getChildTasks", tokenType, int[].class);
+        for (int attempt = 0; attempt < 30; attempt++) {
+            List<?> tasks = (List<?>) children.invoke(organizer, stage.token(), null);
+            if (tasks != null) {
+                for (Object task : tasks) {
+                    ComponentName top = (ComponentName) task.getClass().getField("topActivity").get(task);
+                    if (top != null && packageName.equals(top.getPackageName())) return token(task);
+                }
+            }
+            android.os.SystemClock.sleep(50);
+        }
+        throw new IllegalStateException("系统未把应用放进指定分栏：" + packageName);
     }
 
     synchronized void adjust(float ratio, boolean swap, int width, int height) throws ReflectiveOperationException {
