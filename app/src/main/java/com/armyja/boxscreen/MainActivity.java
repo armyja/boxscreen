@@ -115,6 +115,8 @@ public final class MainActivity extends Activity {
     private boolean splitChoosing;
     private boolean splitPickerFirst;
     private boolean splitLastFirst = true;
+    /** True when the first stage is currently drawn on the right/bottom side. */
+    private boolean splitReversed;
     private String splitFirstPackage;
     private String splitSecondPackage;
     private float splitRatio = 0.5f;
@@ -539,7 +541,7 @@ public final class MainActivity extends Activity {
                     new ComponentName(getPackageName(), PrivilegedDisplayService.class.getName()))
                     .daemon(false)
                     .processNameSuffix("display")
-                    .version(23);
+                    .version(24);
             Shizuku.bindUserService(shizukuServiceArgs, shizukuServiceConnection);
             status("正在连接 Shizuku 主机服务…");
         } catch (RuntimeException e) {
@@ -1377,8 +1379,8 @@ public final class MainActivity extends Activity {
          * Very light by design: the handle only hints at the split. The dark rim stays dimmer
          * than the white core so it does not read as a grey smudge over light content.
          */
-        private static final float SPLIT_HANDLE_RIM_OPACITY = 0.08f;
-        private static final float SPLIT_HANDLE_CORE_OPACITY = 0.25f;
+        private static final float SPLIT_HANDLE_RIM_OPACITY = 0.32f;
+        private static final float SPLIT_HANDLE_CORE_OPACITY = 0.62f;
         private boolean splitLayoutChanging;
 
         /** The handle sits high on the divider so dialogs and floating IMEs rarely reach it. */
@@ -2825,7 +2827,9 @@ public final class MainActivity extends Activity {
             panelTextPaint.setTextAlign(Paint.Align.CENTER);
             for (int side = 0; side < 2; side++) {
                 RectF cluster = clusters[side];
-                String packageName = side == 0 ? splitFirstPackage : splitSecondPackage;
+                // side 0 is the visual left/top pane; after a swap that is the second stage.
+                boolean firstStage = (side == 0) != splitReversed;
+                String packageName = firstStage ? splitFirstPackage : splitSecondPackage;
                 panelPaint.setColor(0xf01b2028);
                 canvas.drawRoundRect(cluster, panelDp(10), panelDp(10), panelPaint);
                 float cellWidth = cluster.width() / 3f;
@@ -2907,7 +2911,10 @@ public final class MainActivity extends Activity {
                 splitKillMenuVisible = false;
                 splitKillMenuPressed = -1;
                 invalidate();
-                if (confirmed) runSplitKillAction(item / 3 == 0, item % 3);
+                if (confirmed) {
+                    boolean visualFirst = item / 3 == 0;
+                    runSplitKillAction(visualFirst != splitReversed, item % 3);
+                }
                 return true;
             }
             if (action == MotionEvent.ACTION_CANCEL) {
@@ -3332,6 +3339,7 @@ public final class MainActivity extends Activity {
                     || !java.util.Objects.equals(splitSecondPackage, pair[1]);
             splitFirstPackage = pair[0];
             splitSecondPackage = pair[1];
+            splitReversed = displayService.isSplitReversed();
             splitActive = true;
             splitChoosing = pair[0] == null || pair[1] == null;
             splitPickerFirst = pair[0] == null;
@@ -3359,6 +3367,7 @@ public final class MainActivity extends Activity {
                     || !java.util.Objects.equals(splitSecondPackage, pair[1]);
             splitFirstPackage = pair[0];
             splitSecondPackage = pair[1];
+            splitReversed = displayService.isSplitReversed();
             splitChoosing = pair[0] == null || pair[1] == null;
             splitPickerFirst = pair[0] == null;
             if (changed && mousePointerView != null) {

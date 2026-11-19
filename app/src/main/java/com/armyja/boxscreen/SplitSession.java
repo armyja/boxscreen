@@ -305,6 +305,11 @@ final class SplitSession {
         return top == null ? null : top.getPackageName();
     }
 
+    /** True when the first stage is drawn on the right/bottom side. */
+    synchronized boolean reversed() {
+        return reversed;
+    }
+
     synchronized String[] packages() throws ReflectiveOperationException {
         if (!active || expandedStage != null) return null;
         Object one = stageTask(first, null);

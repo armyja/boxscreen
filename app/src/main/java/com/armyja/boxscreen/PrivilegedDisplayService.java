@@ -621,6 +621,11 @@ public final class PrivilegedDisplayService extends IDisplayService.Stub {
     }
 
     @Override
+    public synchronized boolean isSplitReversed() {
+        return splitSession != null && splitSession.reversed();
+    }
+
+    @Override
     public synchronized String[] getSplitPackages() {
         if (splitSession == null) return null;
         try {
