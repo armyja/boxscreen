@@ -2463,10 +2463,13 @@ public final class MainActivity extends Activity {
                     boolean swap = Math.abs(axis - splitDownAxis) < panelDp(8);
                     float ratio = swap ? splitRatio : SplitGeometry.clamp(axis / extent, getWidth(), getHeight());
                     try {
-                        displayService.adjustSplit(ratio, swap);
-                        splitRatio = ratio;
-                        if (swap) splitLastFirst = !splitLastFirst;
-                        refreshSplitState();
+                        if (swap || Math.abs(ratio - splitRatio) * extent >= 1f) {
+                            displayService.adjustSplit(ratio, swap);
+                            splitRatio = ratio;
+                            if (swap) splitLastFirst = !splitLastFirst;
+                            refreshSplitState();
+                            refreshVirtualDisplayLayout(swap ? "swap split panes" : "resize split panes");
+                        }
                     } catch (Exception e) {
                         status("分屏调整失败：" + e.getMessage());
                     }
