@@ -1387,10 +1387,11 @@ public final class MainActivity extends Activity {
         }
 
         /** How close the pointer has to be to the divider before the handle is drawn. */
-        private boolean splitHandleNearPointer(float axis, float extent, float along) {
+        private boolean splitHandleNearPointer(float pointerAcross, float pointerAlong,
+                                               float extent) {
             float unit = splitHandleScale();
-            return Math.abs(axis - splitRatio * extent) <= 24f * unit
-                    && Math.abs(along - splitHandleAlong()) <= 44f * unit;
+            return Math.abs(pointerAcross - splitRatio * extent) <= 24f * unit
+                    && Math.abs(pointerAlong - splitHandleAlong()) <= 44f * unit;
         }
 
         private Bitmap splitPreviousFrame;
@@ -3051,8 +3052,10 @@ public final class MainActivity extends Activity {
             // Only drawn while the pointer is near it (or while dragging): the rest of the
             // time the virtual display has no overlay at all.
             float along = splitHandleAlong();
+            float pointerAcross = portraitMode ? virtualPointerY : virtualPointerX;
+            float pointerAlong = portraitMode ? virtualPointerX : virtualPointerY;
             boolean handleHovered = forwarding && pointerVisible
-                    && splitHandleNearPointer(dividerAxis, extent, along);
+                    && splitHandleNearPointer(pointerAcross, pointerAlong, extent);
             if (!splitDrag && !handleHovered) return;
             float cx = portraitMode ? along : axis;
             float cy = portraitMode ? axis : along;
