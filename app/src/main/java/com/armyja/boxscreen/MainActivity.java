@@ -1802,7 +1802,7 @@ public final class MainActivity extends Activity {
             }
             float compatCenterY = barHeight + panelDp(91);
             if ((splitActive || currentVirtualPackage != null) && !captureBlockedDisplay
-                    && x >= width - panelDp(150) && x <= width - panelDp(88)
+                    && x >= width - panelDp(72) && x <= width - panelDp(6)
                     && Math.abs(y - compatCenterY) <= panelDp(18)) return PANEL_SPLIT;
             if (y >= compatCenterY - panelDp(17) && y <= compatCenterY + panelDp(17)) {
                 return PANEL_DENSITY_COMPAT;
@@ -2125,27 +2125,37 @@ public final class MainActivity extends Activity {
                         width - panelDp(30), controlsCenterY, panelDp(26));
 
                 float compatY = barHeight + panelDp(91);
+                // Split/fullscreen action sits at the far right edge so it never separates the
+                // "主屏 DPI 同步" label from its switch.
                 if ((splitActive || currentVirtualPackage != null) && !captureBlockedDisplay) {
                     panelPaint.setColor(0x99607888);
-                    canvas.drawRoundRect(width - panelDp(150), compatY - panelDp(17),
-                            width - panelDp(88), compatY + panelDp(17), panelDp(6), panelDp(6), panelPaint);
+                    canvas.drawRoundRect(width - panelDp(68), compatY - panelDp(17),
+                            width - panelDp(10), compatY + panelDp(17), panelDp(6), panelDp(6), panelPaint);
                     panelTextPaint.setColor(0xe6ffffff);
                     panelTextPaint.setTextSize(panelDp(13));
                     panelTextPaint.setTextAlign(Paint.Align.CENTER);
-                    canvas.drawText(splitActive ? "全屏" : "分屏", width - panelDp(119), compatY + panelDp(5), panelTextPaint);
+                    canvas.drawText(splitActive ? "全屏" : "分屏", width - panelDp(39), compatY + panelDp(5), panelTextPaint);
                 }
                 boolean compat = currentVirtualPackage != null && densityCompatPackages.contains(currentVirtualPackage);
                 panelTextPaint.setTextSize(panelDp(13));
                 panelTextPaint.setTextAlign(Paint.Align.LEFT);
                 panelTextPaint.setColor(0xe6ffffff);
-                canvas.drawText("主屏 DPI 同步 · 当前应用", panelDp(16), compatY - panelDp(2), panelTextPaint);
+                String compatLabel = "主屏 DPI 同步 · 当前应用";
+                canvas.drawText(compatLabel, panelDp(16), compatY - panelDp(2), panelTextPaint);
                 panelTextPaint.setTextSize(panelDp(10));
                 panelTextPaint.setColor(0xaaffffff);
                 canvas.drawText("手机主屏显示大小会变化", panelDp(16), compatY + panelDp(12), panelTextPaint);
+                // Switch hugs the label instead of floating at the panel edge.
+                panelTextPaint.setTextSize(panelDp(13));
+                float compatLabelRight = panelDp(16) + panelTextPaint.measureText(compatLabel);
+                float compatSwitchLeft = compatLabelRight + panelDp(12);
+                float compatSwitchRight = compatSwitchLeft + panelDp(40);
                 panelPaint.setColor(compat ? 0xcc80cbc4 : 0x9977808d);
-                canvas.drawRoundRect(width - panelDp(55), compatY - panelDp(10), width - panelDp(15), compatY + panelDp(10), panelDp(10), panelDp(10), panelPaint);
+                canvas.drawRoundRect(compatSwitchLeft, compatY - panelDp(10),
+                        compatSwitchRight, compatY + panelDp(10), panelDp(10), panelDp(10), panelPaint);
                 panelPaint.setColor(0xffeeeeee);
-                canvas.drawCircle(width - (compat ? panelDp(25) : panelDp(45)), compatY, panelDp(7), panelPaint);
+                canvas.drawCircle(compat ? compatSwitchRight - panelDp(10)
+                        : compatSwitchLeft + panelDp(10), compatY, panelDp(7), panelPaint);
 
                 float tileTop = quickPanelAppsTop();
                 float tileHeight = panelDp(58);
