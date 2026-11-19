@@ -2666,56 +2666,65 @@ public final class MainActivity extends Activity {
             super.onDetachedFromWindow();
         }
 
-        private RectF splitKillMenuBounds() {
+        /**
+         * One cluster of three actions per pane, placed on that pane's own side of the divider:
+         * left/right of the vertical divider in landscape, above/below the horizontal divider in
+         * portrait. Keeping each cluster clear of the divider stops the buttons from sitting on
+         * the black split line.
+         */
+        private RectF[] splitKillClusters() {
+            float gap = panelDp(18);
+            float height = panelDp(46);
+            float maxWidth = panelDp(204);
             float extent = portraitMode ? getHeight() : getWidth();
             float divider = Math.round(splitRatio * extent);
-            float width = panelDp(276);
-            float height = panelDp(132);
-            float cx = portraitMode ? getWidth() / 2f : divider;
-            float cy = portraitMode ? divider : getHeight() / 2f;
-            float left = Math.max(panelDp(8), Math.min(getWidth() - width - panelDp(8), cx - width / 2f));
-            float top = Math.max(panelDp(8), Math.min(getHeight() - height - panelDp(8), cy - height / 2f));
-            return new RectF(left, top, left + width, top + height);
+            RectF first;
+            RectF second;
+            if (portraitMode) {
+                float width = Math.min(maxWidth, getWidth() - panelDp(16));
+                float cx = getWidth() / 2f;
+                float topY = Math.max(panelDp(8), divider - gap - height);
+                float bottomY = Math.min(getHeight() - height - panelDp(8), divider + gap);
+                first = new RectF(cx - width / 2f, topY, cx + width / 2f, topY + height);
+                second = new RectF(cx - width / 2f, bottomY, cx + width / 2f, bottomY + height);
+            } else {
+                float cy = getHeight() / 2f;
+                float available = Math.min(divider - gap - panelDp(8),
+                        getWidth() - (divider + gap) - panelDp(8));
+                float width = Math.min(maxWidth, Math.max(panelDp(120), available));
+                float leftStart = Math.max(panelDp(8), divider - gap - width);
+                float rightStart = divider + gap;
+                first = new RectF(leftStart, cy - height / 2f, leftStart + width, cy + height / 2f);
+                second = new RectF(rightStart, cy - height / 2f, rightStart + width, cy + height / 2f);
+            }
+            return new RectF[]{first, second};
         }
 
         private static final String[] SPLIT_KILL_ACTIONS = {"最小化", "最大化", "关闭"};
 
         private void drawSplitKillMenu(Canvas canvas) {
-            RectF bounds = splitKillMenuBounds();
-            float headerHeight = panelDp(18);
-            float rowHeight = (bounds.height() - headerHeight - panelDp(10)) / 2f;
-            panelPaint.setColor(0xf01b2028);
-            canvas.drawRoundRect(bounds, panelDp(10), panelDp(10), panelPaint);
+            RectF[] clusters = splitKillClusters();
             panelTextPaint.setTextAlign(Paint.Align.CENTER);
-            boolean landscape = !portraitMode;
-            for (int row = 0; row < 2; row++) {
-                boolean firstSide = row == 0;
-                String side = landscape ? (firstSide ? "左侧" : "右侧")
-                        : (firstSide ? "上方" : "下方");
-                String packageName = firstSide ? splitFirstPackage : splitSecondPackage;
-                float rowTop = bounds.top + headerHeight + panelDp(4) + row * rowHeight;
-                panelTextPaint.setTextSize(panelDp(10));
-                panelTextPaint.setColor(0xaaffffff);
-                canvas.drawText(side + (packageName == null ? "（空）"
-                                : " · " + panelPackageLabel(packageName)),
-                        bounds.centerX(), rowTop + panelDp(10), panelTextPaint);
-                float cellWidth = (bounds.width() - panelDp(12)) / 3f;
+            for (int side = 0; side < 2; side++) {
+                RectF cluster = clusters[side];
+                String packageName = side == 0 ? splitFirstPackage : splitSecondPackage;
+                panelPaint.setColor(0xf01b2028);
+                canvas.drawRoundRect(cluster, panelDp(10), panelDp(10), panelPaint);
+                float cellWidth = cluster.width() / 3f;
                 for (int col = 0; col < 3; col++) {
-                    float cellLeft = bounds.left + panelDp(6) + col * cellWidth;
-                    float cellTop = rowTop + panelDp(14);
-                    float cellBottom = rowTop + rowHeight - panelDp(2);
-                    int index = row * 3 + col;
+                    int index = side * 3 + col;
                     boolean enabled = packageName != null;
-                    if (splitKillMenuPressed == index) {
+                    float cellLeft = cluster.left + col * cellWidth;
+                    if (splitKillMenuPressed == index && enabled) {
                         panelPaint.setColor(0x55304a56);
-                        canvas.drawRoundRect(cellLeft, cellTop, cellLeft + cellWidth - panelDp(4),
-                                cellBottom, panelDp(8), panelDp(8), panelPaint);
+                        canvas.drawRoundRect(cellLeft + panelDp(3), cluster.top + panelDp(4),
+                                cellLeft + cellWidth - panelDp(3), cluster.bottom - panelDp(4),
+                                panelDp(8), panelDp(8), panelPaint);
                     }
-                    panelTextPaint.setTextSize(panelDp(12));
-                    panelTextPaint.setColor(enabled ? 0xe6ffffff : 0x66ffffff);
+                    panelTextPaint.setTextSize(panelDp(13));
+                    panelTextPaint.setColor(enabled ? 0xe6ffffff : 0x55ffffff);
                     canvas.drawText(SPLIT_KILL_ACTIONS[col],
-                            cellLeft + (cellWidth - panelDp(4)) / 2f,
-                            (cellTop + cellBottom) / 2f + panelDp(4), panelTextPaint);
+                            cellLeft + cellWidth / 2f, cluster.centerY() + panelDp(5), panelTextPaint);
                 }
             }
         }
@@ -2731,17 +2740,17 @@ public final class MainActivity extends Activity {
         }
 
         private int splitKillMenuItemAt(float x, float y) {
-            RectF bounds = splitKillMenuBounds();
-            if (x < bounds.left || x > bounds.right || y < bounds.top || y > bounds.bottom) return -1;
-            float headerHeight = panelDp(18);
-            float rowHeight = (bounds.height() - headerHeight - panelDp(10)) / 2f;
-            int row = y < bounds.top + headerHeight + panelDp(4) + rowHeight ? 0 : 1;
-            float rowTop = bounds.top + headerHeight + panelDp(4) + row * rowHeight;
-            float cellWidth = (bounds.width() - panelDp(12)) / 3f;
-            if (y < rowTop + panelDp(14)) return -1;
-            int col = (int) ((x - bounds.left - panelDp(6)) / cellWidth);
-            if (col < 0 || col > 2) return -1;
-            return row * 3 + col;
+            RectF[] clusters = splitKillClusters();
+            for (int side = 0; side < 2; side++) {
+                RectF cluster = clusters[side];
+                if (x < cluster.left || x > cluster.right
+                        || y < cluster.top || y > cluster.bottom) continue;
+                int col = (int) ((x - cluster.left) / (cluster.width() / 3f));
+                if (col < 0) col = 0;
+                if (col > 2) col = 2;
+                return side * 3 + col;
+            }
+            return -1;
         }
 
         /** Returns true when the touch belongs to the "close pane app" menu. */
