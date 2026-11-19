@@ -1253,6 +1253,8 @@ public final class MainActivity extends Activity {
 
         private static final int PANEL_NONE = 0;
         private static final int PANEL_SPLIT = 1;
+        private long splitInputDownTime = Long.MIN_VALUE;
+        private boolean splitInputTouchMode;
         private boolean splitDrag;
         private float splitDownAxis;
         private int splitPickerOffset;
@@ -1329,10 +1331,9 @@ public final class MainActivity extends Activity {
             if (handleQuickPanelTouch(event)) return true;
             if (handleSplitTouch(event)) return true;
             if (splitActive && event.getActionMasked() == MotionEvent.ACTION_DOWN) {
-                splitLastFirst = (portraitMode ? virtualPointerY : virtualPointerX)
-                        < splitRatio * (portraitMode ? getHeight() : getWidth());
+                splitLastFirst = isPointerInFirstSplitPane();
             }
-            if (isCurrentAppTouchMode()) forwardTouchModeEvent(event);
+            if (usesTouchMode(event)) forwardTouchModeEvent(event);
             else forwardMouseEvent(event);
             return true;
         }
@@ -1376,7 +1377,7 @@ public final class MainActivity extends Activity {
                 return true;
             }
             if (action == MotionEvent.ACTION_HOVER_EXIT) {
-                if (!isCurrentAppTouchMode()) forwardMouseEvent(event);
+                if (!usesTouchMode(event)) forwardMouseEvent(event);
                 if (portraitMode && event.getRawX() <= 2f) {
                     pointerOutside = false;
                     handler.removeCallbacks(hidePointer);
@@ -1390,13 +1391,35 @@ public final class MainActivity extends Activity {
                     lastHideRescheduleAt = 0;
                     invalidate();
                 }
-            } else if (isCurrentAppTouchMode()) {
+            } else if (usesTouchMode(event)) {
                 if (action == MotionEvent.ACTION_SCROLL) forwardMouseEvent(event);
                 else forwardTouchModeEvent(event);
             } else {
                 forwardMouseEvent(event);
             }
             return true;
+        }
+
+        private boolean isPointerInFirstSplitPane() {
+            float axis = portraitMode ? virtualPointerY : virtualPointerX;
+            int extent = portraitMode ? getHeight() : getWidth();
+            return axis < splitRatio * extent;
+        }
+
+        private boolean usesTouchMode(MotionEvent event) {
+            if (!splitActive) return isTouchMode(currentVirtualPackage);
+            String pkg = isPointerInFirstSplitPane() ? splitFirstPackage : splitSecondPackage;
+            int action = event.getActionMasked();
+            if (action == MotionEvent.ACTION_HOVER_ENTER || action == MotionEvent.ACTION_HOVER_MOVE
+                    || action == MotionEvent.ACTION_HOVER_EXIT || action == MotionEvent.ACTION_SCROLL) {
+                return isTouchMode(pkg);
+            }
+            // Generic button events and touch dispatch can belong to the same mouse gesture.
+            if (splitInputDownTime != event.getDownTime()) {
+                splitInputDownTime = event.getDownTime();
+                splitInputTouchMode = isTouchMode(pkg);
+            }
+            return splitInputTouchMode;
         }
 
         private void forwardTouchModeEvent(MotionEvent source) {
@@ -1502,6 +1525,7 @@ public final class MainActivity extends Activity {
         }
 
         void cancelTouchGesture() {
+            splitInputDownTime = Long.MIN_VALUE;
             if (!touchGestureActive) return;
             injectTouchAction(null, MotionEvent.ACTION_CANCEL);
             touchGestureActive = false;
@@ -2046,7 +2070,7 @@ public final class MainActivity extends Activity {
                 panelPaint.setColor(0x6630343d);
                 canvas.drawRect(width - panelDp(152), controlsTop + panelDp(4), width - panelDp(8),
                         controlsBottom - panelDp(4), panelPaint);
-                panelPaint.setColor(currentVirtualPackage == null || isCurrentAppTouchMode()
+                panelPaint.setColor(inputSettingsPackage() == null || isTouchMode(inputSettingsPackage())
                         ? 0x997a5b32 : 0x664b6470);
                 canvas.drawRect(width - panelDp(152), controlsTop + panelDp(8), width - panelDp(106),
                         controlsBottom - panelDp(8), panelPaint);
@@ -2073,7 +2097,7 @@ public final class MainActivity extends Activity {
                 canvas.drawCircle(sliderLeft + (sliderRight - sliderLeft) * densityRatio,
                         controlsCenterY, panelDp(8), panelPaint);
                 drawInputModeIcon(canvas, width - panelDp(129), controlsCenterY,
-                        currentVirtualPackage == null || isCurrentAppTouchMode());
+                        inputSettingsPackage() == null || isTouchMode(inputSettingsPackage()));
                 drawOrientationIcon(canvas, width - panelDp(76), controlsCenterY);
                 drawPanelVectorIcon(canvas, R.drawable.ic_screenshot,
                         width - panelDp(30), controlsCenterY, panelDp(26));
@@ -2878,8 +2902,13 @@ public final class MainActivity extends Activity {
         }
     }
 
-    private boolean isCurrentAppTouchMode() {
-        return currentVirtualPackage != null && !mouseModePackages.contains(currentVirtualPackage);
+    private String inputSettingsPackage() {
+        if (!splitActive) return currentVirtualPackage;
+        return splitLastFirst ? splitFirstPackage : splitSecondPackage;
+    }
+
+    private boolean isTouchMode(String packageName) {
+        return packageName != null && !mouseModePackages.contains(packageName);
     }
 
     private boolean restorePrimaryDensity() {
@@ -2944,17 +2973,18 @@ public final class MainActivity extends Activity {
     }
 
     private void toggleCurrentInputMode() {
-        if (currentVirtualPackage == null) {
+        String packageName = inputSettingsPackage();
+        if (packageName == null) {
             status("先在虚拟屏启动应用，再切换输入模式");
             return;
         }
         if (mousePointerView != null) mousePointerView.cancelTouchGesture();
         boolean touchMode;
-        if (isCurrentAppTouchMode()) {
-            mouseModePackages.add(currentVirtualPackage);
+        if (isTouchMode(packageName)) {
+            mouseModePackages.add(packageName);
             touchMode = false;
         } else {
-            mouseModePackages.remove(currentVirtualPackage);
+            mouseModePackages.remove(packageName);
             touchMode = true;
         }
         getPreferences(MODE_PRIVATE).edit()
