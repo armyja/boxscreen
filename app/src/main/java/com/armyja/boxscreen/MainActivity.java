@@ -150,6 +150,19 @@ public final class MainActivity extends Activity {
     private boolean showSystemApps;
     private boolean editFavorites;
     private int appColumns;
+    private float appGridDensity;
+    private boolean appGridRetryScheduled;
+
+    /** Retry populating the grid after the next layout pass, once it has a real width. */
+    private void scheduleAppGridRetry() {
+        if (appGrid == null || appGridRetryScheduled) return;
+        appGridRetryScheduled = true;
+        appGrid.post(() -> {
+            appGridRetryScheduled = false;
+            if (appGrid == null || appGrid.getWidth() <= 0) return;
+            updateAppGridColumns(appGrid.getWidth());
+        });
+    }
     private Button modeButton;
     private Button mouseRouteButton;
     private boolean mouseBound;
@@ -3028,18 +3041,21 @@ public final class MainActivity extends Activity {
 
     private void updateAppGridColumns(int widthPx) {
         if (appGrid == null || widthPx <= 0) return;
-        int availableDp = Math.max(1, Math.round(widthPx
-                / getResources().getDisplayMetrics().density));
+        float density = getResources().getDisplayMetrics().density;
+        int availableDp = Math.max(1, Math.round(widthPx / density));
         int columns = Math.max(2, Math.min(8, availableDp / 80));
+        boolean densityChanged = density != appGridDensity;
         boolean columnsChanged = columns != appColumns || appGrid.getColumnCount() != columns;
-        if (columnsChanged) {
+        if (columnsChanged || densityChanged) {
             // GridLayout validates the current children against the new column count.
             // During rotation, old children may still occupy columns beyond the new count.
+            // A DPI sync also changes how every tile measures, so the children are rebuilt.
             appGrid.removeAllViews();
             appColumns = columns;
+            appGridDensity = density;
             appGrid.setColumnCount(columns);
         }
-        if (columnsChanged || appGrid.getChildCount() == 0) {
+        if (columnsChanged || densityChanged || appGrid.getChildCount() == 0) {
             rebuildAppsGrid();
             Log.i(TAG, "app grid populated width=" + widthPx + " columns=" + columns
                     + " entries=" + appEntries.size() + " children=" + appGrid.getChildCount());
@@ -3048,11 +3064,17 @@ public final class MainActivity extends Activity {
 
     private void rebuildAppsGrid() {
         if (appGrid == null) return;
-        // Wait until the grid has a real measured width so the initial population
-        // cannot lock children into the placeholder one-column configuration.
-        if (appGrid.getWidth() <= 0) return;
+        if (appGrid.getWidth() <= 0) {
+            // The grid is between layouts (rotation, density change). Retry once it has a
+            // size instead of leaving the list empty.
+            scheduleAppGridRetry();
+            return;
+        }
         appGrid.removeAllViews();
-        if (appColumns == 0) return;
+        if (appColumns == 0) {
+            updateAppGridColumns(appGrid.getWidth());
+            return;
+        }
         String query = appSearch == null ? "" : appSearch.getText().toString().trim().toLowerCase(java.util.Locale.ROOT);
         ArrayList<ResolveInfo> visible = new ArrayList<>();
         for (ResolveInfo app : appEntries) {
@@ -3074,7 +3096,8 @@ public final class MainActivity extends Activity {
             return String.valueOf(a.loadLabel(getPackageManager()))
                     .compareToIgnoreCase(String.valueOf(b.loadLabel(getPackageManager())));
         });
-        int cellWidth = appGrid.getWidth() > 0 ? appGrid.getWidth() / appColumns : -1;
+        int cellWidth = appGrid.getWidth() > 0 && appColumns > 0
+                ? appGrid.getWidth() / appColumns : 0;
         for (ResolveInfo app : visible) {
             String packageName = app.activityInfo.packageName;
             LinearLayout tile = new LinearLayout(this);
@@ -3103,7 +3126,7 @@ public final class MainActivity extends Activity {
             tile.addView(label, new LinearLayout.LayoutParams(-1, -2));
 
             GridLayout.LayoutParams cell = new GridLayout.LayoutParams();
-            cell.width = cellWidth;
+            if (cellWidth > 0) cell.width = cellWidth;
             cell.height = -2;
             cell.columnSpec = GridLayout.spec(GridLayout.UNDEFINED, 1f);
             appGrid.addView(tile, cell);
