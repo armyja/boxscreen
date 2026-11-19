@@ -899,6 +899,10 @@ public final class MainActivity extends Activity {
 
     private void refreshVirtualDisplayAfterDensityCommit() {
         resizeVirtualDisplayForDensity();
+        refreshVirtualDisplayLayout("density commit");
+    }
+
+    private void refreshVirtualDisplayLayout(String reason) {
         if (displayService == null || virtualDisplayId < 0) return;
 
         final int expectedDisplayId = virtualDisplayId;
@@ -919,12 +923,12 @@ public final class MainActivity extends Activity {
                     outputSurface.getSurfaceTexture().setDefaultBufferSize(nudgeWidth, nudgeHeight);
                 }
                 displayService.resizeDisplaySize(nudgeWidth, nudgeHeight, expectedDensity);
-                Log.i(TAG, "density refresh nudge display=" + expectedDisplayId
+                Log.i(TAG, "layout refresh (" + reason + ") nudge display=" + expectedDisplayId
                         + " size=" + nudgeWidth + "x" + nudgeHeight
                         + " dpi=" + expectedDensity);
             } catch (Exception e) {
-                Log.w(TAG, "density refresh nudge failed display=" + expectedDisplayId, e);
-                return;
+                Log.w(TAG, "layout refresh (" + reason + ") nudge failed display=" + expectedDisplayId, e);
+                // Restore the original buffer size even if the resize failed after changing it.
             }
 
             densityResizeHandler.postDelayed(() -> {
@@ -935,11 +939,11 @@ public final class MainActivity extends Activity {
                         outputSurface.getSurfaceTexture().setDefaultBufferSize(width, height);
                     }
                     displayService.resizeDisplaySize(width, height, expectedDensity);
-                    Log.i(TAG, "density refresh restored display=" + expectedDisplayId
+                    Log.i(TAG, "layout refresh (" + reason + ") restored display=" + expectedDisplayId
                             + " size=" + width + "x" + height
                             + " dpi=" + expectedDensity);
                 } catch (Exception e) {
-                    Log.e(TAG, "density refresh restore failed display=" + expectedDisplayId, e);
+                    Log.e(TAG, "layout refresh (" + reason + ") restore failed display=" + expectedDisplayId, e);
                 }
             }, 80);
         }, 80);
@@ -2810,8 +2814,9 @@ public final class MainActivity extends Activity {
             splitActive = splitChoosing = false;
             splitCheckHandler.removeCallbacks(splitCheck);
             syncPrimaryDensityForPackage(currentVirtualPackage);
+            refreshVirtualDisplayLayout("expand split");
             if (mousePointerView != null) mousePointerView.invalidate();
-            status("已将当前应用放大到全屏");
+            status("已退出分屏，正在刷新全屏画面");
         } catch (RemoteException | RuntimeException e) {
             Log.e(TAG, "could not expand split", e);
             status("切换全屏失败：" + e.getMessage());
