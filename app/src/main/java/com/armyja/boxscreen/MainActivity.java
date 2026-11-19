@@ -1378,7 +1378,7 @@ public final class MainActivity extends Activity {
          * than the white core so it does not read as a grey smudge over light content.
          */
         private static final float SPLIT_HANDLE_RIM_OPACITY = 0.08f;
-        private static final float SPLIT_HANDLE_CORE_OPACITY = 0.20f;
+        private static final float SPLIT_HANDLE_CORE_OPACITY = 0.25f;
         private boolean splitLayoutChanging;
 
         /** The handle sits high on the divider so dialogs and floating IMEs rarely reach it. */
