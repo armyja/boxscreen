@@ -2593,6 +2593,10 @@ public final class MainActivity extends Activity {
             boolean nearLine = Math.abs(axis - splitRatio * extent) <= panelDp(20);
             boolean nearHandle = nearLine && Math.abs(along - midpoint) <= panelDp(42);
             if (action == MotionEvent.ACTION_DOWN) {
+                Log.i(TAG, "split handle press axis=" + axis + " along=" + along
+                        + " mid=" + midpoint + " extent=" + extent + " ratio=" + splitRatio
+                        + " nearLine=" + nearLine + " nearHandle=" + nearHandle
+                        + " changing=" + splitLayoutChanging);
                 splitDrag = nearHandle;
                 splitDownAxis = axis;
                 splitKillLongPressTriggered = false;
@@ -3266,6 +3270,7 @@ public final class MainActivity extends Activity {
             splitFirstPackage = pair[0];
             splitSecondPackage = pair[1];
             splitActive = true;
+            Log.i(TAG, "split state synced first=" + pair[0] + " second=" + pair[1]);
             splitChoosing = pair[0] == null || pair[1] == null;
             splitPickerFirst = pair[0] == null;
             if (changed && mousePointerView != null) {

@@ -610,8 +610,14 @@ public final class PrivilegedDisplayService extends IDisplayService.Stub {
 
     @Override
     public synchronized void adjustSplit(float ratio, boolean swap) {
-        if (splitSession == null || !Float.isFinite(ratio)) return;
+        if (splitSession == null || !Float.isFinite(ratio)) {
+            Log.w("BoxScreenService", "adjustSplit ignored session=" + (splitSession != null)
+                    + " ratio=" + ratio + " swap=" + swap);
+            return;
+        }
         try {
+            Log.i("BoxScreenService", "adjustSplit ratio=" + ratio + " swap=" + swap
+                    + " display=" + displayWidth + "x" + displayHeight);
             splitSession.adjust(ratio, swap, displayWidth, displayHeight);
         } catch (ReflectiveOperationException e) {
             throw new IllegalStateException("无法调整分屏", e);

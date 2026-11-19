@@ -17,6 +17,8 @@ import java.util.Set;
 
 /** Owns the task containers and their surfaces for one BoxScreen display. */
 final class SplitSession {
+    private static final String TAG = "BoxScreenSplit";
+
     private final int displayId;
     private final Object organizer;
     private final Object activityTaskManager;
@@ -471,6 +473,8 @@ final class SplitSession {
     }
 
     synchronized void resize(int width, int height) throws ReflectiveOperationException {
+        Log.i(TAG, "resize active=" + active + " expanded=" + (expandedStage != null)
+                + " ratio=" + ratio + " display=" + width + "x" + height);
         if (!active) return;
         if (expandedStage != null) {
             applyExpandedLayout(transaction(), width, height);
@@ -478,6 +482,8 @@ final class SplitSession {
         }
         ratio = SplitGeometry.clamp(ratio, width, height);
         Rect[] bounds = bounds(width, height);
+        Log.i(TAG, "split bounds first=" + bounds[0] + " second=" + bounds[1]
+                + " reversed=" + reversed);
         Object tx = transaction();
         applyLayout(tx, bounds);
         showSurfaces(bounds);
