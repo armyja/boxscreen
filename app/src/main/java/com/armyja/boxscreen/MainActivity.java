@@ -2591,8 +2591,11 @@ public final class MainActivity extends Activity {
             float along = portraitMode ? virtualPointerX : virtualPointerY;
             float midpoint = (portraitMode ? getWidth() : getHeight()) / 2f;
             boolean nearLine = Math.abs(axis - splitRatio * extent) <= panelDp(20);
-            boolean nearHandle = nearLine && Math.abs(along - midpoint) <= panelDp(42);
             if (action == MotionEvent.ACTION_DOWN) {
+                // Only the press decides whether this gesture is a handle drag. Once the drag
+                // is running the pointer is deliberately far from the old divider, so the
+                // remaining MOVE/UP events must not be re-tested against it.
+                boolean nearHandle = nearLine && Math.abs(along - midpoint) <= panelDp(42);
                 Log.i(TAG, "split handle press axis=" + axis + " along=" + along
                         + " mid=" + midpoint + " extent=" + extent + " ratio=" + splitRatio
                         + " nearLine=" + nearLine + " nearHandle=" + nearHandle
@@ -2604,8 +2607,8 @@ public final class MainActivity extends Activity {
                     handler.postDelayed(splitKillLongPress, 500);
                 }
             }
-            if (!nearLine) return false;
             if (!splitDrag) {
+                if (!nearLine) return false;
                 // Swallow the stray press on the divider line, but keep the handle put.
                 invalidate();
                 return true;
