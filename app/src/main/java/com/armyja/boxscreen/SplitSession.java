@@ -226,10 +226,6 @@ final class SplitSession {
             startNewStageActivity(packageName, className, options);
         }
         Object launched = awaitStageTask(target, packageName, existingTaskId);
-        if (existingTaskId != null) {
-            android.util.Log.i("BoxScreenSplit", "reused task=" + existingTaskId
-                    + " package=" + packageName + " display=" + displayId);
-        }
         if (target == first) firstAppToken = launched;
         else secondAppToken = launched;
         Object tx = transaction();
