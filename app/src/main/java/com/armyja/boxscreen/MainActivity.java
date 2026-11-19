@@ -553,6 +553,7 @@ public final class MainActivity extends Activity {
                     return true;
                 }
                 @Override public void onSurfaceTextureUpdated(SurfaceTexture texture) {
+                    if (mousePointerView != null) mousePointerView.onSplitOutputFrame();
                     if (transitionFramesRemaining > 0 && --transitionFramesRemaining == 0) {
                         outputSurface.setVisibility(View.VISIBLE);
                         outputSurface.setAlpha(1f);
@@ -903,7 +904,14 @@ public final class MainActivity extends Activity {
     }
 
     private void refreshVirtualDisplayLayout(String reason) {
-        if (displayService == null || virtualDisplayId < 0) return;
+        refreshVirtualDisplayLayout(reason, null);
+    }
+
+    private void refreshVirtualDisplayLayout(String reason, Runnable completion) {
+        if (displayService == null || virtualDisplayId < 0) {
+            if (completion != null) completion.run();
+            return;
+        }
 
         final int expectedDisplayId = virtualDisplayId;
         final int expectedDensity = densityDpi;
@@ -917,7 +925,10 @@ public final class MainActivity extends Activity {
 
         densityResizeHandler.postDelayed(() -> {
             if (!isDensityRefreshCurrent(generation, expectedDisplayId, expectedDensity,
-                    expectedPortrait)) return;
+                    expectedPortrait)) {
+                if (completion != null) completion.run();
+                return;
+            }
             try {
                 if (outputSurface != null && outputSurface.isAvailable()) {
                     outputSurface.getSurfaceTexture().setDefaultBufferSize(nudgeWidth, nudgeHeight);
@@ -933,7 +944,10 @@ public final class MainActivity extends Activity {
 
             densityResizeHandler.postDelayed(() -> {
                 if (!isDensityRefreshCurrent(generation, expectedDisplayId, expectedDensity,
-                        expectedPortrait)) return;
+                        expectedPortrait)) {
+                    if (completion != null) completion.run();
+                    return;
+                }
                 try {
                     if (outputSurface != null && outputSurface.isAvailable()) {
                         outputSurface.getSurfaceTexture().setDefaultBufferSize(width, height);
@@ -944,6 +958,8 @@ public final class MainActivity extends Activity {
                             + " dpi=" + expectedDensity);
                 } catch (Exception e) {
                     Log.e(TAG, "layout refresh (" + reason + ") restore failed display=" + expectedDisplayId, e);
+                } finally {
+                    if (completion != null) completion.run();
                 }
             }, 80);
         }, 80);
@@ -1256,6 +1272,10 @@ public final class MainActivity extends Activity {
         private long splitInputDownTime = Long.MIN_VALUE;
         private boolean splitInputTouchMode;
         private boolean splitDrag;
+        private boolean splitLayoutChanging;
+        private Bitmap splitPreviousFrame;
+        private int splitFreshFrames;
+        private final Runnable splitFrameTimeout = this::finishSplitLayoutChange;
         private float splitDownAxis;
         private int splitPickerOffset;
         private ArrayList<ResolveInfo> splitPickerCache;
@@ -1326,6 +1346,7 @@ public final class MainActivity extends Activity {
             if (transitionFramesRemaining > 0) return true;
             updateVirtualPointer(event.getRawX(), event.getRawY());
             showPointer();
+            if (splitActive && splitLayoutChanging) return true;
             updateStatusBarDwell();
             if (handleScreenshotPreviewTouch(event)) return true;
             if (handleQuickPanelTouch(event)) return true;
@@ -1352,6 +1373,7 @@ public final class MainActivity extends Activity {
             if (transitionFramesRemaining > 0) return true;
             updateVirtualPointer(event.getRawX(), event.getRawY());
             showPointer();
+            if (splitActive && splitLayoutChanging) return true;
             updateStatusBarDwell();
             if (screenshotPreviewBitmap != null && handleScreenshotPreviewTouch(event)) return true;
             if (action == MotionEvent.ACTION_HOVER_EXIT) {
@@ -2491,16 +2513,8 @@ public final class MainActivity extends Activity {
                 if (action == MotionEvent.ACTION_UP) {
                     boolean swap = Math.abs(axis - splitDownAxis) < panelDp(8);
                     float ratio = swap ? splitRatio : SplitGeometry.clamp(axis / extent, getWidth(), getHeight());
-                    try {
-                        if (swap || Math.abs(ratio - splitRatio) * extent >= 1f) {
-                            displayService.adjustSplit(ratio, swap);
-                            splitRatio = ratio;
-                            if (swap) splitLastFirst = !splitLastFirst;
-                            refreshSplitState();
-                            refreshVirtualDisplayLayout(swap ? "swap split panes" : "resize split panes");
-                        }
-                    } catch (Exception e) {
-                        status("分屏调整失败：" + e.getMessage());
+                    if (swap || Math.abs(ratio - splitRatio) * extent >= 1f) {
+                        changeSplitLayout(ratio, swap);
                     }
                 }
             }
@@ -2508,7 +2522,101 @@ public final class MainActivity extends Activity {
             return true;
         }
 
+        private void changeSplitLayout(float ratio, boolean swap) {
+            if (splitLayoutChanging || displayService == null) return;
+            splitLayoutChanging = true;
+            IDisplayService service = displayService;
+            int targetDisplay = virtualDisplayId;
+            Runnable apply = () -> applySplitLayout(service, targetDisplay, ratio, swap);
+            TextureView output = outputSurface;
+            if (!swap || output == null || !output.isAvailable() || getWidth() < 1 || getHeight() < 1) {
+                apply.run();
+                return;
+            }
+            Bitmap previous = Bitmap.createBitmap(getWidth(), getHeight(), Bitmap.Config.ARGB_8888);
+            Surface source = new Surface(output.getSurfaceTexture());
+            try {
+                PixelCopy.request(source, previous, result -> {
+                    source.release();
+                    if (result == PixelCopy.SUCCESS && splitActive && mousePointerView == this
+                            && outputSurface == output && virtualDisplayId == targetDisplay) {
+                        splitPreviousFrame = previous;
+                        invalidate();
+                        postOnAnimation(apply);
+                    } else {
+                        previous.recycle();
+                        apply.run();
+                    }
+                }, handler);
+            } catch (RuntimeException e) {
+                source.release();
+                previous.recycle();
+                apply.run();
+            }
+        }
+
+        private void applySplitLayout(IDisplayService service, int targetDisplay, float ratio, boolean swap) {
+            if (!splitActive || mousePointerView != this || virtualDisplayId != targetDisplay
+                    || displayService != service) {
+                finishSplitLayoutChange();
+                return;
+            }
+            new Thread(() -> {
+                Exception failure = null;
+                try {
+                    service.adjustSplit(ratio, swap);
+                } catch (Exception e) {
+                    failure = e;
+                }
+                Exception result = failure;
+                handler.post(() -> {
+                    if (mousePointerView != this || virtualDisplayId != targetDisplay
+                            || displayService != service || !splitActive || result != null) {
+                        if (result != null) status("分屏调整失败：" + result.getMessage());
+                        finishSplitLayoutChange();
+                        return;
+                    }
+                    splitRatio = ratio;
+                    if (swap) splitLastFirst = !splitLastFirst;
+                    refreshSplitState();
+                    refreshVirtualDisplayLayout(swap ? "swap split panes" : "resize split panes", () -> {
+                        if (splitPreviousFrame == null) {
+                            finishSplitLayoutChange();
+                        } else {
+                            splitFreshFrames = 2;
+                            handler.postDelayed(splitFrameTimeout, 220);
+                        }
+                    });
+                    invalidate();
+                });
+            }, "boxscreen-split-layout").start();
+        }
+
+        private void onSplitOutputFrame() {
+            if (splitFreshFrames > 0 && --splitFreshFrames == 0) finishSplitLayoutChange();
+        }
+
+        private void finishSplitLayoutChange() {
+            handler.removeCallbacks(splitFrameTimeout);
+            splitFreshFrames = 0;
+            splitLayoutChanging = false;
+            // Drop the reference; the renderer may still hold the bitmap from the last frame.
+            splitPreviousFrame = null;
+            invalidate();
+        }
+
+        @Override
+        protected void onDetachedFromWindow() {
+            finishSplitLayoutChange();
+            super.onDetachedFromWindow();
+        }
+
         private void drawSplitUi(Canvas canvas) {
+            float divider = Math.round(splitRatio * (portraitMode ? getHeight() : getWidth()));
+            float gap = SplitGeometry.HALF_GAP_PX;
+            panelPaint.setColor(0xff000000);
+            if (portraitMode) canvas.drawRect(0, divider - gap, getWidth(), divider + gap, panelPaint);
+            else canvas.drawRect(divider - gap, 0, divider + gap, getHeight(), panelPaint);
             if (splitChoosing) {
                 RectF area = splitPickerBounds();
                 panelPaint.setColor(0xff1b2028);
@@ -2570,6 +2678,10 @@ public final class MainActivity extends Activity {
         @Override
         protected void onDraw(Canvas canvas) {
             super.onDraw(canvas);
+            if (splitActive && splitPreviousFrame != null) {
+                canvas.drawBitmap(splitPreviousFrame, null, new RectF(0, 0, getWidth(), getHeight()),
+                        screenshotImagePaint);
+            }
             if (splitActive) drawSplitUi(canvas);
             if (statusBarVisible || quickPanelVisible) drawQuickUi(canvas);
             drawScreenshotPreview(canvas);
