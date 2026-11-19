@@ -611,16 +611,58 @@ public final class PrivilegedDisplayService extends IDisplayService.Stub {
     @Override
     public synchronized void adjustSplit(float ratio, boolean swap) {
         if (splitSession == null || !Float.isFinite(ratio)) {
-            Log.w("BoxScreenService", "adjustSplit ignored session=" + (splitSession != null)
-                    + " ratio=" + ratio + " swap=" + swap);
             return;
         }
         try {
-            Log.i("BoxScreenService", "adjustSplit ratio=" + ratio + " swap=" + swap
-                    + " display=" + displayWidth + "x" + displayHeight);
             splitSession.adjust(ratio, swap, displayWidth, displayHeight);
         } catch (ReflectiveOperationException e) {
             throw new IllegalStateException("无法调整分屏", e);
+        }
+    }
+
+    /**
+     * True when a window that is not part of the split (IME, chooser/share dialog, attached
+     * dialog) is showing on the virtual display. Callers use it to keep the split handle out
+     * of the way; it is only queried on demand, never on a timer.
+     */
+    @Override
+    public boolean isVirtualDisplayOverlayShown() {
+        if (virtualDisplay == null || virtualDisplay.getDisplay() == null) return false;
+        int displayId = virtualDisplay.getDisplay().getDisplayId();
+        Process process = null;
+        try {
+            process = new ProcessBuilder("/system/bin/dumpsys", "window", "windows")
+                    .redirectErrorStream(true).start();
+            try (BufferedReader reader = new BufferedReader(
+                    new InputStreamReader(process.getInputStream()))) {
+                boolean onTarget = false;
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    String trimmed = line.trim();
+                    if (trimmed.startsWith("Window #")) {
+                        onTarget = false;
+                        continue;
+                    }
+                    if (line.contains("mDisplayId=" + displayId)) {
+                        onTarget = true;
+                        continue;
+                    }
+                    if (!onTarget) continue;
+                    if (line.contains("ty=INPUT_METHOD")
+                            || line.contains("ty=APPLICATION_ATTACHED_DIALOG")
+                            || line.contains("ty=APPLICATION_OVERLAY")
+                            || line.contains("ChooserActivity")) {
+                        return true;
+                    }
+                }
+            }
+            process.waitFor(3, TimeUnit.SECONDS);
+            return false;
+        } catch (Exception e) {
+            Log.w("BoxScreenService", "could not inspect virtual display windows", e);
+            return false;
+        } finally {
+            if (process != null) process.destroy();
         }
     }
 

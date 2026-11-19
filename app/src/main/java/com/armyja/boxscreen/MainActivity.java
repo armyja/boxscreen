@@ -1374,6 +1374,37 @@ public final class MainActivity extends Activity {
 
         private boolean splitDrag;
         private boolean splitLayoutChanging;
+        private volatile boolean splitOverlayShown;
+        private long splitOverlayCheckedAt;
+
+        /** The handle sits high on the divider so dialogs and floating IMEs rarely reach it. */
+        private float splitHandleAlong() {
+            return (portraitMode ? getWidth() : getHeight()) * 0.18f;
+        }
+
+        /** Ask the shell service once (cached) whether a system window covers the split. */
+        private void maybeCheckSplitOverlay() {
+            if (!splitActive || splitChoosing || displayService == null) return;
+            long now = android.os.SystemClock.uptimeMillis();
+            if (now - splitOverlayCheckedAt < 400) return;
+            splitOverlayCheckedAt = now;
+            IDisplayService service = displayService;
+            new Thread(() -> {
+                boolean shown = false;
+                try {
+                    shown = service.isVirtualDisplayOverlayShown();
+                } catch (RemoteException | RuntimeException e) {
+                    Log.w(TAG, "could not read split overlay state", e);
+                }
+                boolean value = shown;
+                post(() -> {
+                    if (splitOverlayShown != value) {
+                        splitOverlayShown = value;
+                        invalidate();
+                    }
+                });
+            }, "boxscreen-split-overlay").start();
+        }
         private Bitmap splitPreviousFrame;
         private int splitFreshFrames;
         private final Runnable splitFrameTimeout = this::finishSplitLayoutChange;
@@ -1471,6 +1502,17 @@ public final class MainActivity extends Activity {
             if ((!forwarding && screenshotPreviewBitmap == null)
                     || !event.isFromSource(InputDevice.SOURCE_MOUSE)) return false;
             int action = event.getActionMasked();
+            if (splitActive && !splitChoosing && !splitDrag
+                    && (action == MotionEvent.ACTION_HOVER_ENTER
+                    || action == MotionEvent.ACTION_HOVER_MOVE)) {
+                float axis = portraitMode ? virtualPointerY : virtualPointerX;
+                float extent = portraitMode ? getHeight() : getWidth();
+                float along = portraitMode ? virtualPointerX : virtualPointerY;
+                if (Math.abs(axis - splitRatio * extent) <= panelDp(20)
+                        && Math.abs(along - splitHandleAlong()) <= panelDp(22)) {
+                    maybeCheckSplitOverlay();
+                }
+            }
             if (action != MotionEvent.ACTION_HOVER_ENTER
                     && action != MotionEvent.ACTION_HOVER_MOVE
                     && action != MotionEvent.ACTION_HOVER_EXIT
@@ -2629,17 +2671,14 @@ public final class MainActivity extends Activity {
             // on the line are still swallowed (so they never turn into a long-press inside the
             // app underneath) but do nothing.
             float along = portraitMode ? virtualPointerX : virtualPointerY;
-            float midpoint = (portraitMode ? getWidth() : getHeight()) / 2f;
             boolean nearLine = Math.abs(axis - splitRatio * extent) <= panelDp(20);
             if (action == MotionEvent.ACTION_DOWN) {
                 // Only the press decides whether this gesture is a handle drag. Once the drag
                 // is running the pointer is deliberately far from the old divider, so the
                 // remaining MOVE/UP events must not be re-tested against it.
-                boolean nearHandle = nearLine && Math.abs(along - midpoint) <= panelDp(42);
-                Log.i(TAG, "split handle press axis=" + axis + " along=" + along
-                        + " mid=" + midpoint + " extent=" + extent + " ratio=" + splitRatio
-                        + " nearLine=" + nearLine + " nearHandle=" + nearHandle
-                        + " changing=" + splitLayoutChanging);
+                boolean nearHandle = !splitOverlayShown
+                        && Math.abs(axis - splitRatio * extent) <= panelDp(10)
+                        && Math.abs(along - splitHandleAlong()) <= panelDp(22);
                 splitDrag = nearHandle;
                 splitDownAxis = axis;
                 splitKillLongPressTriggered = false;
@@ -2669,11 +2708,8 @@ public final class MainActivity extends Activity {
                     return true;
                 }
                 if (action == MotionEvent.ACTION_UP) {
-                    boolean swap = Math.abs(axis - splitDownAxis) < panelDp(8);
+                    boolean swap = Math.abs(axis - splitDownAxis) < panelDp(4);
                     float ratio = swap ? splitRatio : SplitGeometry.clamp(axis / extent, getWidth(), getHeight());
-                    Log.i(TAG, "split handle release axis=" + axis + " extent=" + extent
-                            + " from=" + splitDownAxis + " swap=" + swap + " ratio=" + ratio
-                            + " current=" + splitRatio + " changing=" + splitLayoutChanging);
                     if (swap || Math.abs(ratio - splitRatio) * extent >= 1f) {
                         changeSplitLayout(ratio, swap);
                     }
@@ -2685,8 +2721,6 @@ public final class MainActivity extends Activity {
 
         private void changeSplitLayout(float ratio, boolean swap) {
             if (splitLayoutChanging || displayService == null) {
-                Log.w(TAG, "split change skipped changing=" + splitLayoutChanging
-                        + " service=" + (displayService != null) + " ratio=" + ratio);
                 return;
             }
             splitLayoutChanging = true;
@@ -2725,10 +2759,6 @@ public final class MainActivity extends Activity {
         private void applySplitLayout(IDisplayService service, int targetDisplay, float ratio, boolean swap) {
             if (!splitActive || mousePointerView != this || virtualDisplayId != targetDisplay
                     || displayService != service) {
-                Log.w(TAG, "split change dropped active=" + splitActive
-                        + " view=" + (mousePointerView == this)
-                        + " display=" + virtualDisplayId + "/" + targetDisplay
-                        + " serviceSame=" + (displayService == service));
                 finishSplitLayoutChange();
                 return;
             }
@@ -2799,13 +2829,13 @@ public final class MainActivity extends Activity {
             RectF second;
             if (portraitMode) {
                 float width = Math.min(maxWidth, getWidth() - panelDp(16));
-                float cx = getWidth() / 2f;
+                float cx = splitHandleAlong();
                 float topY = Math.max(panelDp(8), divider - gap - height);
                 float bottomY = Math.min(getHeight() - height - panelDp(8), divider + gap);
                 first = new RectF(cx - width / 2f, topY, cx + width / 2f, topY + height);
                 second = new RectF(cx - width / 2f, bottomY, cx + width / 2f, bottomY + height);
             } else {
-                float cy = getHeight() / 2f;
+                float cy = splitHandleAlong();
                 float available = Math.min(divider - gap - panelDp(8),
                         getWidth() - (divider + gap) - panelDp(8));
                 float width = Math.min(maxWidth, Math.max(panelDp(120), available));
@@ -3003,26 +3033,38 @@ public final class MainActivity extends Activity {
             }
             float extent = portraitMode ? getHeight() : getWidth();
             float axis = splitRatio * extent;
-            if (splitDrag) axis = extent * SplitGeometry.clamp(
-                    (portraitMode ? virtualPointerY : virtualPointerX) / extent, getWidth(), getHeight());
-            float x = portraitMode ? getWidth() / 2f : axis;
-            float y = portraitMode ? axis : getHeight() / 2f;
-            float hw = panelDp(portraitMode ? 25 : 8);
-            float hh = panelDp(portraitMode ? 8 : 25);
-            boolean hovered = forwarding && pointerVisible
-                    && Math.abs(virtualPointerX - x) <= hw + panelDp(8)
-                    && Math.abs(virtualPointerY - y) <= hh + panelDp(8);
-            if (hovered || splitDrag) {
-                panelPaint.setColor(0xdd20252b);
-                canvas.drawRoundRect(x - hw, y - hh, x + hw, y + hh,
-                        panelDp(7), panelDp(7), panelPaint);
+            if (splitDrag) {
+                axis = extent * SplitGeometry.clamp(
+                        (portraitMode ? virtualPointerY : virtualPointerX) / extent,
+                        getWidth(), getHeight());
+                // Landing line: a 3px white core with a 1px dark edge on each side, so it
+                // stays readable over both bright and dark content.
+                if (portraitMode) {
+                    panelPaint.setColor(0xcc000000);
+                    canvas.drawRect(0, axis - 2.5f, getWidth(), axis + 2.5f, panelPaint);
+                    panelPaint.setColor(0xf2ffffff);
+                    canvas.drawRect(0, axis - 1.5f, getWidth(), axis + 1.5f, panelPaint);
+                } else {
+                    panelPaint.setColor(0xcc000000);
+                    canvas.drawRect(axis - 2.5f, 0, axis + 2.5f, getHeight(), panelPaint);
+                    panelPaint.setColor(0xf2ffffff);
+                    canvas.drawRect(axis - 1.5f, 0, axis + 1.5f, getHeight(), panelPaint);
+                }
             }
-            panelPaint.setColor(0xffeeeeee);
-            for (int i = -1; i <= 1; i++) {
-                float step = i * panelDp(7);
-                canvas.drawCircle(x + (portraitMode ? step : 0), y + (portraitMode ? 0 : step),
-                        panelDp(2), panelPaint);
-            }
+            if (splitOverlayShown) return;
+            // Sausage handle: 12px across, 64px along, black rim with a white core, placed
+            // high on the divider so floating IMEs and centred dialogs stay clear of it.
+            float along = splitHandleAlong();
+            float cx = portraitMode ? along : axis;
+            float cy = portraitMode ? axis : along;
+            float hw = portraitMode ? 32 : 6;
+            float hh = portraitMode ? 6 : 32;
+            float radius = Math.min(hw, hh);
+            panelPaint.setColor(0xff000000);
+            canvas.drawRoundRect(cx - hw, cy - hh, cx + hw, cy + hh, radius, radius, panelPaint);
+            panelPaint.setColor(0xf2ffffff);
+            canvas.drawRoundRect(cx - hw + 2, cy - hh + 2, cx + hw - 2, cy + hh - 2,
+                    radius - 1, radius - 1, panelPaint);
         }
 
         @Override
@@ -3135,7 +3177,6 @@ public final class MainActivity extends Activity {
 
     private void updateAppGridColumns(int widthPx) {
         if (appGrid == null || widthPx <= 0) {
-            Log.i(TAG, "grid columns skipped width=" + widthPx + " grid=" + (appGrid != null));
             scheduleAppGridRetry();
             return;
         }
@@ -3162,13 +3203,9 @@ public final class MainActivity extends Activity {
 
     private void rebuildAppsGrid() {
         if (appGrid == null) return;
-        Log.i(TAG, "grid rebuild requested gridWidth=" + appGrid.getWidth()
-                + " columns=" + appColumns + " children=" + appGrid.getChildCount());
         if (appGrid.getWidth() <= 0 || appColumns <= 0) {
             // Between layouts (rotation, density change): keep whatever is on screen and
             // retry once the grid has a real size. Never clear children we cannot replace.
-            Log.i(TAG, "grid populate deferred width=" + appGrid.getWidth()
-                    + " columns=" + appColumns);
             scheduleAppGridRetry();
             return;
         }
@@ -3196,9 +3233,6 @@ public final class MainActivity extends Activity {
         });
         int cellWidth = appGrid.getWidth() > 0 && appColumns > 0
                 ? appGrid.getWidth() / appColumns : 0;
-        Log.i(TAG, "grid rebuild width=" + appGrid.getWidth() + " columns=" + appColumns
-                + " cellWidth=" + cellWidth + " columnCount=" + appGrid.getColumnCount()
-                + " childrenBefore=" + appGrid.getChildCount());
         for (ResolveInfo app : visible) {
             String packageName = app.activityInfo.packageName;
             LinearLayout tile = new LinearLayout(this);
@@ -3231,18 +3265,6 @@ public final class MainActivity extends Activity {
             cell.height = -2;
             cell.columnSpec = GridLayout.spec(GridLayout.UNDEFINED, 1f);
             appGrid.addView(tile, cell);
-            if (appGrid.getChildCount() == 1) {
-                appGrid.post(() -> {
-                    if (appGrid == null) return;
-                    View first = appGrid.getChildAt(0);
-                    View second = appGrid.getChildCount() > 1 ? appGrid.getChildAt(1) : null;
-                    Log.i(TAG, "grid laid out " + appGrid.getWidth() + "x" + appGrid.getHeight()
-                            + " columnCount=" + appGrid.getColumnCount()
-                            + " children=" + appGrid.getChildCount()
-                            + " first=" + describeGridChild(first)
-                            + " second=" + describeGridChild(second));
-                });
-            }
             tile.setOnClickListener(v -> launchPackage(packageName, app.activityInfo.name));
             favorite.setOnCheckedChangeListener((button, checked) -> {
                 if (checked) favoritePackages.add(packageName); else favoritePackages.remove(packageName);
@@ -3251,12 +3273,6 @@ public final class MainActivity extends Activity {
                 if (mousePointerView != null) mousePointerView.invalidate();
             });
         }
-    }
-
-    private String describeGridChild(View view) {
-        if (view == null) return "-";
-        return view.getWidth() + "x" + view.getHeight()
-                + "@" + view.getLeft() + "," + view.getTop();
     }
 
     private void updateSplit(ResolveInfo second) {
@@ -3338,7 +3354,6 @@ public final class MainActivity extends Activity {
             splitFirstPackage = pair[0];
             splitSecondPackage = pair[1];
             splitActive = true;
-            Log.i(TAG, "split state synced first=" + pair[0] + " second=" + pair[1]);
             splitChoosing = pair[0] == null || pair[1] == null;
             splitPickerFirst = pair[0] == null;
             if (changed && mousePointerView != null) {

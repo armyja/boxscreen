@@ -137,10 +137,12 @@ final class SplitSession {
 
     private Rect[] bounds(int width, int height) {
         int half = Math.round((width >= height ? width : height) * ratio);
-        int gap = Math.min(SplitGeometry.HALF_GAP_PX, Math.max(0, half - 1));
+        // No gap: the panes meet on the same integer coordinate, so a task that is still
+        // around (for example the app that was fullscreen before the split) cannot show
+        // through between them.
         Rect[] result = width >= height
-                ? new Rect[]{new Rect(0, 0, half - gap, height), new Rect(half + gap, 0, width, height)}
-                : new Rect[]{new Rect(0, 0, width, half - gap), new Rect(0, half + gap, width, height)};
+                ? new Rect[]{new Rect(0, 0, half, height), new Rect(half, 0, width, height)}
+                : new Rect[]{new Rect(0, 0, width, half), new Rect(0, half, width, height)};
         return reversed ? new Rect[]{result[1], result[0]} : result;
     }
 
@@ -473,8 +475,6 @@ final class SplitSession {
     }
 
     synchronized void resize(int width, int height) throws ReflectiveOperationException {
-        Log.i(TAG, "resize active=" + active + " expanded=" + (expandedStage != null)
-                + " ratio=" + ratio + " display=" + width + "x" + height);
         if (!active) return;
         if (expandedStage != null) {
             applyExpandedLayout(transaction(), width, height);
@@ -482,8 +482,6 @@ final class SplitSession {
         }
         ratio = SplitGeometry.clamp(ratio, width, height);
         Rect[] bounds = bounds(width, height);
-        Log.i(TAG, "split bounds first=" + bounds[0] + " second=" + bounds[1]
-                + " reversed=" + reversed);
         Object tx = transaction();
         applyLayout(tx, bounds);
         showSurfaces(bounds);

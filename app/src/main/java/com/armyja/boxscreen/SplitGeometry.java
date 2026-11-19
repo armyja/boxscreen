@@ -1,7 +1,7 @@
 package com.armyja.boxscreen;
 
 final class SplitGeometry {
-    static final int HALF_GAP_PX = 6;
+    static final int HALF_GAP_PX = 0;
 
     private SplitGeometry() {}
 
@@ -10,7 +10,7 @@ final class SplitGeometry {
         int cross = Math.min(width, height);
         if (length <= 1 || cross <= 0) return 0.5f;
         int narrowPane = Math.round(cross * 9f / 20f);
-        return Math.min(0.5f, (narrowPane + HALF_GAP_PX) / (float) length);
+        return Math.min(0.5f, narrowPane / (float) length);
     }
 
     static float clamp(float ratio, int width, int height) {
