@@ -153,15 +153,35 @@ public final class MainActivity extends Activity {
     private float appGridDensity;
     private boolean appGridRetryScheduled;
 
-    /** Retry populating the grid after the next layout pass, once it has a real width. */
+    /**
+     * Retry populating the grid until it really has a width and a column count. A single
+     * post() is not enough: after a density change the grid can be measured again with
+     * width 0 for several frames, and a one-shot retry leaves the list empty for good.
+     */
     private void scheduleAppGridRetry() {
-        if (appGrid == null || appGridRetryScheduled) return;
+        if (appGrid == null) return;
+        if (appGridRetryScheduled) return;
         appGridRetryScheduled = true;
-        appGrid.post(() -> {
-            appGridRetryScheduled = false;
-            if (appGrid == null || appGrid.getWidth() <= 0) return;
-            updateAppGridColumns(appGrid.getWidth());
-        });
+        appGrid.getViewTreeObserver().addOnPreDrawListener(
+                new android.view.ViewTreeObserver.OnPreDrawListener() {
+                    @Override public boolean onPreDraw() {
+                        if (appGrid == null || !appGridRetryScheduled) {
+                            removeListener(this);
+                            return true;
+                        }
+                        if (appGrid.getWidth() <= 0) return true;
+                        appGridRetryScheduled = false;
+                        removeListener(this);
+                        updateAppGridColumns(appGrid.getWidth());
+                        return true;
+                    }
+                });
+    }
+
+    private void removeListener(android.view.ViewTreeObserver.OnPreDrawListener listener) {
+        if (appGrid == null) return;
+        android.view.ViewTreeObserver observer = appGrid.getViewTreeObserver();
+        if (observer.isAlive() && observer != null) observer.removeOnPreDrawListener(listener);
     }
     private Button modeButton;
     private Button mouseRouteButton;
@@ -3096,6 +3116,7 @@ public final class MainActivity extends Activity {
     private void updateAppGridColumns(int widthPx) {
         if (appGrid == null || widthPx <= 0) {
             Log.i(TAG, "grid columns skipped width=" + widthPx + " grid=" + (appGrid != null));
+            scheduleAppGridRetry();
             return;
         }
         float density = getResources().getDisplayMetrics().density;
@@ -3123,17 +3144,15 @@ public final class MainActivity extends Activity {
         if (appGrid == null) return;
         Log.i(TAG, "grid rebuild requested gridWidth=" + appGrid.getWidth()
                 + " columns=" + appColumns + " children=" + appGrid.getChildCount());
-        if (appGrid.getWidth() <= 0) {
-            // The grid is between layouts (rotation, density change). Retry once it has a
-            // size instead of leaving the list empty.
+        if (appGrid.getWidth() <= 0 || appColumns <= 0) {
+            // Between layouts (rotation, density change): keep whatever is on screen and
+            // retry once the grid has a real size. Never clear children we cannot replace.
+            Log.i(TAG, "grid populate deferred width=" + appGrid.getWidth()
+                    + " columns=" + appColumns);
             scheduleAppGridRetry();
             return;
         }
         appGrid.removeAllViews();
-        if (appColumns == 0) {
-            updateAppGridColumns(appGrid.getWidth());
-            return;
-        }
         String query = appSearch == null ? "" : appSearch.getText().toString().trim().toLowerCase(java.util.Locale.ROOT);
         ArrayList<ResolveInfo> visible = new ArrayList<>();
         for (ResolveInfo app : appEntries) {
