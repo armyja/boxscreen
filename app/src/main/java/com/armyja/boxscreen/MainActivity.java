@@ -2721,10 +2721,25 @@ public final class MainActivity extends Activity {
                                 cellLeft + cellWidth - panelDp(3), cluster.bottom - panelDp(4),
                                 panelDp(8), panelDp(8), panelPaint);
                     }
-                    panelTextPaint.setTextSize(panelDp(13));
-                    panelTextPaint.setColor(enabled ? 0xe6ffffff : 0x55ffffff);
-                    canvas.drawText(SPLIT_KILL_ACTIONS[col],
-                            cellLeft + cellWidth / 2f, cluster.centerY() + panelDp(5), panelTextPaint);
+                    // Symbols instead of words: a bar (minimise), a square (maximise) and a cross
+                    // (close), matching the familiar window-control trio.
+                    float cx = cellLeft + cellWidth / 2f;
+                    float cy = cluster.centerY();
+                    float half = panelDp(8);
+                    panelPaint.setStyle(Paint.Style.STROKE);
+                    panelPaint.setStrokeWidth(panelDp(2));
+                    panelPaint.setColor(enabled ? 0xe6ffffff : 0x55ffffff);
+                    if (col == 0) {
+                        canvas.drawLine(cx - half, cy + panelDp(2), cx + half, cy + panelDp(2), panelPaint);
+                    } else if (col == 1) {
+                        canvas.drawRect(cx - half, cy - half + panelDp(2), cx + half,
+                                cy + half + panelDp(2), panelPaint);
+                    } else {
+                        float d = half * 0.85f;
+                        canvas.drawLine(cx - d, cy + panelDp(2) - d, cx + d, cy + panelDp(2) + d, panelPaint);
+                        canvas.drawLine(cx + d, cy + panelDp(2) - d, cx - d, cy + panelDp(2) + d, panelPaint);
+                    }
+                    panelPaint.setStyle(Paint.Style.FILL);
                 }
             }
         }
