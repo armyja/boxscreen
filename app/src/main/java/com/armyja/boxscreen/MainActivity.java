@@ -559,7 +559,7 @@ public final class MainActivity extends Activity {
                     new ComponentName(getPackageName(), PrivilegedDisplayService.class.getName()))
                     .daemon(false)
                     .processNameSuffix("display")
-                    .version(29);
+                    .version(30);
             Shizuku.bindUserService(shizukuServiceArgs, shizukuServiceConnection);
             status("正在连接 Shizuku 主机服务…");
         } catch (RuntimeException e) {
@@ -3721,9 +3721,11 @@ public final class MainActivity extends Activity {
             if (!syncPrimaryDensityForPackage(packageName)) return;
             autoEnableMouseIfAvailable();
             Log.i(TAG, "launch=" + packageName + "/" + activityName + " display=" + virtualDisplayId);
+            boolean leavingSplit = splitActive;
             displayService.launchActivity(packageName, activityName);
             splitActive = splitChoosing = false;
             currentVirtualPackage = packageName;
+            if (leavingSplit) refreshVirtualDisplayLayout("launch fullscreen from split");
             recentAppPackages.remove(packageName);
             recentAppPackages.add(0, packageName);
             while (recentAppPackages.size() > 8) recentAppPackages.remove(recentAppPackages.size() - 1);

@@ -547,7 +547,23 @@ public final class PrivilegedDisplayService extends IDisplayService.Stub {
     @Override
     public synchronized void launchActivity(String packageName, String className) {
         checkComponent(packageName, className);
-        closeSplit();
+        if (virtualDisplay == null) throw new IllegalStateException("Virtual display is not running");
+        if (splitSession != null) {
+            try {
+                boolean reused = splitSession.leaveSplitForLaunch(packageName);
+                splitSession = null;
+                if (reused) return;
+            } catch (ReflectiveOperationException e) {
+                throw new IllegalStateException("无法保留分栏应用：" + describeFailure(e), e);
+            }
+        } else {
+            try {
+                SplitSession fullscreen = new SplitSession(virtualDisplay.getDisplay().getDisplayId());
+                if (fullscreen.bringFullscreenTaskToFront(packageName)) return;
+            } catch (ReflectiveOperationException e) {
+                Log.w("BoxScreenService", "could not look up reusable fullscreen task", e);
+            }
+        }
         startOnDisplay(packageName, className, false);
     }
 
@@ -589,10 +605,7 @@ public final class PrivilegedDisplayService extends IDisplayService.Stub {
         if (virtualDisplay == null) throw new IllegalStateException("当前无法开始分屏");
         SplitSession next = null;
         try {
-            if (splitSession != null) {
-                splitSession.beginAgain(packageName, displayWidth, displayHeight);
-                return;
-            }
+            if (splitSession != null) throw new IllegalStateException("当前已处于分屏");
             next = new SplitSession(virtualDisplay.getDisplay().getDisplayId());
             Object first = next.awaitTask(packageName, next.taskIds());
             next.open(first, null, displayWidth, displayHeight);
@@ -642,7 +655,9 @@ public final class PrivilegedDisplayService extends IDisplayService.Stub {
     public synchronized String expandSplit(boolean firstSide) {
         if (splitSession == null) throw new IllegalStateException("分屏已关闭");
         try {
-            return splitSession.expand(firstSide, displayWidth, displayHeight);
+            String packageName = splitSession.expand(firstSide);
+            splitSession = null;
+            return packageName;
         } catch (ReflectiveOperationException e) {
             throw new IllegalStateException("无法退出分屏：" + describeFailure(e), e);
         }
