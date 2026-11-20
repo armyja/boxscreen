@@ -3349,6 +3349,15 @@ public final class MainActivity extends Activity {
         } catch (RemoteException | RuntimeException e) {
             Log.w(TAG, "could not sync split state", e);
         }
+        // Drop split containers left behind by earlier sessions or a previous service process.
+        final IDisplayService service = displayService;
+        new Thread(() -> {
+            try {
+                service.pruneSplitSessions();
+            } catch (RemoteException | RuntimeException e) {
+                Log.w(TAG, "could not prune stale split containers", e);
+            }
+        }, "boxscreen-split-prune").start();
     }
 
     private void refreshSplitState() {
