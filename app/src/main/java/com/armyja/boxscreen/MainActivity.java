@@ -650,8 +650,10 @@ public final class MainActivity extends Activity {
         int bufferHeight = portraitMode ? baseWidth : baseHeight;
         long pixels = (long) bufferWidth * bufferHeight;
         String forced = booleanProp("debug.boxscreen.buffered");
-        boolean useBuffered = "0".equals(forced) ? false
-                : "1".equals(forced) || pixels > BUFFERED_OUTPUT_MIN_PIXELS;
+        // Portrait keeps the verified layer-rotation path until the buffered pipeline can
+        // reproduce that rotation exactly; the picture must never regress there.
+        boolean useBuffered = !portraitMode && ("0".equals(forced) ? false
+                : "1".equals(forced) || pixels > BUFFERED_OUTPUT_MIN_PIXELS);
         if (useBuffered) {
             BufferedOutputView buffered = new BufferedOutputView(this);
             if (portraitMode) {
@@ -1321,7 +1323,11 @@ public final class MainActivity extends Activity {
         if (outputSurface == null || presentation == null) return;
         int width = portraitMode ? baseHeight : baseWidth;
         int height = portraitMode ? baseWidth : baseHeight;
-        boolean rotatedLayer = portraitMode && outputSurface instanceof SurfaceView;
+        // Both the direct SurfaceView and the buffered container carry the picture on a
+        // layer that is rotated for portrait; laying them out landscape keeps the screen
+        // full instead of leaving black bars on both sides.
+        boolean rotatedLayer = portraitMode
+                && (outputSurface instanceof SurfaceView || outputSurface instanceof BufferedOutputView);
         FrameLayout.LayoutParams params = new FrameLayout.LayoutParams(
                 rotatedLayer ? baseWidth : width, rotatedLayer ? baseHeight : height, Gravity.CENTER);
         outputSurface.setLayoutParams(params);
