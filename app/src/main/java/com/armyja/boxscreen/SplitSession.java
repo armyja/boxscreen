@@ -42,6 +42,9 @@ final class SplitSession {
 
     private record Stage(Object token, SurfaceControl surface) {}
 
+    /** Task id of the root container, so stale roots can be told apart from the live one. */
+    int rootTaskId = -1;
+
     SplitSession(int displayId) throws ReflectiveOperationException {
         this.displayId = displayId;
         IBinder binder = (IBinder) Class.forName("android.os.ServiceManager")
@@ -99,6 +102,13 @@ final class SplitSession {
         if (appeared == null) throw new IllegalStateException("系统未创建分屏区域");
         Object info = appeared.getClass().getMethod("getTaskInfo").invoke(appeared);
         SurfaceControl surface = (SurfaceControl) appeared.getClass().getMethod("getLeash").invoke(appeared);
+        if (parent == null) {
+            try {
+                rootTaskId = info.getClass().getField("taskId").getInt(info);
+            } catch (ReflectiveOperationException | RuntimeException ignored) {
+                rootTaskId = -1;
+            }
+        }
         return new Stage(token(info), surface);
     }
 
