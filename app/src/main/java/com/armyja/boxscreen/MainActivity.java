@@ -565,7 +565,7 @@ public final class MainActivity extends Activity {
                     new ComponentName(getPackageName(), PrivilegedDisplayService.class.getName()))
                     .daemon(false)
                     .processNameSuffix("display")
-                    .version(33);
+                    .version(34);
             Shizuku.bindUserService(shizukuServiceArgs, shizukuServiceConnection);
             status("正在连接 Shizuku 主机服务…");
         } catch (RuntimeException e) {
@@ -1567,6 +1567,7 @@ public final class MainActivity extends Activity {
         private boolean panelDragOpened;
         private float panelDownY;
         private int panelPressedControl;
+        private PanelAppDrag panelAppDrag;
         private boolean screenshotPreviewPointerDown;
         private String cachedStatusBarLabel;
         private long statusBarLabelUpdatedAt;
@@ -2073,10 +2074,12 @@ public final class MainActivity extends Activity {
                 panelPointerDown = false;
                 panelDragOpened = false;
                 panelDragFromBar = false;
+                panelAppDrag = null;
                 if (quickPanelVisible && y <= statusBarHeight() + quickPanelHeight()) {
                     panelPointerDown = true;
                     panelDownY = y;
                     panelPressedControl = hitQuickControl(x, y);
+                    panelAppDrag = capturePanelAppDrag(panelPressedControl, x, y);
                     if (panelPressedControl == PANEL_DPI_SLIDER) {
                         Log.i(TAG, "DPI slider down x=" + x + " y=" + y
                                 + " dpi=" + densityDpi + " portrait=" + portraitMode);
@@ -2088,6 +2091,7 @@ public final class MainActivity extends Activity {
                 if (statusBarVisible && y <= statusBarHeight()) {
                     panelPointerDown = true;
                     panelPressedControl = hitStatusBarControl(x);
+                    panelAppDrag = capturePanelAppDrag(panelPressedControl, x, y);
                     panelDragFromBar = panelPressedControl == PANEL_APPS;
                     panelDownY = y;
                     if (panelPressedControl == PANEL_VOLUME_SLIDER) setStatusVolumeFromPointer(x);
@@ -2118,6 +2122,7 @@ public final class MainActivity extends Activity {
                 return true;
             }
             if (action == MotionEvent.ACTION_UP) {
+                boolean appDropped = performPanelAppDrop(x, y);
                 if (panelPressedControl == PANEL_DPI_SLIDER) {
                     Log.i(TAG, "DPI slider up x=" + x + " y=" + y + " dpi=" + densityDpi);
                     setDensityFromPointer(x, true);
@@ -2125,13 +2130,15 @@ public final class MainActivity extends Activity {
                 if (panelDragFromBar && y - panelDownY >= panelDp(56)) {
                     quickPanelVisible = true;
                     statusBarVisible = true;
-                } else if (!panelDragOpened && panelPressedControl != PANEL_DPI_SLIDER) {
+                } else if (!appDropped && !panelDragOpened
+                        && panelPressedControl != PANEL_DPI_SLIDER) {
                     int releasedControl = hitQuickControl(x, y);
                     if (releasedControl == panelPressedControl) activateQuickControl(releasedControl, x);
                 }
                 panelPointerDown = false;
                 panelDragFromBar = false;
                 panelPressedControl = PANEL_NONE;
+                panelAppDrag = null;
                 invalidate();
                 return true;
             }
@@ -2139,6 +2146,7 @@ public final class MainActivity extends Activity {
                 panelPointerDown = false;
                 panelDragFromBar = false;
                 panelPressedControl = PANEL_NONE;
+                panelAppDrag = null;
                 return true;
             }
             return true;
@@ -2272,6 +2280,27 @@ public final class MainActivity extends Activity {
             }
         }
 
+        private final class PanelAppDrag {
+            final String packageName;
+            final String className;
+            final int taskId;
+            final float left;
+            final float top;
+            final float right;
+            final float bottom;
+
+            PanelAppDrag(String packageName, String className, int taskId,
+                    float left, float top, float right, float bottom) {
+                this.packageName = packageName;
+                this.className = className;
+                this.taskId = taskId;
+                this.left = left;
+                this.top = top;
+                this.right = right;
+                this.bottom = bottom;
+            }
+        }
+
         private final ArrayList<RecentVirtualTask> recentVirtualTasks = new ArrayList<>();
         private long lastRecentTaskRefreshAt;
         private boolean recentTaskRefreshInFlight;
@@ -2305,6 +2334,101 @@ public final class MainActivity extends Activity {
             float sliderLeft = panelDp(16) + panelTextPaint.measureText(label) + panelDp(14);
             float sliderRight = Math.min(sliderLeft + panelDp(150), appsLeft - panelDp(12));
             return new StatusBarLayout(label, apps, sliderLeft, sliderRight, appsLeft, closeLeft);
+        }
+
+        private PanelAppDrag capturePanelAppDrag(int control, float x, float y) {
+            if (control >= PANEL_RECENT_APP_BASE) {
+                StatusBarLayout layout = statusBarLayout();
+                int index = control - PANEL_RECENT_APP_BASE;
+                if (index < 0 || index >= layout.apps.size()) return null;
+                float slotLeft = layout.appsLeft + index * panelDp(42);
+                float iconLeft = slotLeft + panelDp(7);
+                float iconTop = (statusBarHeight() - panelDp(32)) / 2f + panelDp(2);
+                float iconRight = slotLeft + panelDp(35);
+                float iconBottom = iconTop + panelDp(28);
+                if (x < iconLeft || x > iconRight || y < iconTop || y > iconBottom) return null;
+                RecentVirtualTask task = layout.apps.get(index);
+                return new PanelAppDrag(task.packageName, null, task.taskId,
+                        iconLeft, iconTop, iconRight, iconBottom);
+            }
+            if (control < PANEL_APP_BASE || control >= PANEL_RECENT_APP_BASE) return null;
+            ArrayList<ResolveInfo> apps = quickPanelApps();
+            int index = control - PANEL_APP_BASE;
+            if (index < 0 || index >= apps.size()) return null;
+            int columns = quickPanelColumnCount(apps.size());
+            float horizontalPadding = panelDp(16);
+            float gap = panelDp(8);
+            float tileWidth = (getWidth() - horizontalPadding * 2f - gap * (columns - 1)) / columns;
+            float left = horizontalPadding + (index % columns) * (tileWidth + gap);
+            float top = quickPanelAppsTop() + (index / columns) * (panelDp(58) + panelDp(8));
+            float right = left + tileWidth;
+            float bottom = top + panelDp(58);
+            if (x < left || x > right || y < top || y > bottom) return null;
+            ResolveInfo app = apps.get(index);
+            return new PanelAppDrag(app.activityInfo.packageName, app.activityInfo.name, -1,
+                    left, top, right, bottom);
+        }
+
+        private boolean performPanelAppDrop(float x, float y) {
+            PanelAppDrag drag = panelAppDrag;
+            if (drag == null || y < drag.top || y > drag.bottom) return false;
+            boolean dropFirst = x < drag.left;
+            if (!dropFirst && x <= drag.right) return false;
+            dropAppIntoSplit(drag, dropFirst);
+            return true;
+        }
+
+        private void dropAppIntoSplit(PanelAppDrag drag, boolean firstSide) {
+            if (splitOpening || displayService == null || virtualDisplayId < 0) return;
+            IDisplayService service = displayService;
+            int targetDisplay = virtualDisplayId;
+            boolean wasSplit = splitActive;
+            quickPanelVisible = false;
+            statusBarVisible = false;
+            splitOpening = true;
+            invalidate();
+            new Thread(() -> {
+                String[] result = null;
+                Exception failure = null;
+                try {
+                    result = service.dropAppIntoSplit(drag.packageName, drag.className,
+                            drag.taskId, firstSide, currentVirtualPackage);
+                } catch (Exception error) {
+                    failure = error;
+                }
+                String[] resultPair = result;
+                Exception resultError = failure;
+                runOnUiThread(() -> {
+                    splitOpening = false;
+                    if (targetDisplay != virtualDisplayId || service != displayService) return;
+                    if (resultError != null || resultPair == null || resultPair.length == 0) {
+                        Log.e(TAG, "drop app into split failed package=" + drag.packageName, resultError);
+                        status("分屏拖放失败：" + (resultError == null ? "无返回状态" : resultError.getMessage()));
+                        return;
+                    }
+                    if (resultPair.length == 1) {
+                        splitActive = splitChoosing = false;
+                        splitFirstPackage = splitSecondPackage = null;
+                        currentVirtualPackage = resultPair[0];
+                        splitCheckHandler.removeCallbacks(splitCheck);
+                    } else {
+                        splitActive = true;
+                        splitChoosing = resultPair[0] == null || resultPair[1] == null;
+                        splitFirstPackage = resultPair[0];
+                        splitSecondPackage = resultPair[1];
+                        currentVirtualPackage = resultPair[0] == null
+                                ? resultPair[1] : resultPair[1] == null ? resultPair[0] : null;
+                        splitLastFirst = firstSide;
+                        splitPickerFirst = resultPair[0] == null;
+                        if (!wasSplit) splitRatio = 0.5f;
+                    }
+                    applyDensitySync();
+                    refreshVirtualDisplayLayout("drop app into split");
+                    refreshSplitState();
+                    scheduleSplitCheck();
+                    invalidate();
+                });
+            }, "boxscreen-split-drop").start();
         }
 
         private String statusBarLabel() {

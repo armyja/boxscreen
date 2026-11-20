@@ -252,6 +252,88 @@ final class SplitSession {
         stabilizeSurfaces(bounds);
     }
 
+    synchronized String[] dropIntoSplit(int foregroundTaskId, String foregroundPackage,
+            String packageName, String className, int recentTaskId, boolean firstSide,
+            int width, int height)
+            throws ReflectiveOperationException {
+        if (packageName == null) throw new IllegalArgumentException("缺少应用包名");
+        if (active) {
+            String[] current = packages();
+            String targetPackage = current[firstSide ? 0 : 1];
+            String otherPackage = current[firstSide ? 1 : 0];
+            if (packageName.equals(targetPackage)) return current;
+            if (packageName.equals(otherPackage)) {
+                String maximized = expand(!firstSide);
+                return new String[]{maximized};
+            }
+            if (stageTask(firstSide == reversed ? second : first, null) != null) {
+                hideSide(firstSide);
+            }
+            fillDroppedApp(packageName, className, recentTaskId, firstSide, width, height);
+            return packages();
+        }
+
+        Object foreground = foregroundTaskId > 0 ? taskById(foregroundTaskId) : null;
+        if (foreground == null && foregroundPackage != null) foreground = findRootTask(foregroundPackage);
+        if (foreground == null) throw new IllegalStateException("虚拟屏前台任务已切换");
+        String actualForegroundPackage = packageOf(foreground);
+        if (actualForegroundPackage == null) throw new IllegalStateException("无法读取当前应用");
+        boolean sameApp = packageName.equals(actualForegroundPackage);
+        // A same-app drop leaves the other pane empty. Otherwise the current app stays
+        // opposite the dropped app, including when the user drops toward the left.
+        reversed = sameApp ? !firstSide : firstSide;
+        open(token(foreground), null, width, height);
+        if (!sameApp) fillDroppedApp(packageName, className, recentTaskId, firstSide, width, height);
+        return packages();
+    }
+
+    private void fillDroppedApp(String packageName, String className, int recentTaskId,
+            boolean firstSide, int width, int height) throws ReflectiveOperationException {
+        if (recentTaskId > 0) fillTask(recentTaskId, packageName, firstSide, width, height);
+        else fill(packageName, className, firstSide, width, height);
+    }
+
+    private void fillTask(int recentTaskId, String packageName, boolean firstSide,
+            int width, int height) throws ReflectiveOperationException {
+        Stage target = firstSide == reversed ? second : first;
+        if (stageTask(target, null) != null) throw new IllegalStateException("该分栏已有应用");
+        boolean foundInRecents = false;
+        for (Object task : systemRecentTasks()) {
+            if (taskId(task) == recentTaskId && packageName.equals(packageOf(task))) {
+                foundInRecents = true;
+                break;
+            }
+        }
+        if (!foundInRecents) throw new IllegalStateException("最近任务已失效，请重新打开状态栏");
+        ActivityOptions options = ActivityOptions.makeBasic().setLaunchDisplayId(displayId);
+        ActivityOptions.class.getMethod("setLaunchRootTask", tokenType)
+                .invoke(options, target.token());
+        Object tx = transaction();
+        transactionType.getMethod("startTask", int.class, Bundle.class)
+                .invoke(tx, recentTaskId, options.toBundle());
+        apply(tx);
+        Object launched = awaitStageTask(target, null, recentTaskId);
+        if (target == first) firstAppToken = launched;
+        else secondAppToken = launched;
+        Object layout = transaction();
+        transactionType.getMethod("reorder", tokenType, boolean.class)
+                .invoke(layout, root.token(), true);
+        Rect[] targetBounds = bounds(width, height);
+        applyLayout(layout, targetBounds);
+        showSurfaces(targetBounds);
+        stabilizeSurfaces(targetBounds);
+    }
+
+    private Object taskById(int id) throws ReflectiveOperationException {
+        for (Object task : roots()) if (taskId(task) == id) return task;
+        return null;
+    }
+
+    int taskIdForPackage(String packageName) throws ReflectiveOperationException {
+        Object task = findRootTask(packageName);
+        return task == null ? -1 : taskId(task);
+    }
+
     private static int taskId(Object task) throws ReflectiveOperationException {
         return task.getClass().getField("taskId").getInt(task);
     }

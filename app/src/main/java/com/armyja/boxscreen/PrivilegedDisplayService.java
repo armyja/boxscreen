@@ -853,6 +853,41 @@ public final class PrivilegedDisplayService extends IDisplayService.Stub {
     }
 
     @Override
+    public synchronized String[] dropAppIntoSplit(String packageName, String className,
+            int taskId, boolean firstSide, String foregroundPackage) {
+        if (virtualDisplay == null || virtualDisplay.getDisplay() == null) {
+            throw new IllegalStateException("虚拟屏未运行");
+        }
+        if (packageName == null) throw new IllegalArgumentException("缺少应用包名");
+        if (taskId <= 0) checkComponent(packageName, className);
+        int displayId = virtualDisplay.getDisplay().getDisplayId();
+        SplitSession session = splitSession;
+        boolean created = false;
+        int foregroundTaskId = -1;
+        try {
+            if (session == null) {
+                foregroundTaskId = findTopTaskId(displayId);
+                session = new SplitSession(displayId);
+                if (foregroundTaskId < 0 && foregroundPackage != null) {
+                    foregroundTaskId = session.taskIdForPackage(foregroundPackage);
+                }
+                if (foregroundTaskId < 0) throw new IllegalStateException("虚拟屏没有可分屏的前台应用");
+                created = true;
+            }
+            String[] result = session.dropIntoSplit(
+                    foregroundTaskId, foregroundPackage,
+                    packageName, className, taskId, firstSide, displayWidth, displayHeight);
+            splitSession = result.length == 1 ? null : session;
+            return result;
+        } catch (Exception e) {
+            if (created && session != null) {
+                try { session.close(); } catch (Exception cleanup) { e.addSuppressed(cleanup); }
+            }
+            throw new IllegalStateException("无法将应用放入分屏：" + describeFailure(e), e);
+        }
+    }
+
+    @Override
     public synchronized int getForegroundBoxScreenTaskId() {
         return virtualDisplay == null ? -1
                 : findTopTaskId(virtualDisplay.getDisplay().getDisplayId(), true);
