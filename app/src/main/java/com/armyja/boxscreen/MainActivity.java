@@ -650,12 +650,29 @@ public final class MainActivity extends Activity {
         int bufferHeight = portraitMode ? baseWidth : baseHeight;
         long pixels = (long) bufferWidth * bufferHeight;
         String forced = booleanProp("debug.boxscreen.buffered");
-        // Portrait keeps the established surface-rotation path: the picture must never
-        // depend on our own rotation maths.
-        boolean useBuffered = !portraitMode && ("0".equals(forced) ? false
-                : "1".equals(forced) || pixels > BUFFERED_OUTPUT_MIN_PIXELS);
+        boolean useBuffered = "0".equals(forced) ? false
+                : "1".equals(forced) || pixels > BUFFERED_OUTPUT_MIN_PIXELS;
         if (useBuffered) {
             BufferedOutputView buffered = new BufferedOutputView(this);
+            if (portraitMode) {
+                SurfaceView inner = buffered.surfaceView();
+                buffered.addOnLayoutChangeListener((v, left, top, right, bottom,
+                        oldLeft, oldTop, oldRight, oldBottom) -> {
+                    if (left != oldLeft || top != oldTop || right != oldRight || bottom != oldBottom) {
+                        schedulePortraitSurfaceRotation(inner);
+                    }
+                });
+                inner.getHolder().addCallback(new SurfaceHolder.Callback() {
+                    @Override public void surfaceCreated(SurfaceHolder holder) { }
+
+                    @Override public void surfaceChanged(SurfaceHolder holder, int format,
+                            int width, int height) {
+                        schedulePortraitSurfaceRotation(inner);
+                    }
+
+                    @Override public void surfaceDestroyed(SurfaceHolder holder) { }
+                });
+            }
             Log.i(TAG, "output pipeline=buffered buffer=" + bufferWidth + "x" + bufferHeight
                     + " pixels=" + pixels);
             buffered.setListener(new BufferedOutputView.Listener() {
@@ -731,19 +748,27 @@ public final class MainActivity extends Activity {
         return view;
     }
 
-    private void schedulePortraitSurfaceRotation(SurfaceView view) {
-        if (outputSurface != view || !view.getViewTreeObserver().isAlive()) return;
-        // SurfaceView sets its default layer geometry during traversal. Rotate the
-        // container after that frame is committed, without repainting on video frames.
+    private void schedulePortraitSurfaceRotation(View view) {
+        if (!isCurrentOutputSurfaceView(view)) return;
+        // SurfaceView writes its default layer geometry during traversal. Rotate after
+        // that frame is committed, with a delayed retry in case the first attempt lands
+        // before the layer exists.
         view.getViewTreeObserver().registerFrameCommitCallback(
                 () -> view.post(() -> rotatePortraitSurface(view)));
         view.invalidate();
+        view.postDelayed(() -> rotatePortraitSurface(view), 400);
     }
 
     @SuppressWarnings("deprecation")
-    private void rotatePortraitSurface(SurfaceView view) {
-        if (outputSurface != view || !portraitMode) return;
-        SurfaceControl layer = view.getSurfaceControl();
+    private boolean isCurrentOutputSurfaceView(View view) {
+        if (view == outputSurface) return true;
+        return outputSurface instanceof BufferedOutputView buffered
+                && buffered.surfaceView() == view;
+    }
+
+    private void rotatePortraitSurface(View view) {
+        if (!isCurrentOutputSurfaceView(view) || !portraitMode) return;
+        SurfaceControl layer = ((SurfaceView) view).getSurfaceControl();
         if (layer == null || !layer.isValid()) return;
         Rect portrait = new Rect(0, 0, baseHeight, baseWidth);
         try (SurfaceControl.Transaction tx = new SurfaceControl.Transaction()) {

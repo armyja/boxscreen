@@ -55,8 +55,6 @@ final class BufferedOutputView extends FrameLayout {
     private volatile boolean inputReady;
     private int bufferWidth;
     private int bufferHeight;
-    private volatile float rotateCos = 1f;
-    private volatile float rotateSin = 0f;
     private long vsyncNanos = DEFAULT_VSYNC_NANOS;
 
     BufferedOutputView(Context context) {
@@ -103,18 +101,15 @@ final class BufferedOutputView extends FrameLayout {
         return display.getHolder().getSurface();
     }
 
-    /** 0 = upright, 1 = a quarter turn clockwise (portrait on a landscape panel). */
-    void setQuarterTurn(int turns) {
-        // Matches the layer rotation the direct path uses (BUFFER_TRANSFORM_ROTATE_270),
-        // so switching pipelines never flips the picture.
-        double radians = Math.toRadians(turns == 0 ? 0 : -90);
-        rotateCos = (float) Math.cos(radians);
-        rotateSin = (float) Math.sin(radians);
+    /** The view whose layer carries the picture; portrait rotation is applied to it. */
+    SurfaceView surfaceView() {
+        return display;
     }
 
     void setBufferSize(int width, int height) {
         bufferWidth = width;
         bufferHeight = height;
+        display.getHolder().setFixedSize(width, height);
         Handler handler = renderHandler;
         if (handler != null) handler.post(() -> {
             if (inputTexture != null && bufferWidth > 0 && bufferHeight > 0) {
@@ -170,7 +165,7 @@ final class BufferedOutputView extends FrameLayout {
         if (holder == null || !holder.makeCurrent() || inputTexture == null) return;
         try {
             inputTexture.updateTexImage();
-            holder.draw(inputTexture, rotateCos, rotateSin, viewportWidth, viewportHeight);
+            holder.draw(inputTexture, viewportWidth, viewportHeight);
             // One vsync later than the frame's intended present time: the external display
             // always finds a finished frame waiting, so a slow SurfaceFlinger pass cannot
             // steal it away any more.
@@ -326,7 +321,7 @@ final class BufferedOutputView extends FrameLayout {
             return shader;
         }
 
-        void draw(SurfaceTexture texture, float cos, float sin, int width, int height) {
+        void draw(SurfaceTexture texture, int width, int height) {
             GLES20.glViewport(0, 0, Math.max(1, width), Math.max(1, height));
             GLES20.glClearColor(0f, 0f, 0f, 1f);
             GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT);
@@ -334,7 +329,7 @@ final class BufferedOutputView extends FrameLayout {
             GLES20.glUseProgram(program);
             texture.getTransformMatrix(matrix);
             GLES20.glUniformMatrix4fv(uMvp, 1, false, matrix, 0);
-            GLES20.glUniform2f(uRot, cos, sin);
+            GLES20.glUniform2f(uRot, 1f, 0f);
             quad.position(0);
             GLES20.glEnableVertexAttribArray(aPos);
             GLES20.glVertexAttribPointer(aPos, 2, GLES20.GL_FLOAT, false, 16, quad);
