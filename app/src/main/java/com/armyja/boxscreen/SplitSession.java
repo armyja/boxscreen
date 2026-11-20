@@ -334,6 +334,59 @@ final class SplitSession {
         return task == null ? -1 : taskId(task);
     }
 
+    boolean isTaskVisible(int id) throws ReflectiveOperationException {
+        Object task = taskById(id);
+        if (task == null) return false;
+        try {
+            return task.getClass().getField("isVisible").getBoolean(task);
+        } catch (NoSuchFieldException ignored) {
+            return true;
+        }
+    }
+
+    synchronized void restartFullscreenTask(int id) throws ReflectiveOperationException {
+        Object task = taskById(id);
+        ActivityOptions options = ActivityOptions.makeBasic().setLaunchDisplayId(displayId);
+        Object tx = transaction();
+        if (task != null) {
+            setHidden(tx, token(task), false);
+            resetFullscreenBounds(tx, token(task));
+        }
+        transactionType.getMethod("startTask", int.class, Bundle.class)
+                .invoke(tx, id, options.toBundle());
+        apply(tx);
+    }
+
+    synchronized int splitTaskId(String packageName, boolean firstSide)
+            throws ReflectiveOperationException {
+        Stage target = firstSide == reversed ? second : first;
+        Object task = stageTask(target, packageName);
+        return task == null ? -1 : taskId(task);
+    }
+
+    synchronized void restartSplitSide(int id, boolean firstSide, int width, int height)
+            throws ReflectiveOperationException {
+        Stage target = firstSide == reversed ? second : first;
+        Object task = stageTaskById(target, id);
+        if (task == null) throw new IllegalStateException("应用任务已离开原分栏");
+        ActivityOptions options = ActivityOptions.makeBasic().setLaunchDisplayId(displayId);
+        ActivityOptions.class.getMethod("setLaunchRootTask", tokenType)
+                .invoke(options, target.token());
+        Object tx = transaction();
+        setHidden(tx, token(task), false);
+        transactionType.getMethod("startTask", int.class, Bundle.class)
+                .invoke(tx, id, options.toBundle());
+        apply(tx);
+        Object restarted = awaitStageTask(target, null, id);
+        if (target == first) firstAppToken = restarted;
+        else secondAppToken = restarted;
+        Object layout = transaction();
+        Rect[] targetBounds = bounds(width, height);
+        applyLayout(layout, targetBounds);
+        showSurfaces(targetBounds);
+        stabilizeSurfaces(targetBounds);
+    }
+
     private static int taskId(Object task) throws ReflectiveOperationException {
         return task.getClass().getField("taskId").getInt(task);
     }

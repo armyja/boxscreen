@@ -35,6 +35,7 @@ interface IDisplayService {
     String getVirtualDisplayForegroundPackage();
     String[] dropAppIntoSplit(String packageName, String className, int taskId,
             boolean firstSide, String foregroundPackage);
+    String[] restartDisplayedApp(String packageName, String foregroundPackage);
     int getForegroundBoxScreenTaskId();
     void returnBoxScreenTaskToPrimary(int taskId);
 }

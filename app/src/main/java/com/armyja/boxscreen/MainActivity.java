@@ -565,7 +565,7 @@ public final class MainActivity extends Activity {
                     new ComponentName(getPackageName(), PrivilegedDisplayService.class.getName()))
                     .daemon(false)
                     .processNameSuffix("display")
-                    .version(34);
+                    .version(35);
             Shizuku.bindUserService(shizukuServiceArgs, shizukuServiceConnection);
             status("正在连接 Shizuku 主机服务…");
         } catch (RuntimeException e) {
@@ -2284,16 +2284,18 @@ public final class MainActivity extends Activity {
             final String packageName;
             final String className;
             final int taskId;
+            final boolean fromStatusBar;
             final float left;
             final float top;
             final float right;
             final float bottom;
 
-            PanelAppDrag(String packageName, String className, int taskId,
+            PanelAppDrag(String packageName, String className, int taskId, boolean fromStatusBar,
                     float left, float top, float right, float bottom) {
                 this.packageName = packageName;
                 this.className = className;
                 this.taskId = taskId;
+                this.fromStatusBar = fromStatusBar;
                 this.left = left;
                 this.top = top;
                 this.right = right;
@@ -2348,7 +2350,7 @@ public final class MainActivity extends Activity {
                 float iconBottom = iconTop + panelDp(28);
                 if (x < iconLeft || x > iconRight || y < iconTop || y > iconBottom) return null;
                 RecentVirtualTask task = layout.apps.get(index);
-                return new PanelAppDrag(task.packageName, null, task.taskId,
+                return new PanelAppDrag(task.packageName, null, task.taskId, true,
                         iconLeft, iconTop, iconRight, iconBottom);
             }
             if (control < PANEL_APP_BASE || control >= PANEL_RECENT_APP_BASE) return null;
@@ -2365,13 +2367,18 @@ public final class MainActivity extends Activity {
             float bottom = top + panelDp(58);
             if (x < left || x > right || y < top || y > bottom) return null;
             ResolveInfo app = apps.get(index);
-            return new PanelAppDrag(app.activityInfo.packageName, app.activityInfo.name, -1,
+            return new PanelAppDrag(app.activityInfo.packageName, app.activityInfo.name, -1, false,
                     left, top, right, bottom);
         }
 
         private boolean performPanelAppDrop(float x, float y) {
             PanelAppDrag drag = panelAppDrag;
-            if (drag == null || y < drag.top || y > drag.bottom) return false;
+            if (drag == null) return false;
+            if (drag.fromStatusBar && x < drag.left && y < drag.top) {
+                restartDisplayedApp(drag.packageName);
+                return true;
+            }
+            if (y < drag.top || y > drag.bottom) return false;
             boolean dropFirst = x < drag.left;
             if (!dropFirst && x <= drag.right) return false;
             dropAppIntoSplit(drag, dropFirst);
@@ -2429,6 +2436,66 @@ public final class MainActivity extends Activity {
                     invalidate();
                 });
             }, "boxscreen-split-drop").start();
+        }
+
+        private void restartDisplayedApp(String packageName) {
+            if (splitOpening || displayService == null || virtualDisplayId < 0) return;
+            IDisplayService service = displayService;
+            int targetDisplay = virtualDisplayId;
+            boolean wasSplit = splitActive;
+            boolean restorePanel = quickPanelVisible;
+            quickPanelVisible = false;
+            statusBarVisible = false;
+            splitOpening = true;
+            invalidate();
+            new Thread(() -> {
+                String[] result = null;
+                Exception failure = null;
+                try {
+                    result = service.restartDisplayedApp(packageName, currentVirtualPackage);
+                } catch (Exception error) {
+                    failure = error;
+                }
+                String[] resultState = result;
+                Exception resultError = failure;
+                runOnUiThread(() -> {
+                    splitOpening = false;
+                    if (targetDisplay != virtualDisplayId || service != displayService) return;
+                    if (resultError != null) {
+                        quickPanelVisible = restorePanel;
+                        statusBarVisible = true;
+                        Log.e(TAG, "restart displayed app failed package=" + packageName, resultError);
+                        status("重启前台应用失败：" + resultError.getMessage());
+                        invalidate();
+                        return;
+                    }
+                    if (resultState == null || resultState.length == 0) {
+                        quickPanelVisible = restorePanel;
+                        statusBarVisible = true;
+                        status("该应用当前未显示在虚拟屏前台");
+                        invalidate();
+                        return;
+                    }
+                    if (resultState.length == 2) {
+                        splitActive = true;
+                        splitChoosing = resultState[0] == null || resultState[1] == null;
+                        splitFirstPackage = resultState[0];
+                        splitSecondPackage = resultState[1];
+                        currentVirtualPackage = null;
+                        if (!wasSplit) splitRatio = 0.5f;
+                    } else {
+                        splitActive = splitChoosing = false;
+                        splitFirstPackage = splitSecondPackage = null;
+                        currentVirtualPackage = resultState[0];
+                        splitCheckHandler.removeCallbacks(splitCheck);
+                    }
+                    applyDensitySync();
+                    refreshVirtualDisplayLayout("restart displayed app");
+                    refreshSplitState();
+                    scheduleSplitCheck();
+                    invalidate();
+                });
+            }, "boxscreen-restart-displayed-app").start();
         }
 
         private String statusBarLabel() {

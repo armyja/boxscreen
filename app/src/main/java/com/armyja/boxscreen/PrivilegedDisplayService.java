@@ -888,6 +888,42 @@ public final class PrivilegedDisplayService extends IDisplayService.Stub {
     }
 
     @Override
+    public synchronized String[] restartDisplayedApp(String packageName, String foregroundPackage) {
+        if (virtualDisplay == null || virtualDisplay.getDisplay() == null) return null;
+        if (packageName == null || !packageName.matches("[A-Za-z0-9_]+(\\.[A-Za-z0-9_]+)+")) {
+            throw new IllegalArgumentException("Invalid package name");
+        }
+        try {
+            if (splitSession != null) {
+                String[] pair = splitSession.packages();
+                boolean firstSide = pair != null && packageName.equals(pair[0]);
+                boolean secondSide = pair != null && packageName.equals(pair[1]);
+                if (!firstSide && !secondSide) return null;
+                int taskId = splitSession.splitTaskId(packageName, firstSide);
+                if (taskId <= 0) return null;
+                run(new String[]{"/system/bin/am", "force-stop", packageName});
+                splitSession.restartSplitSide(taskId, firstSide, displayWidth, displayHeight);
+                return splitSession.packages();
+            }
+
+            int displayId = virtualDisplay.getDisplay().getDisplayId();
+            int taskId = findTopTaskId(displayId);
+            SplitSession tasks = new SplitSession(displayId);
+            if (taskId < 0 && findTopTaskId(displayId, true) >= 0
+                    && packageName.equals(foregroundPackage)) {
+                taskId = tasks.taskIdForPackage(packageName);
+                if (taskId > 0 && !tasks.isTaskVisible(taskId)) return null;
+            }
+            if (taskId < 0 || !packageName.equals(tasks.packageForTaskId(taskId))) return null;
+            run(new String[]{"/system/bin/am", "force-stop", packageName});
+            tasks.restartFullscreenTask(taskId);
+            return new String[]{packageName};
+        } catch (Exception e) {
+            throw new IllegalStateException("无法在原位置重启应用：" + describeFailure(e), e);
+        }
+    }
+
+    @Override
     public synchronized int getForegroundBoxScreenTaskId() {
         return virtualDisplay == null ? -1
                 : findTopTaskId(virtualDisplay.getDisplay().getDisplayId(), true);
