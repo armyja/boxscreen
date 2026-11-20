@@ -292,16 +292,6 @@ public final class MainActivity extends Activity {
      * pushes the app list below the fold on a short landscape screen. Pin the panel's own
      * density so the layout (and the visible app list) never depends on that global value.
      */
-    /** Reads a system property (experimental switches live here, not in the UI yet). */
-    static String booleanProp(String key) {
-        try {
-            return (String) Class.forName("android.os.SystemProperties")
-                    .getMethod("get", String.class).invoke(null, key);
-        } catch (ReflectiveOperationException | RuntimeException e) {
-            return null;
-        }
-    }
-
     @Override
     protected void attachBaseContext(android.content.Context base) {
         android.content.res.Configuration config =
@@ -649,32 +639,11 @@ public final class MainActivity extends Activity {
         int bufferWidth = portraitMode ? baseHeight : baseWidth;
         int bufferHeight = portraitMode ? baseWidth : baseHeight;
         long pixels = (long) bufferWidth * bufferHeight;
-        String forced = booleanProp("debug.boxscreen.buffered");
         // Portrait keeps the verified layer-rotation path until the buffered pipeline can
         // reproduce that rotation exactly; the picture must never regress there.
-        boolean useBuffered = !portraitMode && ("0".equals(forced) ? false
-                : "1".equals(forced) || pixels > BUFFERED_OUTPUT_MIN_PIXELS);
+        boolean useBuffered = !portraitMode && pixels > BUFFERED_OUTPUT_MIN_PIXELS;
         if (useBuffered) {
             BufferedOutputView buffered = new BufferedOutputView(this);
-            if (portraitMode) {
-                SurfaceView inner = buffered.surfaceView();
-                buffered.addOnLayoutChangeListener((v, left, top, right, bottom,
-                        oldLeft, oldTop, oldRight, oldBottom) -> {
-                    if (left != oldLeft || top != oldTop || right != oldRight || bottom != oldBottom) {
-                        schedulePortraitSurfaceRotation(inner);
-                    }
-                });
-                inner.getHolder().addCallback(new SurfaceHolder.Callback() {
-                    @Override public void surfaceCreated(SurfaceHolder holder) { }
-
-                    @Override public void surfaceChanged(SurfaceHolder holder, int format,
-                            int width, int height) {
-                        schedulePortraitSurfaceRotation(inner);
-                    }
-
-                    @Override public void surfaceDestroyed(SurfaceHolder holder) { }
-                });
-            }
             Log.i(TAG, "output pipeline=buffered buffer=" + bufferWidth + "x" + bufferHeight
                     + " pixels=" + pixels);
             buffered.setListener(new BufferedOutputView.Listener() {
@@ -763,9 +732,7 @@ public final class MainActivity extends Activity {
 
     @SuppressWarnings("deprecation")
     private boolean isCurrentOutputSurfaceView(View view) {
-        if (view == outputSurface) return true;
-        return outputSurface instanceof BufferedOutputView buffered
-                && buffered.surfaceView() == view;
+        return view == outputSurface;
     }
 
     private void rotatePortraitSurface(View view) {

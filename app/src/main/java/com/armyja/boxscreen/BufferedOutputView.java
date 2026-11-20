@@ -101,11 +101,6 @@ final class BufferedOutputView extends FrameLayout {
         return display.getHolder().getSurface();
     }
 
-    /** The view whose layer carries the picture; portrait rotation is applied to it. */
-    SurfaceView surfaceView() {
-        return display;
-    }
-
     void setBufferSize(int width, int height) {
         bufferWidth = width;
         bufferHeight = height;
@@ -206,12 +201,10 @@ final class BufferedOutputView extends FrameLayout {
                 + "attribute vec2 aPos;\n"
                 + "attribute vec2 aTex;\n"
                 + "uniform mat4 uMvp;\n"
-                + "uniform vec2 uRot;\n"
+
                 + "varying vec2 vTex;\n"
                 + "void main() {\n"
-                + "  vec2 p = vec2(uRot.x * aPos.x - uRot.y * aPos.y,\n"
-                + "                uRot.y * aPos.x + uRot.x * aPos.y);\n"
-                + "  gl_Position = vec4(p, 0.0, 1.0);\n"
+                + "  gl_Position = vec4(aPos, 0.0, 1.0);\n"
                 + "  vTex = (uMvp * vec4(aTex, 0.0, 1.0)).xy;\n"
                 + "}\n";
 
@@ -235,7 +228,6 @@ final class BufferedOutputView extends FrameLayout {
         private android.opengl.EGLConfig config;
         private int program;
         private int uMvp;
-        private int uRot;
         private int aPos;
         private int aTex;
         private FloatBuffer quad;
@@ -309,7 +301,6 @@ final class BufferedOutputView extends FrameLayout {
             GLES20.glDeleteShader(vs);
             GLES20.glDeleteShader(fs);
             aPos = GLES20.glGetAttribLocation(program, "aPos");
-            uRot = GLES20.glGetUniformLocation(program, "uRot");
             aTex = GLES20.glGetAttribLocation(program, "aTex");
             uMvp = GLES20.glGetUniformLocation(program, "uMvp");
         }
@@ -329,7 +320,6 @@ final class BufferedOutputView extends FrameLayout {
             GLES20.glUseProgram(program);
             texture.getTransformMatrix(matrix);
             GLES20.glUniformMatrix4fv(uMvp, 1, false, matrix, 0);
-            GLES20.glUniform2f(uRot, 1f, 0f);
             quad.position(0);
             GLES20.glEnableVertexAttribArray(aPos);
             GLES20.glVertexAttribPointer(aPos, 2, GLES20.GL_FLOAT, false, 16, quad);
