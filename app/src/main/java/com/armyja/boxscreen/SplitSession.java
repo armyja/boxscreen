@@ -11,7 +11,9 @@ import android.view.SurfaceControl;
 
 import java.lang.reflect.Array;
 import java.lang.reflect.Method;
+import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Set;
 
@@ -335,7 +337,121 @@ final class SplitSession {
     private String packageOf(Object task) throws ReflectiveOperationException {
         if (task == null) return null;
         ComponentName top = (ComponentName) task.getClass().getField("topActivity").get(task);
+        if (top == null) top = (ComponentName) task.getClass().getField("baseActivity").get(task);
         return top == null ? null : top.getPackageName();
+    }
+
+    synchronized String[] recentTasks() throws ReflectiveOperationException {
+        LinkedHashMap<Integer, String> tasks = new LinkedHashMap<>();
+        // Android's global Recents list includes apps running on the phone display too.
+        // Reading only roots attached to this virtual display can therefore return one item.
+        addRecentTasks(tasks, systemRecentTasks());
+        if (active) {
+            addRecentTasks(tasks, stageTasks(first));
+            addRecentTasks(tasks, stageTasks(second));
+        }
+        addRecentTasks(tasks, roots());
+        ArrayList<String> result = new ArrayList<>();
+        for (var entry : tasks.entrySet()) {
+            result.add(entry.getKey() + "\t" + entry.getValue());
+        }
+        return result.toArray(new String[0]);
+    }
+
+    private List<?> systemRecentTasks() throws ReflectiveOperationException {
+        Class<?> taskManagerType = Class.forName("android.app.IActivityTaskManager");
+        Object recentSlice = taskManagerType
+                .getMethod("getRecentTasks", int.class, int.class, int.class)
+                .invoke(activityTaskManager, 50, 0, 0);
+        if (recentSlice == null) return List.of();
+        Object list = recentSlice.getClass().getMethod("getList").invoke(recentSlice);
+        return list instanceof List<?> recentList ? recentList : List.of();
+    }
+
+    private void addRecentTasks(LinkedHashMap<Integer, String> result, List<?> taskList)
+            throws ReflectiveOperationException {
+        for (Object task : taskList) {
+            int id = taskId(task);
+            String packageName = packageOf(task);
+            if (id > 0 && packageName != null && !packageName.equals("com.armyja.boxscreen")
+                    && !isSystemRecentsActivity(task)) {
+                result.putIfAbsent(id, packageName);
+            }
+        }
+    }
+
+    private boolean isSystemRecentsActivity(Object task) throws ReflectiveOperationException {
+        ComponentName top = (ComponentName) task.getClass().getField("topActivity").get(task);
+        ComponentName base = (ComponentName) task.getClass().getField("baseActivity").get(task);
+        return isRecentsActivity(top) || isRecentsActivity(base);
+    }
+
+    private boolean isRecentsActivity(ComponentName activity) {
+        return activity != null && activity.getClassName().contains("RecentsActivity");
+    }
+
+    synchronized String activateTask(int taskId) throws ReflectiveOperationException {
+        String packageName = null;
+        if (active) {
+            Object selected = stageTaskById(first, taskId);
+            if (selected == null) selected = stageTaskById(second, taskId);
+            if (selected != null) packageName = packageOf(selected);
+            leaveSplit(selected == null ? -1 : taskId);
+            if (selected != null) return packageName;
+        }
+        if (bringTaskToFront(taskId)) return packageForTaskId(taskId);
+        return startRecentTaskOnDisplay(taskId);
+    }
+
+    private String startRecentTaskOnDisplay(int taskId) throws ReflectiveOperationException {
+        Object recentTask = null;
+        for (Object candidate : systemRecentTasks()) {
+            if (taskId(candidate) == taskId) {
+                recentTask = candidate;
+                break;
+            }
+        }
+        if (recentTask == null) return null;
+        String packageName = packageOf(recentTask);
+        if (packageName == null) return null;
+        ActivityOptions options = ActivityOptions.makeBasic().setLaunchDisplayId(displayId);
+        Object tx = transaction();
+        transactionType.getMethod("startTask", int.class, Bundle.class)
+                .invoke(tx, taskId, options.toBundle());
+        apply(tx);
+        return packageName;
+    }
+
+    private Object stageTaskById(Stage stage, int taskId) throws ReflectiveOperationException {
+        for (Object task : stageTasks(stage)) {
+            if (taskId(task) == taskId) return task;
+        }
+        return null;
+    }
+
+    private String packageForTaskId(int taskId) throws ReflectiveOperationException {
+        for (Object task : roots()) {
+            if (taskId(task) == taskId) return packageOf(task);
+        }
+        return null;
+    }
+
+    boolean bringTaskToFront(int taskId) throws ReflectiveOperationException {
+        Object task = null;
+        for (Object candidate : roots()) {
+            if (taskId(candidate) == taskId) {
+                task = candidate;
+                break;
+            }
+        }
+        if (task == null || packageOf(task) == null) return false;
+        Object taskToken = token(task);
+        Object tx = transaction();
+        resetFullscreenBounds(tx, taskToken);
+        setHidden(tx, taskToken, false);
+        transactionType.getMethod("reorder", tokenType, boolean.class).invoke(tx, taskToken, true);
+        apply(tx);
+        return true;
     }
 
     synchronized String[] packages() throws ReflectiveOperationException {

@@ -30,6 +30,8 @@ interface IDisplayService {
     void adjustSplit(float ratio, boolean swap);
     String[] getSplitPackages();
     String expandSplit(boolean firstSide);
+    String[] getVirtualDisplayRecentTasks();
+    String activateVirtualDisplayTask(int taskId);
     int getForegroundBoxScreenTaskId();
     void returnBoxScreenTaskToPrimary(int taskId);
 }

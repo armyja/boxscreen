@@ -565,7 +565,7 @@ public final class MainActivity extends Activity {
                     new ComponentName(getPackageName(), PrivilegedDisplayService.class.getName()))
                     .daemon(false)
                     .processNameSuffix("display")
-                    .version(31);
+                    .version(32);
             Shizuku.bindUserService(shizukuServiceArgs, shizukuServiceConnection);
             status("正在连接 Shizuku 主机服务…");
         } catch (RuntimeException e) {
@@ -2260,15 +2260,29 @@ public final class MainActivity extends Activity {
             invalidate();
         }
 
+        private final class RecentVirtualTask {
+            final int taskId;
+            final String packageName;
+
+            RecentVirtualTask(int taskId, String packageName) {
+                this.taskId = taskId;
+                this.packageName = packageName;
+            }
+        }
+
+        private final ArrayList<RecentVirtualTask> recentVirtualTasks = new ArrayList<>();
+        private long lastRecentTaskRefreshAt;
+        private boolean recentTaskRefreshInFlight;
+
         private final class StatusBarLayout {
             final String label;
-            final ArrayList<ResolveInfo> apps;
+            final ArrayList<RecentVirtualTask> apps;
             final float sliderLeft;
             final float sliderRight;
             final float appsLeft;
             final float closeLeft;
 
-            StatusBarLayout(String label, ArrayList<ResolveInfo> apps, float sliderLeft,
+            StatusBarLayout(String label, ArrayList<RecentVirtualTask> apps, float sliderLeft,
                             float sliderRight, float appsLeft, float closeLeft) {
                 this.label = label;
                 this.apps = apps;
@@ -2282,7 +2296,7 @@ public final class MainActivity extends Activity {
         private StatusBarLayout statusBarLayout() {
             panelTextPaint.setTextSize(panelDp(15));
             String label = statusBarLabel();
-            ArrayList<ResolveInfo> apps = recentStatusApps();
+            ArrayList<RecentVirtualTask> apps = recentStatusTasks();
             float width = getWidth();
             float closeLeft = width - panelDp(44);
             float appsLeft = closeLeft - panelDp(8) - apps.size() * panelDp(42);
@@ -2305,15 +2319,70 @@ public final class MainActivity extends Activity {
             return cachedStatusBarLabel;
         }
 
-        private ArrayList<ResolveInfo> recentStatusApps() {
-            ArrayList<ResolveInfo> apps = new ArrayList<>();
-            for (String packageName : recentAppPackages) {
-                if (packageName.equals(currentVirtualPackage)) continue;
-                ResolveInfo app = launcherByPackage.get(packageName);
-                if (app != null) apps.add(app);
-                if (apps.size() >= 3) break;
-            }
-            return apps;
+        private ArrayList<RecentVirtualTask> recentStatusTasks() {
+            refreshRecentStatusTasks();
+            if (recentVirtualTasks.isEmpty()) return new ArrayList<>();
+            panelTextPaint.setTextSize(panelDp(15));
+            float sliderLeft = panelDp(16) + panelTextPaint.measureText(statusBarLabel())
+                    + panelDp(14);
+            float closeLeft = getWidth() - panelDp(44);
+            float roomForIcons = closeLeft - panelDp(8 + 12 + 72) - sliderLeft;
+            int slots = Math.max(0, (int) (roomForIcons / panelDp(42)));
+            slots = Math.min(16, slots);
+            return new ArrayList<>(recentVirtualTasks.subList(
+                    0, Math.min(slots, recentVirtualTasks.size())));
+        }
+
+        private void refreshRecentStatusTasks() {
+            IDisplayService service = displayService;
+            int display = virtualDisplayId;
+            long now = android.os.SystemClock.uptimeMillis();
+            if (service == null || display < 0 || recentTaskRefreshInFlight
+                    || now - lastRecentTaskRefreshAt < 750) return;
+            recentTaskRefreshInFlight = true;
+            lastRecentTaskRefreshAt = now;
+            new Thread(() -> {
+                ArrayList<RecentVirtualTask> tasks = new ArrayList<>();
+                try {
+                    String[] rows = service.getVirtualDisplayRecentTasks();
+                    if (rows != null) {
+                        for (String row : rows) {
+                            if (row == null) continue;
+                            int separator = row.indexOf('\t');
+                            if (separator <= 0 || separator == row.length() - 1) continue;
+                            try {
+                                int taskId = Integer.parseInt(row.substring(0, separator));
+                                String packageName = row.substring(separator + 1);
+                                if (!packageName.equals(getPackageName())) {
+                                    tasks.add(new RecentVirtualTask(taskId, packageName));
+                                }
+                            } catch (NumberFormatException ignored) { }
+                        }
+                    }
+                } catch (Exception e) {
+                    Log.w(TAG, "could not read virtual display recent tasks", e);
+                }
+                runOnUiThread(() -> {
+                    recentTaskRefreshInFlight = false;
+                    if (display != virtualDisplayId || service != displayService) return;
+                    boolean changed = tasks.size() != recentVirtualTasks.size();
+                    if (!changed) {
+                        for (int i = 0; i < tasks.size(); i++) {
+                            RecentVirtualTask old = recentVirtualTasks.get(i);
+                            RecentVirtualTask next = tasks.get(i);
+                            if (old.taskId != next.taskId || !old.packageName.equals(next.packageName)) {
+                                changed = true;
+                                break;
+                            }
+                        }
+                    }
+                    if (changed) {
+                        recentVirtualTasks.clear();
+                        recentVirtualTasks.addAll(tasks);
+                        invalidate();
+                    }
+                });
+            }, "boxscreen-recent-tasks").start();
         }
 
         private int hitStatusBarControl(float x) {
@@ -2329,12 +2398,45 @@ public final class MainActivity extends Activity {
         }
 
         private void launchRecentApp(int index) {
-            ArrayList<ResolveInfo> apps = recentStatusApps();
-            if (index < 0 || index >= apps.size()) return;
-            ResolveInfo app = apps.get(index);
+            ArrayList<RecentVirtualTask> apps = recentStatusTasks();
+            if (index < 0 || index >= apps.size() || splitOpening) return;
+            RecentVirtualTask task = apps.get(index);
+            IDisplayService service = displayService;
+            int display = virtualDisplayId;
+            if (service == null || display < 0) return;
+            if (!syncPrimaryDensityForPackage(task.packageName)) return;
             quickPanelVisible = false;
             statusBarVisible = false;
-            launchPackage(app.activityInfo.packageName, app.activityInfo.name);
+            splitOpening = true;
+            new Thread(() -> {
+                String packageName = null;
+                Exception failure = null;
+                try {
+                    packageName = service.activateVirtualDisplayTask(task.taskId);
+                } catch (Exception e) {
+                    failure = e;
+                }
+                String activatedPackage = packageName;
+                Exception result = failure;
+                runOnUiThread(() -> {
+                    splitOpening = false;
+                    if (display != virtualDisplayId || service != displayService) return;
+                    if (result != null || activatedPackage == null) {
+                        Log.w(TAG, "could not activate virtual task=" + task.taskId, result);
+                        status("无法切换到该最近任务");
+                        return;
+                    }
+                    boolean wasSplit = splitActive;
+                    splitActive = splitChoosing = false;
+                    currentVirtualPackage = activatedPackage;
+                    splitFirstPackage = splitSecondPackage = null;
+                    syncPrimaryDensityForPackage(activatedPackage);
+                    if (wasSplit) refreshVirtualDisplayLayout("activate recent virtual task");
+                    lastRecentTaskRefreshAt = 0;
+                    refreshRecentStatusTasks();
+                    invalidate();
+                });
+            }, "boxscreen-activate-recent-task").start();
         }
 
         private void closeCurrentVirtualApp() {
@@ -2415,6 +2517,15 @@ public final class MainActivity extends Activity {
 
         private String launcherLabel(ResolveInfo app) {
             return getLauncherLabel(app);
+        }
+
+        private android.graphics.drawable.Drawable recentTaskIcon(String packageName) {
+            try {
+                return getPackageManager().getApplicationIcon(packageName);
+            } catch (android.content.pm.PackageManager.NameNotFoundException | RuntimeException e) {
+                Log.w(TAG, "could not load recent task icon for " + packageName, e);
+                return null;
+            }
         }
 
         private android.graphics.drawable.Drawable launcherIcon(ResolveInfo app) {
@@ -2578,7 +2689,8 @@ public final class MainActivity extends Activity {
                     canvas.drawRoundRect(left + panelDp(5), top, left + panelDp(37), top + panelDp(32),
                             panelDp(7), panelDp(7), panelPaint);
                     try {
-                        android.graphics.drawable.Drawable icon = launcherIcon(layout.apps.get(i));
+                        android.graphics.drawable.Drawable icon = recentTaskIcon(layout.apps.get(i).packageName);
+                        if (icon == null) continue;
                         canvas.save();
                         canvas.clipRect(left + panelDp(7), top + panelDp(2), left + panelDp(35), top + panelDp(30));
                         icon.setBounds((int) (left + panelDp(7)), (int) (top + panelDp(2)),

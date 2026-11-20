@@ -813,6 +813,32 @@ public final class PrivilegedDisplayService extends IDisplayService.Stub {
     }
 
     @Override
+    public synchronized String[] getVirtualDisplayRecentTasks() {
+        if (virtualDisplay == null || virtualDisplay.getDisplay() == null) return new String[0];
+        try {
+            SplitSession tasks = splitSession != null ? splitSession
+                    : new SplitSession(virtualDisplay.getDisplay().getDisplayId());
+            return tasks.recentTasks();
+        } catch (ReflectiveOperationException | RuntimeException e) {
+            throw new IllegalStateException("无法读取虚拟屏最近任务：" + describeFailure(e), e);
+        }
+    }
+
+    @Override
+    public synchronized String activateVirtualDisplayTask(int taskId) {
+        if (virtualDisplay == null || virtualDisplay.getDisplay() == null || taskId <= 0) return null;
+        SplitSession tasks = splitSession;
+        try {
+            if (tasks == null) tasks = new SplitSession(virtualDisplay.getDisplay().getDisplayId());
+            String packageName = tasks.activateTask(taskId);
+            if (splitSession != null) splitSession = null;
+            return packageName;
+        } catch (ReflectiveOperationException | RuntimeException e) {
+            throw new IllegalStateException("无法切换虚拟屏任务：" + describeFailure(e), e);
+        }
+    }
+
+    @Override
     public synchronized int getForegroundBoxScreenTaskId() {
         return virtualDisplay == null ? -1
                 : findTopTaskId(virtualDisplay.getDisplay().getDisplayId(), true);
