@@ -1110,7 +1110,11 @@ public final class MainActivity extends Activity {
                 return;
             }
             try {
-                setOutputBufferSize(nudgeWidth, nudgeHeight);
+                // Refresh app bounds without resizing the rotated SurfaceView.
+                // A holder resize lets SurfaceView overwrite the compositor rotation.
+                if (!expectedPortrait || !(outputSurface instanceof SurfaceView)) {
+                    setOutputBufferSize(nudgeWidth, nudgeHeight);
+                }
                 displayService.resizeDisplaySize(nudgeWidth, nudgeHeight, expectedDensity);
                 Log.i(TAG, "layout refresh (" + reason + ") nudge display=" + expectedDisplayId
                         + " size=" + nudgeWidth + "x" + nudgeHeight
