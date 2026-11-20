@@ -785,7 +785,24 @@ public final class PrivilegedDisplayService extends IDisplayService.Stub {
         }
     }
 
+    @Override
+    public synchronized int getForegroundBoxScreenTaskId() {
+        return virtualDisplay == null ? -1
+                : findTopTaskId(virtualDisplay.getDisplay().getDisplayId(), true);
+    }
+
+    @Override
+    public synchronized void returnBoxScreenTaskToPrimary(int taskId) {
+        if (taskId < 0 || taskId != getForegroundBoxScreenTaskId()) return;
+        run(new String[]{"/system/bin/am", "display", "move-stack",
+                Integer.toString(taskId), "0"});
+    }
+
     private int findTopTaskId(int displayId) {
+        return findTopTaskId(displayId, false);
+    }
+
+    private int findTopTaskId(int displayId, boolean boxScreenOnly) {
         Process process = null;
         try {
             process = new ProcessBuilder("/system/bin/dumpsys", "activity", "activities")
@@ -802,7 +819,7 @@ public final class PrivilegedDisplayService extends IDisplayService.Stub {
                     int marker = line.lastIndexOf(" t");
                     int end = line.indexOf('}', marker);
                     if (marker < 0 || end <= marker + 2) continue;
-                    if (line.contains(" com.armyja.boxscreen/")) return -1;
+                    if (line.contains(" com.armyja.boxscreen/") != boxScreenOnly) return -1;
                     try {
                         return Integer.parseInt(line.substring(marker + 2, end));
                     } catch (NumberFormatException ignored) { }

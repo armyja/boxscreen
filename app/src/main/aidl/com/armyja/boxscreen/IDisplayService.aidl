@@ -30,4 +30,6 @@ interface IDisplayService {
     void adjustSplit(float ratio, boolean swap);
     String[] getSplitPackages();
     String expandSplit(boolean firstSide);
+    int getForegroundBoxScreenTaskId();
+    void returnBoxScreenTaskToPrimary(int taskId);
 }

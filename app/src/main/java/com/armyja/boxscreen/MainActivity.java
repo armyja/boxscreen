@@ -193,6 +193,11 @@ public final class MainActivity extends Activity {
     private View previousOutputSurface;
     private MousePointerView mousePointerView;
     private Presentation presentation;
+    // The instance holding the physical presentation owns the running virtual screen.
+    private static MainActivity outputOwner;
+    private static final Set<MainActivity> controlActivities = new HashSet<>();
+    private boolean returningControls;
+    private boolean blackoutWhenOnPrimary;
     private Bitmap screenshotPreviewBitmap;
     private Uri screenshotPreviewUri;
     private boolean screenshotPreviewExpanded;
@@ -295,6 +300,7 @@ public final class MainActivity extends Activity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        controlActivities.add(this);
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         displayManager = (DisplayManager) getSystemService(DISPLAY_SERVICE);
         displayManager.registerDisplayListener(displayListener, new Handler());
@@ -331,7 +337,7 @@ public final class MainActivity extends Activity {
                 || (savedLandscapeDensity >= 140 && savedLandscapeDensity <= 600)
                 || (savedPortraitDensity >= 140 && savedPortraitDensity <= 600);
         showRoleScreen();
-        if (preferences.getBoolean("primary_density_restore_pending", false)
+        if (outputOwner == null && preferences.getBoolean("primary_density_restore_pending", false)
                 && Shizuku.pingBinder() && Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED) {
             bindShizukuService();
         }
@@ -339,6 +345,7 @@ public final class MainActivity extends Activity {
 
     @Override protected void onResume() {
         super.onResume();
+        applyPendingPrimaryBlackout();
         externalDisplay = findExternalDisplay();
         if (monitorView != null) updateMonitorLabel();
         if (appGrid != null) refreshLaunchableApps();
@@ -347,6 +354,7 @@ public final class MainActivity extends Activity {
 
     @Override public void onConfigurationChanged(Configuration newConfig) {
         super.onConfigurationChanged(newConfig);
+        applyPendingPrimaryBlackout();
         externalDisplay = findExternalDisplay();
         if (monitorView != null) updateMonitorLabel();
         if (refreshExternalDisplayGeometry()) resizeVirtualDisplay();
@@ -364,8 +372,10 @@ public final class MainActivity extends Activity {
     }
 
     @Override protected void onDestroy() {
+        controlActivities.remove(this);
+        if (outputOwner == this) outputOwner = null;
         dismissScreenshotPreview();
-        restorePrimaryDensity();
+        if (outputOwner == null) restorePrimaryDensity();
         densityResizeHandler.removeCallbacks(applyPendingDensity);
         displayRecoveryHandler.removeCallbacks(recoverExternalDisplay);
         if (displayService != null && virtualDisplayId >= 0) {
@@ -378,7 +388,7 @@ public final class MainActivity extends Activity {
         if (presentation != null) presentation.dismiss();
         if (displayManager != null) displayManager.unregisterDisplayListener(displayListener);
         if (shizukuServiceArgs != null && displayService != null) {
-            try { Shizuku.unbindUserService(shizukuServiceArgs, shizukuServiceConnection, true); }
+            try { Shizuku.unbindUserService(shizukuServiceArgs, shizukuServiceConnection, outputOwner == null); }
             catch (RuntimeException ignored) { }
         }
         super.onDestroy();
@@ -542,7 +552,7 @@ public final class MainActivity extends Activity {
                     new ComponentName(getPackageName(), PrivilegedDisplayService.class.getName()))
                     .daemon(false)
                     .processNameSuffix("display")
-                    .version(27);
+                    .version(28);
             Shizuku.bindUserService(shizukuServiceArgs, shizukuServiceConnection);
             status("正在连接 Shizuku 主机服务…");
         } catch (RuntimeException e) {
@@ -551,6 +561,7 @@ public final class MainActivity extends Activity {
     }
 
     private void showExternalOutput() {
+        if (outputOwner != null && outputOwner != this) return;
         if (presentation != null) {
             if (virtualDisplayId >= 0) {
                 launchPendingApp();
@@ -604,6 +615,7 @@ public final class MainActivity extends Activity {
             presentation.setContentView(frame);
             updateOutputLayout();
             presentation.show();
+            outputOwner = this;
             status("外接输出已启动：" + baseWidth + "×" + baseHeight + "，" + densityDpi + " dpi");
         } catch (RuntimeException e) {
             status("无法在外接显示器上显示：" + e.getMessage());
@@ -1198,6 +1210,12 @@ public final class MainActivity extends Activity {
     }
 
     private void stopOutput() {
+        if (outputOwner != null && outputOwner != this) {
+            outputOwner.stopOutput();
+            return;
+        }
+        blackoutWhenOnPrimary = false;
+        if (outputOwner == this) outputOwner = null;
         splitActive = splitChoosing = false;
         restorePrimaryDensity();
         Log.i(TAG, "stop displayId=" + virtualDisplayId);
@@ -1287,7 +1305,22 @@ public final class MainActivity extends Activity {
         }
     }
 
+    private boolean onPrimaryDisplay() {
+        Display display = getWindow().getDecorView().getDisplay();
+        return display == null || display.getDisplayId() == Display.DEFAULT_DISPLAY;
+    }
+
+    private void applyPendingPrimaryBlackout() {
+        if (!blackoutWhenOnPrimary || !onPrimaryDisplay()) return;
+        blackoutWhenOnPrimary = false;
+        dimAndBlackoutPhoneScreen();
+    }
+
     private void dimAndBlackoutPhoneScreen() {
+        if (!onPrimaryDisplay()) {
+            blackoutWhenOnPrimary = true;
+            return;
+        }
         if (phoneScreenDimmed || rootLayout == null) return;
         WindowManager.LayoutParams attributes = getWindow().getAttributes();
         previousWindowBrightness = attributes.screenBrightness;
@@ -2169,6 +2202,11 @@ public final class MainActivity extends Activity {
             if (displayService == null || virtualDisplayId < 0) return;
             if (mousePointerView != null) mousePointerView.cancelTouchGesture();
             try {
+                MainActivity entry = findForegroundControlsOnOutput();
+                if (entry != null) {
+                    returnControlsToPrimary(entry, null);
+                    return;
+                }
                 boolean removed = displayService.closeTopTaskOnVirtualDisplay();
                 Log.i(TAG, "close foreground virtual display task result=" + removed
                         + " package=" + currentVirtualPackage);
@@ -3460,7 +3498,73 @@ public final class MainActivity extends Activity {
         }
     }
 
+    private MainActivity findForegroundControlsOnOutput() throws RemoteException {
+        for (MainActivity activity : controlActivities) {
+            if (activity.onPrimaryDisplay() || activity.isFinishing()) continue;
+            // Most close clicks target another app. Only inspect the task stack when a
+            // BoxScreen window is actually attached to the output display.
+            int foreground = displayService.getForegroundBoxScreenTaskId();
+            for (MainActivity controls : controlActivities) {
+                if (controls.getTaskId() == foreground && !controls.onPrimaryDisplay()
+                        && !controls.isFinishing()) {
+                    return controls;
+                }
+            }
+            break;
+        }
+        return null;
+    }
+
     private void launchPackage(String packageName, String activityName) {
+        MainActivity owner = outputOwner;
+        if (owner != null && owner.virtualDisplayId >= 0
+                && (!onPrimaryDisplay() || (this != owner && getTaskId() == owner.getTaskId()))) {
+            owner.returnControlsToPrimary(this,
+                    () -> owner.launchPackageOnOutput(packageName, activityName));
+            return;
+        }
+        launchPackageOnOutput(packageName, activityName);
+    }
+
+    private void returnControlsToPrimary(MainActivity entry, Runnable continuation) {
+        if (returningControls || splitOpening || displayService == null || virtualDisplayId < 0) return;
+        IDisplayService service = displayService;
+        int display = virtualDisplayId;
+        int task = getTaskId();
+        boolean checkTaskOnOutput = !onPrimaryDisplay() || !entry.onPrimaryDisplay()
+                || (entry != this && entry.getTaskId() == task);
+        Runnable complete = () -> {
+            if (displayService != service || virtualDisplayId != display || isFinishing()) return;
+            for (MainActivity activity : new ArrayList<>(controlActivities)) {
+                if (activity != this && (activity == entry || activity.getTaskId() == task)) {
+                    activity.finish();
+                }
+            }
+            if (continuation != null) continuation.run();
+        };
+        if (!checkTaskOnOutput) {
+            complete.run();
+            return;
+        }
+        returningControls = true;
+        new Thread(() -> {
+            try {
+                service.returnBoxScreenTaskToPrimary(task);
+                runOnUiThread(() -> {
+                    returningControls = false;
+                    complete.run();
+                });
+            } catch (RemoteException | RuntimeException e) {
+                runOnUiThread(() -> {
+                    returningControls = false;
+                    Log.e(TAG, "could not return BoxScreen task to the primary display", e);
+                    entry.status("无法把 BoxScreen 带回主屏：" + e.getMessage());
+                });
+            }
+        }, "boxscreen-return-controls").start();
+    }
+
+    private void launchPackageOnOutput(String packageName, String activityName) {
         if (splitOpening) return;
         autoMouseSuppressed = false;
         if (displayService == null || virtualDisplayId < 0) {
@@ -3633,7 +3737,7 @@ public final class MainActivity extends Activity {
         String activityName = pendingLaunchActivity;
         pendingLaunchPackage = null;
         pendingLaunchActivity = null;
-        launchPackage(packageName, activityName);
+        launchPackageOnOutput(packageName, activityName);
     }
 
     private Display findExternalDisplay() {
