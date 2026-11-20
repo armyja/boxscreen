@@ -139,9 +139,12 @@ public final class MainActivity extends Activity {
     private GridLayout appGrid;
     private EditText appSearch;
     private Switch systemAppsSwitch;
-    private Switch bufferedOutputSwitch;
-    /** Buffered output holds every frame for one vsync: smoother, +16 ms latency. */
-    private boolean bufferedOutput;
+    /**
+     * Large outputs (above roughly 1200p) hold each frame for one vsync before presenting:
+     * at those sizes the direct path loses ~1 frame in 8. Smaller outputs compose fast
+     * enough to stay direct, which keeps latency and CPU at their minimum.
+     */
+    private static final long BUFFERED_OUTPUT_MIN_PIXELS = 2_500_000L;
     private Button editFavoritesButton;
     private List<ResolveInfo> appEntries = Collections.emptyList();
     private final ArrayList<String> recentAppPackages = new ArrayList<>();
@@ -327,7 +330,6 @@ public final class MainActivity extends Activity {
         Shizuku.addRequestPermissionResultListener(permissionListener);
         externalDisplay = findExternalDisplay();
         showSystemApps = getPreferences(MODE_PRIVATE).getBoolean("show_system_apps", false);
-        bufferedOutput = getPreferences(MODE_PRIVATE).getBoolean("buffered_output", false);
         favoritePackages = new HashSet<>(getPreferences(MODE_PRIVATE).getStringSet("favorite_apps", Collections.emptySet()));
         android.content.SharedPreferences preferences = getPreferences(MODE_PRIVATE);
         mouseModePackages = new HashSet<>(preferences.getStringSet("mouse_mode_apps", Collections.emptySet()));
@@ -498,18 +500,6 @@ public final class MainActivity extends Activity {
             }
         });
 
-        LinearLayout bufferedRow = new LinearLayout(this);
-        bufferedRow.setOrientation(LinearLayout.HORIZONTAL);
-        bufferedRow.setGravity(Gravity.CENTER_VERTICAL);
-        content.addView(bufferedRow, margins(0, 4, 0, 2));
-        TextView bufferedLabel = text("缓冲输出（更顺滑，延迟 +1 帧）", 12, false);
-        bufferedLabel.setTextColor(0xffc9d3dd);
-        bufferedRow.addView(bufferedLabel, new LinearLayout.LayoutParams(0, -2, 1f));
-        bufferedOutputSwitch = new Switch(this);
-        bufferedOutputSwitch.setChecked(bufferedOutput);
-        bufferedOutputSwitch.setOnCheckedChangeListener((button, checked) -> setBufferedOutput(checked));
-        bufferedRow.addView(bufferedOutputSwitch, new LinearLayout.LayoutParams(-2, -2));
-
         TextView shizukuHint = text("需在本机启动 Shizuku", 11, false);
         content.addView(shizukuHint, margins(0, 0, 0, 4));
 
@@ -656,10 +646,18 @@ public final class MainActivity extends Activity {
     }
 
     private View newOutputView() {
-        boolean useBuffered = bufferedOutput
-                || "1".equals(booleanProp("debug.boxscreen.buffered"));
+        int bufferWidth = portraitMode ? baseHeight : baseWidth;
+        int bufferHeight = portraitMode ? baseWidth : baseHeight;
+        long pixels = (long) bufferWidth * bufferHeight;
+        String forced = booleanProp("debug.boxscreen.buffered");
+        // Portrait keeps the established surface-rotation path: the picture must never
+        // depend on our own rotation maths.
+        boolean useBuffered = !portraitMode && ("0".equals(forced) ? false
+                : "1".equals(forced) || pixels > BUFFERED_OUTPUT_MIN_PIXELS);
         if (useBuffered) {
             BufferedOutputView buffered = new BufferedOutputView(this);
+            Log.i(TAG, "output pipeline=buffered buffer=" + bufferWidth + "x" + bufferHeight
+                    + " pixels=" + pixels);
             buffered.setListener(new BufferedOutputView.Listener() {
                 @Override public void onOutputReady(BufferedOutputView view) {
                     if (outputSurface == view) attachOutputSurface();
@@ -781,6 +779,15 @@ public final class MainActivity extends Activity {
         }
     }
 
+    /**
+     * Surface to read pixels from. The buffered path feeds the virtual display from an
+     * off-screen texture, so captures have to come from the on-screen surface instead.
+     */
+    private Surface captureSurface(View view) {
+        if (view instanceof BufferedOutputView buffered) return buffered.displaySurface();
+        return acquireOutputSurface(view);
+    }
+
     private Surface acquireOutputSurface(View view) {
         if (view instanceof BufferedOutputView buffered) return buffered.inputSurface();
         if (view instanceof SurfaceView surfaceView) return surfaceView.getHolder().getSurface();
@@ -898,7 +905,7 @@ public final class MainActivity extends Activity {
         int width = portraitMode ? baseHeight : baseWidth;
         int height = portraitMode ? baseWidth : baseHeight;
         Bitmap bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888);
-        Surface surface = acquireOutputSurface(source);
+        Surface surface = captureSurface(source);
         int captureDisplayId = virtualDisplayId;
         screenshotInProgress = true;
         Log.i(TAG, "screenshot requested display=" + captureDisplayId + " size=" + width + "x" + height);
@@ -1379,34 +1386,6 @@ public final class MainActivity extends Activity {
         outputSurface = previousOutputSurface = null;
         transitionFramesRemaining = 0;
         status("虚拟屏已停止");
-    }
-
-    /**
-     * Swaps the output pipeline in place: the virtual display is re-attached to the new view
-     * with setDisplaySurface(), so running apps, split panes and tasks stay untouched.
-     */
-    private void setBufferedOutput(boolean enabled) {
-        if (bufferedOutput == enabled) return;
-        bufferedOutput = enabled;
-        getPreferences(MODE_PRIVATE).edit().putBoolean("buffered_output", enabled).apply();
-        View old = outputSurface;
-        if (old == null || !(old.getParent() instanceof FrameLayout frame)) {
-            status(enabled ? "已开启缓冲输出" : "已关闭缓冲输出");
-            return;
-        }
-        View next = newOutputView();
-        outputSurface = next;
-        int index = frame.indexOfChild(old);
-        frame.addView(next, Math.max(0, index));
-        frame.removeView(old);
-        releaseBufferedOutput(old);
-        if (!isOutputAvailable(next)) {
-            // The renderer signals readiness and attachOutputSurface() re-attaches there.
-            status(enabled ? "正在切换到缓冲输出…" : "正在切换回直连输出…");
-            return;
-        }
-        attachOutputSurface();
-        status(enabled ? "已开启缓冲输出（延迟 +1 帧）" : "已关闭缓冲输出");
     }
 
     private void toggleMouseRoute() {
@@ -2969,7 +2948,7 @@ public final class MainActivity extends Activity {
                 return;
             }
             Bitmap previous = Bitmap.createBitmap(getWidth(), getHeight(), Bitmap.Config.ARGB_8888);
-            Surface source = acquireOutputSurface(output);
+            Surface source = captureSurface(output);
             try {
                 PixelCopy.request(source, previous, result -> {
                     releaseOutputSurface(output, source);

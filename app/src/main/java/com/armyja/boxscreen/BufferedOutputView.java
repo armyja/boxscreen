@@ -50,9 +50,13 @@ final class BufferedOutputView extends FrameLayout {
     private EGL14Holder egl;
     private SurfaceTexture inputTexture;
     private Surface inputSurface;
+    private volatile int viewportWidth = 1;
+    private volatile int viewportHeight = 1;
     private volatile boolean inputReady;
     private int bufferWidth;
     private int bufferHeight;
+    private volatile float rotateCos = 1f;
+    private volatile float rotateSin = 0f;
     private long vsyncNanos = DEFAULT_VSYNC_NANOS;
 
     BufferedOutputView(Context context) {
@@ -64,7 +68,8 @@ final class BufferedOutputView extends FrameLayout {
             }
 
             @Override public void surfaceChanged(SurfaceHolder holder, int format, int width, int height) {
-                // The renderer reads the viewport every frame; nothing to do.
+                viewportWidth = width;
+                viewportHeight = height;
             }
 
             @Override public void surfaceDestroyed(SurfaceHolder holder) {
@@ -93,11 +98,23 @@ final class BufferedOutputView extends FrameLayout {
         return inputSurface;
     }
 
+    /** The surface the monitor actually shows; used for screenshots and frame capture. */
+    Surface displaySurface() {
+        return display.getHolder().getSurface();
+    }
+
+    /** 0 = upright, 1 = a quarter turn clockwise (portrait on a landscape panel). */
+    void setQuarterTurn(int turns) {
+        // Matches the layer rotation the direct path uses (BUFFER_TRANSFORM_ROTATE_270),
+        // so switching pipelines never flips the picture.
+        double radians = Math.toRadians(turns == 0 ? 0 : -90);
+        rotateCos = (float) Math.cos(radians);
+        rotateSin = (float) Math.sin(radians);
+    }
+
     void setBufferSize(int width, int height) {
         bufferWidth = width;
         bufferHeight = height;
-        if (display.getHolder().getSurface() == null) return;
-        display.getHolder().setFixedSize(width, height);
         Handler handler = renderHandler;
         if (handler != null) handler.post(() -> {
             if (inputTexture != null && bufferWidth > 0 && bufferHeight > 0) {
@@ -153,7 +170,7 @@ final class BufferedOutputView extends FrameLayout {
         if (holder == null || !holder.makeCurrent() || inputTexture == null) return;
         try {
             inputTexture.updateTexImage();
-            holder.draw(inputTexture, bufferWidth, bufferHeight);
+            holder.draw(inputTexture, rotateCos, rotateSin, viewportWidth, viewportHeight);
             // One vsync later than the frame's intended present time: the external display
             // always finds a finished frame waiting, so a slow SurfaceFlinger pass cannot
             // steal it away any more.
@@ -194,9 +211,12 @@ final class BufferedOutputView extends FrameLayout {
                 + "attribute vec2 aPos;\n"
                 + "attribute vec2 aTex;\n"
                 + "uniform mat4 uMvp;\n"
+                + "uniform vec2 uRot;\n"
                 + "varying vec2 vTex;\n"
                 + "void main() {\n"
-                + "  gl_Position = vec4(aPos, 0.0, 1.0);\n"
+                + "  vec2 p = vec2(uRot.x * aPos.x - uRot.y * aPos.y,\n"
+                + "                uRot.y * aPos.x + uRot.x * aPos.y);\n"
+                + "  gl_Position = vec4(p, 0.0, 1.0);\n"
                 + "  vTex = (uMvp * vec4(aTex, 0.0, 1.0)).xy;\n"
                 + "}\n";
 
@@ -220,6 +240,7 @@ final class BufferedOutputView extends FrameLayout {
         private android.opengl.EGLConfig config;
         private int program;
         private int uMvp;
+        private int uRot;
         private int aPos;
         private int aTex;
         private FloatBuffer quad;
@@ -293,6 +314,7 @@ final class BufferedOutputView extends FrameLayout {
             GLES20.glDeleteShader(vs);
             GLES20.glDeleteShader(fs);
             aPos = GLES20.glGetAttribLocation(program, "aPos");
+            uRot = GLES20.glGetUniformLocation(program, "uRot");
             aTex = GLES20.glGetAttribLocation(program, "aTex");
             uMvp = GLES20.glGetUniformLocation(program, "uMvp");
         }
@@ -304,7 +326,7 @@ final class BufferedOutputView extends FrameLayout {
             return shader;
         }
 
-        void draw(SurfaceTexture texture, int width, int height) {
+        void draw(SurfaceTexture texture, float cos, float sin, int width, int height) {
             GLES20.glViewport(0, 0, Math.max(1, width), Math.max(1, height));
             GLES20.glClearColor(0f, 0f, 0f, 1f);
             GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT);
@@ -312,6 +334,7 @@ final class BufferedOutputView extends FrameLayout {
             GLES20.glUseProgram(program);
             texture.getTransformMatrix(matrix);
             GLES20.glUniformMatrix4fv(uMvp, 1, false, matrix, 0);
+            GLES20.glUniform2f(uRot, cos, sin);
             quad.position(0);
             GLES20.glEnableVertexAttribArray(aPos);
             GLES20.glVertexAttribPointer(aPos, 2, GLES20.GL_FLOAT, false, 16, quad);
