@@ -39,7 +39,6 @@ final class BufferedOutputView extends FrameLayout {
     }
 
     private static final String TAG = "BoxScreenBuffered";
-    private static final long DEFAULT_VSYNC_NANOS = 16_666_667L;
 
     private final SurfaceView display;
     private final HandlerThread renderThread = new HandlerThread("boxscreen-buffered-out");
@@ -55,7 +54,6 @@ final class BufferedOutputView extends FrameLayout {
     private volatile boolean inputReady;
     private int bufferWidth;
     private int bufferHeight;
-    private long vsyncNanos = DEFAULT_VSYNC_NANOS;
 
     BufferedOutputView(Context context) {
         super(context);
@@ -78,10 +76,6 @@ final class BufferedOutputView extends FrameLayout {
         setBackgroundColor(0xff000000);
         renderThread.start();
         renderHandler = new Handler(renderThread.getLooper());
-        float refresh = 60f;
-        android.view.Display screen = context.getDisplay();
-        if (screen != null && screen.getRefreshRate() > 1f) refresh = screen.getRefreshRate();
-        vsyncNanos = Math.round(1_000_000_000d / refresh);
     }
 
     void setListener(Listener listener) {
@@ -161,10 +155,12 @@ final class BufferedOutputView extends FrameLayout {
         try {
             inputTexture.updateTexImage();
             holder.draw(inputTexture, viewportWidth, viewportHeight);
-            // One vsync later than the frame's intended present time: the external display
-            // always finds a finished frame waiting, so a slow SurfaceFlinger pass cannot
-            // steal it away any more.
-            long present = inputTexture.getTimestamp() + vsyncNanos;
+            // Present with the producer's own timestamp. The frame is already one step
+            // behind (the virtual display produced it, we drew it, then the display
+            // composes it), so the external display always finds a finished frame waiting.
+            // Deliberately adding another vsync here starves the display: when the virtual
+            // display is itself late, the queue backs up and only ~1 frame in 3 is shown.
+            long present = inputTexture.getTimestamp();
             EGLExt.eglPresentationTimeANDROID(holder.display, holder.surface, present);
             holder.swapBuffers();
         } catch (RuntimeException e) {
