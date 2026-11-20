@@ -385,14 +385,16 @@ public final class MainActivity extends Activity {
         splitCheckExecutor.shutdown();
         if (displayService != null && virtualDisplayId >= 0) {
             try { displayService.releaseDisplay(); }
-            catch (RemoteException e) { Log.w(TAG, "failed to release display on activity destroy", e); }
+            catch (RemoteException | RuntimeException e) {
+                Log.w(TAG, "failed to release display on activity destroy", e);
+            }
             virtualDisplayId = -1;
         }
         restorePhoneScreen();
         Shizuku.removeRequestPermissionResultListener(permissionListener);
         if (presentation != null) presentation.dismiss();
         if (displayManager != null) displayManager.unregisterDisplayListener(displayListener);
-        if (shizukuServiceArgs != null && displayService != null) {
+        if (shizukuServiceArgs != null) {
             try { Shizuku.unbindUserService(shizukuServiceArgs, shizukuServiceConnection, outputOwner == null); }
             catch (RuntimeException ignored) { }
         }
@@ -557,7 +559,7 @@ public final class MainActivity extends Activity {
                     new ComponentName(getPackageName(), PrivilegedDisplayService.class.getName()))
                     .daemon(false)
                     .processNameSuffix("display")
-                    .version(28);
+                    .version(29);
             Shizuku.bindUserService(shizukuServiceArgs, shizukuServiceConnection);
             status("正在连接 Shizuku 主机服务…");
         } catch (RuntimeException e) {

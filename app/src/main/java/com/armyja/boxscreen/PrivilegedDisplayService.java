@@ -510,9 +510,17 @@ public final class PrivilegedDisplayService extends IDisplayService.Stub {
     @Override
     public boolean onTransact(int code, Parcel data, Parcel reply, int flags) throws RemoteException {
         if (code == 16777115) {
-            releaseDisplay();
-            if (reply != null) reply.writeNoException();
-            System.exit(0);
+            try {
+                releaseDisplay();
+            } catch (RuntimeException e) {
+                Log.w("BoxScreenService", "display cleanup failed during user service exit", e);
+            } finally {
+                try {
+                    if (reply != null) reply.writeNoException();
+                } finally {
+                    System.exit(0);
+                }
+            }
             return true;
         }
         return super.onTransact(code, data, reply, flags);
