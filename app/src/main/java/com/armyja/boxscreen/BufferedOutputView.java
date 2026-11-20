@@ -19,14 +19,8 @@ import java.nio.ByteOrder;
 import java.nio.FloatBuffer;
 
 /**
- * Presents the virtual display one frame later than it is produced.
- *
- * <p>The direct {@link SurfaceView} path hands the composed frame straight to the external
- * display, which composes that display last in the same SurfaceFlinger pass: whenever the
- * earlier virtual-display composition runs long, the picture misses the vsync and the display
- * repeats the previous frame. Owning the frame for one extra vsync (buffer here, present it
- * with a presentation time one vsync later) removes that dependency at the cost of ~16 ms of
- * latency, which is irrelevant for a television-style output.
+ * Draws virtual display frames into a separate SurfaceView so the external display can
+ * compose them independently of the virtual display's composition pass.
  */
 final class BufferedOutputView extends FrameLayout {
 
@@ -155,13 +149,10 @@ final class BufferedOutputView extends FrameLayout {
         try {
             inputTexture.updateTexImage();
             holder.draw(inputTexture, viewportWidth, viewportHeight);
-            // Present with the producer's own timestamp. The frame is already one step
-            // behind (the virtual display produced it, we drew it, then the display
-            // composes it), so the external display always finds a finished frame waiting.
-            // Deliberately adding another vsync here starves the display: when the virtual
-            // display is itself late, the queue backs up and only ~1 frame in 3 is shown.
-            long present = inputTexture.getTimestamp();
-            EGLExt.eglPresentationTimeANDROID(holder.display, holder.surface, present);
+            // The intermediate surface decouples the two composition passes. Keep the
+            // producer timestamp to avoid imposing another refresh interval on the queue.
+            EGLExt.eglPresentationTimeANDROID(holder.display, holder.surface,
+                    inputTexture.getTimestamp());
             holder.swapBuffers();
         } catch (RuntimeException e) {
             Log.w(TAG, "frame dropped by the buffered renderer", e);
