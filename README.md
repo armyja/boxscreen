@@ -2,9 +2,9 @@
 
 BoxScreen 把手机变成一台「安卓盒子」：外接显示器上独立运行安卓应用，以**鼠标为核心输入**进行大屏展示与操作——看视频、玩游戏、轻办公。手机屏幕保留控制界面，外接屏显示所选应用。当前版本以 **OnePlus 16（PYB110）** 为目标设备。
 
-> **当前公开版本：v1.0.13。** 本版本面向 OnePlus 16（PYB110），并在该设备上开发和验证。其他 Android 设备可能可用，但外接显示、Shizuku 权限和鼠标路由行为取决于厂商系统，尚未承诺兼容。
+> **当前公开版本：v1.0.14。** 本版本面向 OnePlus 16（PYB110），并在该设备上开发和验证。其他 Android 设备可能可用，但外接显示、Shizuku 权限和鼠标路由行为取决于厂商系统，尚未承诺兼容。
 
-v1.0.13 重写了输出链路：横屏改用独立 SurfaceView 图层，去掉整窗逐帧重绘；大画面自动启用缓冲，减少重复帧；同时改进了分屏容器清理。详见[本次发布说明](docs/RELEASE_NOTES_v1.0.13.md)。
+v1.0.14 将大画面缓冲扩展到竖屏，复用系统图层旋转，并修复额外推迟帧呈现导致的偶发掉帧。详见[本次发布说明](docs/RELEASE_NOTES_v1.0.14.md)。
 
 ## 功能
 
@@ -58,7 +58,7 @@ v1.0.13 重写了输出链路：横屏改用独立 SurfaceView 图层，去掉�
 
 ## 下载与安装
 
-从 [GitHub Releases](https://github.com/armyja/boxscreen/releases/latest) 下载适用于 PYB110 的 APK。首次安装时，按 Android 提示允许该来源安装应用。v1.0.13 使用项目正式发布签名，可覆盖升级并保留本地设置；若设备上装的是签名不同的 Debug 版，则需先卸载旧版（会清除 BoxScreen 的本地收藏和 DPI 设置）。
+从 [GitHub Releases](https://github.com/armyja/boxscreen/releases/latest) 下载适用于 PYB110 的 APK。首次安装时，按 Android 提示允许该来源安装应用。v1.0.14 使用项目正式发布签名，可覆盖升级并保留本地设置；若设备上装的是签名不同的 Debug 版，则需先卸载旧版（会清除 BoxScreen 的本地收藏和 DPI 设置）。
 
 ## 从源码构建
 
