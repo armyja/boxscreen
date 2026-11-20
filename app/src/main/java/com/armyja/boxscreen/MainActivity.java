@@ -381,6 +381,8 @@ public final class MainActivity extends Activity {
         if (outputOwner == null) restorePrimaryDensity();
         densityResizeHandler.removeCallbacks(applyPendingDensity);
         displayRecoveryHandler.removeCallbacks(recoverExternalDisplay);
+        splitCheckHandler.removeCallbacks(splitCheck);
+        splitCheckExecutor.shutdown();
         if (displayService != null && virtualDisplayId >= 0) {
             try { displayService.releaseDisplay(); }
             catch (RemoteException e) { Log.w(TAG, "failed to release display on activity destroy", e); }
@@ -3484,13 +3486,50 @@ public final class MainActivity extends Activity {
     }
 
     private final Handler splitCheckHandler = new Handler(android.os.Looper.getMainLooper());
-    private final Runnable splitCheck = this::scheduleSplitCheck;
+    private final ExecutorService splitCheckExecutor = Executors.newSingleThreadExecutor(
+            task -> new Thread(task, "boxscreen-split-check"));
+    private final Runnable splitCheck = this::pollSplitState;
+    private int splitStateGeneration;
+    private boolean splitCheckInFlight;
 
     private void scheduleSplitCheck() {
         splitCheckHandler.removeCallbacks(splitCheck);
-        if (!splitActive || virtualDisplayId < 0 || displayService == null) return;
-        if (!splitOpening) refreshSplitState();
-        if (splitActive) splitCheckHandler.postDelayed(splitCheck, 850);
+        if (splitActive && virtualDisplayId >= 0 && displayService != null) {
+            splitCheckHandler.postDelayed(splitCheck, 850);
+        }
+    }
+
+    private void pollSplitState() {
+        IDisplayService service = displayService;
+        int displayId = virtualDisplayId;
+        if (!splitActive || displayId < 0 || service == null || isDestroyed()) return;
+        if (splitOpening || splitCheckInFlight
+                || (mousePointerView != null && mousePointerView.splitLayoutChanging)) {
+            scheduleSplitCheck();
+            return;
+        }
+        int generation = splitStateGeneration;
+        splitCheckInFlight = true;
+        splitCheckExecutor.execute(() -> {
+            try {
+                String[] pair = service.getSplitPackages();
+                splitCheckHandler.post(() -> {
+                    if (!isDestroyed() && splitActive && !splitOpening
+                            && displayService == service && virtualDisplayId == displayId
+                            && generation == splitStateGeneration
+                            && (mousePointerView == null || !mousePointerView.splitLayoutChanging)) {
+                        applySplitState(pair);
+                    }
+                });
+            } catch (RemoteException | RuntimeException e) {
+                Log.w(TAG, "could not poll split state", e);
+            } finally {
+                splitCheckHandler.post(() -> {
+                    splitCheckInFlight = false;
+                    if (!isDestroyed()) scheduleSplitCheck();
+                });
+            }
+        });
     }
 
     /**
@@ -3499,6 +3538,7 @@ public final class MainActivity extends Activity {
      * reports instead of trusting the in-memory flag only.
      */
     private void syncSplitState() {
+        splitStateGeneration++;
         if (displayService == null || virtualDisplayId < 0) return;
         try {
             String[] pair = displayService.getSplitPackages();
@@ -3528,29 +3568,33 @@ public final class MainActivity extends Activity {
     }
 
     private void refreshSplitState() {
+        splitStateGeneration++;
         if (!splitActive || displayService == null) return;
         try {
-            String[] pair = displayService.getSplitPackages();
-            if (pair == null || pair.length != 2) {
-                splitActive = splitChoosing = false;
-                if (mousePointerView != null) mousePointerView.invalidate();
-                return;
-            }
-            boolean changed = !java.util.Objects.equals(splitFirstPackage, pair[0])
-                    || !java.util.Objects.equals(splitSecondPackage, pair[1]);
-            splitFirstPackage = pair[0];
-            splitSecondPackage = pair[1];
-            splitChoosing = pair[0] == null || pair[1] == null;
-            splitPickerFirst = pair[0] == null;
-            if (changed && mousePointerView != null) {
-                mousePointerView.splitPickerOffset = 0;
-                mousePointerView.splitPickerCache = null;
-                mousePointerView.invalidate();
-            }
-            if (changed) applyDensitySync();
+            applySplitState(displayService.getSplitPackages());
         } catch (RemoteException | RuntimeException e) {
             Log.w(TAG, "could not read split state", e);
         }
+    }
+
+    private void applySplitState(String[] pair) {
+        if (pair == null || pair.length != 2) {
+            splitActive = splitChoosing = false;
+            if (mousePointerView != null) mousePointerView.invalidate();
+            return;
+        }
+        boolean changed = !java.util.Objects.equals(splitFirstPackage, pair[0])
+                || !java.util.Objects.equals(splitSecondPackage, pair[1]);
+        splitFirstPackage = pair[0];
+        splitSecondPackage = pair[1];
+        splitChoosing = pair[0] == null || pair[1] == null;
+        splitPickerFirst = pair[0] == null;
+        if (changed && mousePointerView != null) {
+            mousePointerView.splitPickerOffset = 0;
+            mousePointerView.splitPickerCache = null;
+            mousePointerView.invalidate();
+        }
+        if (changed) applyDensitySync();
     }
 
     /** Visual side under the mouse, falling back to the last active pane. */
