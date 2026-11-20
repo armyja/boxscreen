@@ -839,6 +839,20 @@ public final class PrivilegedDisplayService extends IDisplayService.Stub {
     }
 
     @Override
+    public synchronized String getVirtualDisplayForegroundPackage() {
+        if (virtualDisplay == null || virtualDisplay.getDisplay() == null) return null;
+        int displayId = virtualDisplay.getDisplay().getDisplayId();
+        int taskId = findTopTaskId(displayId);
+        if (taskId < 0) return null;
+        try {
+            SplitSession tasks = splitSession != null ? splitSession : new SplitSession(displayId);
+            return tasks.packageForTaskId(taskId);
+        } catch (ReflectiveOperationException | RuntimeException e) {
+            throw new IllegalStateException("无法读取虚拟屏前台应用：" + describeFailure(e), e);
+        }
+    }
+
+    @Override
     public synchronized int getForegroundBoxScreenTaskId() {
         return virtualDisplay == null ? -1
                 : findTopTaskId(virtualDisplay.getDisplay().getDisplayId(), true);

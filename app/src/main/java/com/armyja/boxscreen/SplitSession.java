@@ -429,7 +429,7 @@ final class SplitSession {
         return null;
     }
 
-    private String packageForTaskId(int taskId) throws ReflectiveOperationException {
+    String packageForTaskId(int taskId) throws ReflectiveOperationException {
         for (Object task : roots()) {
             if (taskId(task) == taskId) return packageOf(task);
         }

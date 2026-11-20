@@ -565,7 +565,7 @@ public final class MainActivity extends Activity {
                     new ComponentName(getPackageName(), PrivilegedDisplayService.class.getName()))
                     .daemon(false)
                     .processNameSuffix("display")
-                    .version(32);
+                    .version(33);
             Shizuku.bindUserService(shizukuServiceArgs, shizukuServiceConnection);
             status("正在连接 Shizuku 主机服务…");
         } catch (RuntimeException e) {
@@ -1739,7 +1739,7 @@ public final class MainActivity extends Activity {
                 handler.removeCallbacks(revealStatusBar);
                 if (statusBarVisible || quickPanelVisible) {
                     handler.removeCallbacks(hideStatusBar);
-                    handler.postDelayed(hideStatusBar, 500);
+                    handler.postDelayed(hideStatusBar, STATUS_BAR_DWELL_MS);
                 }
             }
             if (splitKillMenuVisible) return true;
@@ -2010,6 +2010,8 @@ public final class MainActivity extends Activity {
             invalidate();
         }
 
+        private static final long STATUS_BAR_DWELL_MS = 100;
+
         private float statusBarHeight() { return panelDp(48); }
         private float statusBarRevealZone() { return panelDp(3); }
 
@@ -2042,7 +2044,7 @@ public final class MainActivity extends Activity {
                 handler.removeCallbacks(hideStatusBar);
                 if (!statusBarVisible) {
                     handler.removeCallbacks(revealStatusBar);
-                    handler.postDelayed(revealStatusBar, 500);
+                    handler.postDelayed(revealStatusBar, STATUS_BAR_DWELL_MS);
                 }
             } else {
                 handler.removeCallbacks(revealStatusBar);
@@ -2051,7 +2053,7 @@ public final class MainActivity extends Activity {
                 boolean insideVisibleBar = statusBarVisible && virtualPointerY <= statusBarHeight();
                 if (statusBarVisible && !insideVisiblePanel && !insideVisibleBar) {
                     handler.removeCallbacks(hideStatusBar);
-                    handler.postDelayed(hideStatusBar, 500);
+                    handler.postDelayed(hideStatusBar, STATUS_BAR_DWELL_MS);
                 } else if (insideVisiblePanel || insideVisibleBar) {
                     handler.removeCallbacks(hideStatusBar);
                 }
@@ -2343,6 +2345,7 @@ public final class MainActivity extends Activity {
             lastRecentTaskRefreshAt = now;
             new Thread(() -> {
                 ArrayList<RecentVirtualTask> tasks = new ArrayList<>();
+                HashSet<String> seenPackages = new HashSet<>();
                 try {
                     String[] rows = service.getVirtualDisplayRecentTasks();
                     if (rows != null) {
@@ -2353,7 +2356,8 @@ public final class MainActivity extends Activity {
                             try {
                                 int taskId = Integer.parseInt(row.substring(0, separator));
                                 String packageName = row.substring(separator + 1);
-                                if (!packageName.equals(getPackageName())) {
+                                if (!packageName.equals(getPackageName())
+                                        && seenPackages.add(packageName)) {
                                     tasks.add(new RecentVirtualTask(taskId, packageName));
                                 }
                             } catch (NumberFormatException ignored) { }
@@ -2454,10 +2458,11 @@ public final class MainActivity extends Activity {
                         + " package=" + currentVirtualPackage);
                 if (removed) {
                     splitActive = splitChoosing = false;
-                    restorePrimaryDensity();
-                    currentVirtualPackage = null;
-                    // Closing the last app leaves the virtual display blank; show the
-                    // status bar and quick panel right away as the next affordance.
+                    currentVirtualPackage = displayService.getVirtualDisplayForegroundPackage();
+                    if (currentVirtualPackage == null) restorePrimaryDensity();
+                    else syncPrimaryDensityForPackage(currentVirtualPackage);
+                    // Keep the next foreground task as current, so it retains the split action.
+                    // If the virtual display is empty, the panel is the next affordance.
                     // The regular dwell logic hides them again once the pointer leaves
                     // their area, so mouse behaviour stays unchanged.
                     quickPanelVisible = true;
