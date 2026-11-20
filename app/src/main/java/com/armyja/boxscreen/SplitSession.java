@@ -344,6 +344,11 @@ final class SplitSession {
         }
     }
 
+    boolean removeTaskById(int id) throws ReflectiveOperationException {
+        Method removeTask = activityTaskManager.getClass().getMethod("removeTask", int.class);
+        return Boolean.TRUE.equals(removeTask.invoke(activityTaskManager, id));
+    }
+
     synchronized void restartFullscreenTask(int id) throws ReflectiveOperationException {
         Object task = taskById(id);
         ActivityOptions options = ActivityOptions.makeBasic().setLaunchDisplayId(displayId);
