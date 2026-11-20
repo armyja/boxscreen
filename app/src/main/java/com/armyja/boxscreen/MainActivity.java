@@ -106,7 +106,7 @@ public final class MainActivity extends Activity {
     private int landscapeDensityDpi = 250;
     private int portraitDensityDpi = 250;
     private boolean densityInitialized;
-    private int virtualDisplayId = -1;
+    private volatile int virtualDisplayId = -1;
     private boolean captureBlockedDisplay;
     private int transitionFramesRemaining;
     private int displayRecoveryAttempts;
@@ -200,6 +200,7 @@ public final class MainActivity extends Activity {
     private static final Set<MainActivity> controlActivities = new HashSet<>();
     private boolean returningControls;
     private boolean blackoutWhenOnPrimary;
+    private boolean screenshotInProgress;
     private Bitmap screenshotPreviewBitmap;
     private Uri screenshotPreviewUri;
     private boolean screenshotPreviewExpanded;
@@ -210,7 +211,7 @@ public final class MainActivity extends Activity {
         screenshotPreviewMessage = null;
         if (mousePointerView != null) mousePointerView.invalidate();
     };
-    private IDisplayService displayService;
+    private volatile IDisplayService displayService;
     private Shizuku.UserServiceArgs shizukuServiceArgs;
     private final ServiceConnection shizukuServiceConnection = new ServiceConnection() {
         @Override public void onServiceConnected(ComponentName name, IBinder binder) {
@@ -834,6 +835,7 @@ public final class MainActivity extends Activity {
     }
 
     private void captureVirtualScreen() {
+        if (screenshotInProgress) return;
         View source = outputSurface;
         if (!isOutputAvailable(source) || virtualDisplayId < 0) {
             Toast.makeText(this, "虚拟屏当前没有可截图的画面", Toast.LENGTH_SHORT).show();
@@ -843,20 +845,34 @@ public final class MainActivity extends Activity {
         int height = portraitMode ? baseWidth : baseHeight;
         Bitmap bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888);
         Surface surface = acquireOutputSurface(source);
-        Log.i(TAG, "screenshot requested display=" + virtualDisplayId + " size=" + width + "x" + height);
-        PixelCopy.request(surface, bitmap, result -> {
+        int captureDisplayId = virtualDisplayId;
+        screenshotInProgress = true;
+        Log.i(TAG, "screenshot requested display=" + captureDisplayId + " size=" + width + "x" + height);
+        try {
+            PixelCopy.request(surface, bitmap, result -> {
+                releaseOutputSurface(source, surface);
+                if (result != PixelCopy.SUCCESS) {
+                    screenshotInProgress = false;
+                    bitmap.recycle();
+                    Log.e(TAG, "PixelCopy failed result=" + result);
+                    if (!isDestroyed()) {
+                        Toast.makeText(this, "读取虚拟屏画面失败（" + result + "）", Toast.LENGTH_LONG).show();
+                    }
+                    return;
+                }
+                new Thread(() -> saveVirtualScreenScreenshot(bitmap, captureDisplayId),
+                        "boxscreen-save-screenshot").start();
+            }, screenshotPreviewHandler);
+        } catch (RuntimeException e) {
             releaseOutputSurface(source, surface);
-            if (result != PixelCopy.SUCCESS) {
-                bitmap.recycle();
-                Log.e(TAG, "PixelCopy failed result=" + result);
-                Toast.makeText(this, "读取虚拟屏画面失败（" + result + "）", Toast.LENGTH_LONG).show();
-                return;
-            }
-            saveVirtualScreenScreenshot(bitmap);
-        }, new Handler(getMainLooper()));
+            screenshotInProgress = false;
+            bitmap.recycle();
+            Log.w(TAG, "could not request screenshot", e);
+            Toast.makeText(this, "读取虚拟屏画面失败", Toast.LENGTH_SHORT).show();
+        }
     }
 
-    private void saveVirtualScreenScreenshot(Bitmap bitmap) {
+    private void saveVirtualScreenScreenshot(Bitmap bitmap, int captureDisplayId) {
         Uri uri = null;
         try {
             String stamp = new SimpleDateFormat("yyyyMMdd-HHmmss", java.util.Locale.US).format(new Date());
@@ -880,15 +896,34 @@ public final class MainActivity extends Activity {
                 getContentResolver().update(uri, ready, null, null);
             }
             Log.i(TAG, "screenshot saved uri=" + uri);
-            Toast.makeText(this, "截图已保存", Toast.LENGTH_SHORT).show();
         } catch (Exception e) {
-            if (uri != null) getContentResolver().delete(uri, null, null);
+            if (uri != null) {
+                try {
+                    getContentResolver().delete(uri, null, null);
+                } catch (RuntimeException cleanupFailure) {
+                    e.addSuppressed(cleanupFailure);
+                }
+            }
             bitmap.recycle();
             Log.e(TAG, "virtual display screenshot failed", e);
-            Toast.makeText(this, "截图失败：" + e.getMessage(), Toast.LENGTH_LONG).show();
+            runOnUiThread(() -> {
+                screenshotInProgress = false;
+                if (!isDestroyed()) {
+                    Toast.makeText(this, "截图失败：" + e.getMessage(), Toast.LENGTH_LONG).show();
+                }
+            });
             return;
         }
-        showScreenshotPreview(uri, bitmap);
+        Uri saved = uri;
+        runOnUiThread(() -> {
+            screenshotInProgress = false;
+            if (isDestroyed() || isFinishing() || virtualDisplayId != captureDisplayId) {
+                bitmap.recycle();
+                return;
+            }
+            Toast.makeText(this, "截图已保存", Toast.LENGTH_SHORT).show();
+            showScreenshotPreview(saved, bitmap);
+        });
     }
 
     private void showScreenshotPreview(Uri uri, Bitmap bitmap) {
@@ -1764,7 +1799,8 @@ public final class MainActivity extends Activity {
                     t.setDaemon(true);
                     return t;
                 });
-        private volatile long lastKeyInjectAt;
+        private long lastKeyInjectAt;
+        private boolean keyInjectionPending;
         // OPPO's key interceptor moves the target display to top and waits for its
         // animation on every injected key, so rapid right-clicks used to starve the
         // main screen's focus for seconds (pointer frozen). Throttle keys hard.
@@ -1774,34 +1810,27 @@ public final class MainActivity extends Activity {
             final IDisplayService service = displayService;
             final int virtualId = virtualDisplayId;
             if (service == null || virtualId < 0) return;
-            // No app on the virtual display means no focused window to receive the
-            // key. Injecting into that state fails on system_server (no focused
-            // window) while its OPPO key interceptor still moves the display to top
-            // and waits for the animation, starving the main screen's focus. Skip.
-            // Check live, not just currentVirtualPackage, so self-exited apps count.
-            final boolean hasTask;
-            try {
-                hasTask = service.hasVirtualDisplayTask();
-            } catch (RemoteException | RuntimeException e) {
-                return;
-            }
-            if (!hasTask) return;
             int code = "BACK".equals(keyCode) ? android.view.KeyEvent.KEYCODE_BACK
                     : "MENU".equals(keyCode) ? android.view.KeyEvent.KEYCODE_MENU : 0;
             if (code == 0) return;
-            final long now = android.os.SystemClock.uptimeMillis();
-            if (now - lastKeyInjectAt < KEY_INJECT_MIN_INTERVAL_MS) return;
+            long now = android.os.SystemClock.uptimeMillis();
+            if (keyInjectionPending || now - lastKeyInjectAt < KEY_INJECT_MIN_INTERVAL_MS) return;
             lastKeyInjectAt = now;
-            // system_server may block inside the injection for seconds while a
-            // display transition waits for animations, so never run this on the
-            // main thread: a single background thread also keeps down/up order.
-            virtualInputExecutor.execute(() -> {
+            keyInjectionPending = true;
+            // A live task probe can run dumpsys, and key injection can wait on a window
+            // transition. Keep both off the UI and motion queues.
+            new Thread(() -> {
                 try {
+                    if (displayService != service || virtualDisplayId != virtualId
+                            || !service.hasVirtualDisplayTask()
+                            || displayService != service || virtualDisplayId != virtualId) return;
                     if (service.injectKey(code, true)) service.injectKey(code, false);
                 } catch (RemoteException | RuntimeException e) {
                     Log.w(TAG, "failed to inject " + keyCode + " to virtual display", e);
+                } finally {
+                    handler.post(() -> keyInjectionPending = false);
                 }
-            });
+            }, "boxscreen-virtual-key").start();
         }
 
         private void beginTouchGesture(MotionEvent source) {
