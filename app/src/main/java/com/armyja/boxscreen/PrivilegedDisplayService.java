@@ -83,6 +83,13 @@ public final class PrivilegedDisplayService extends IDisplayService.Stub {
     }
 
     @Override
+    public synchronized void pruneSplitSessions() {
+        if (virtualDisplay == null || virtualDisplay.getDisplay() == null) return;
+        int keep = splitSession == null ? -1 : splitSession.rootTaskId;
+        pruneStaleSplitRoots(virtualDisplay.getDisplay().getDisplayId(), keep);
+    }
+
+    @Override
     public synchronized int createDisplay(String name, int width, int height, int densityDpi, Surface surface,
             boolean blockPointerCapture) {
         if (width < 1 || height < 1 || densityDpi < 1 || surface == null || !surface.isValid()) {
