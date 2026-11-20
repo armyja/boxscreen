@@ -23,14 +23,16 @@ import android.graphics.Matrix;
 import android.graphics.Paint;
 import android.graphics.Path;
 import android.graphics.Bitmap;
+import android.graphics.Rect;
 import android.graphics.RectF;
+import android.graphics.Region;
 import android.util.Log;
 import android.view.Display;
 import android.view.Gravity;
 import android.view.MotionEvent;
 import android.view.PointerIcon;
 import android.view.Surface;
-import android.view.SurfaceHolder;
+import android.view.SurfaceControl;
 import android.graphics.SurfaceTexture;
 import android.view.SurfaceHolder;
 import android.view.SurfaceView;
@@ -623,15 +625,33 @@ public final class MainActivity extends Activity {
     }
 
     private View newOutputView() {
-        if (!portraitMode) {
-            SurfaceView view = new SurfaceView(this);
-            view.getHolder().setFixedSize(baseWidth, baseHeight);
+        if (!portraitMode || Build.VERSION.SDK_INT >= 36) {
+            boolean rotate = portraitMode;
+            SurfaceView view = new SurfaceView(this) {
+                @Override public boolean gatherTransparentRegion(Region region) {
+                    // The rotated mouse/panel View draws above the surface hole. Do not
+                    // report that hole as wholly transparent for compositor occlusion.
+                    return !rotate && super.gatherTransparentRegion(region);
+                }
+            };
+            view.getHolder().setFixedSize(rotate ? baseHeight : baseWidth,
+                    rotate ? baseWidth : baseHeight);
+            if (rotate) {
+                view.addOnLayoutChangeListener((v, left, top, right, bottom,
+                        oldLeft, oldTop, oldRight, oldBottom) -> {
+                    if (left != oldLeft || top != oldTop || right != oldRight || bottom != oldBottom) {
+                        schedulePortraitSurfaceRotation(view);
+                    }
+                });
+            }
             view.getHolder().addCallback(new SurfaceHolder.Callback() {
                 @Override public void surfaceCreated(SurfaceHolder holder) {
                     if (outputSurface == view) attachOutputSurface();
                 }
 
-                @Override public void surfaceChanged(SurfaceHolder holder, int format, int width, int height) {}
+                @Override public void surfaceChanged(SurfaceHolder holder, int format, int width, int height) {
+                    if (rotate) schedulePortraitSurfaceRotation(view);
+                }
 
                 @Override public void surfaceDestroyed(SurfaceHolder holder) {
                     if (outputSurface == view) detachOutputSurfaceForRecreation();
@@ -640,7 +660,7 @@ public final class MainActivity extends Activity {
             return view;
         }
 
-        // Keep TextureView for portrait, where the picture and mouse overlay rotate together.
+        // Older Android versions keep the established View rotation path for portrait.
         TextureView view = new TextureView(this);
         view.setOpaque(true);
         view.setSurfaceTextureListener(new TextureView.SurfaceTextureListener() {
@@ -665,6 +685,29 @@ public final class MainActivity extends Activity {
             }
         });
         return view;
+    }
+
+    private void schedulePortraitSurfaceRotation(SurfaceView view) {
+        if (outputSurface != view || !view.getViewTreeObserver().isAlive()) return;
+        // SurfaceView sets its default layer geometry during traversal. Rotate the
+        // container after that frame is committed, without repainting on video frames.
+        view.getViewTreeObserver().registerFrameCommitCallback(
+                () -> view.post(() -> rotatePortraitSurface(view)));
+        view.invalidate();
+    }
+
+    @SuppressWarnings("deprecation")
+    private void rotatePortraitSurface(SurfaceView view) {
+        if (outputSurface != view || !portraitMode) return;
+        SurfaceControl layer = view.getSurfaceControl();
+        if (layer == null || !layer.isValid()) return;
+        Rect portrait = new Rect(0, 0, baseHeight, baseWidth);
+        try (SurfaceControl.Transaction tx = new SurfaceControl.Transaction()) {
+            // setGeometry transforms the container and its BLAST child. Its native
+            // transform uses the inverse quarter-turn for the required View rotation.
+            tx.setGeometry(layer, portrait, portrait, SurfaceControl.BUFFER_TRANSFORM_ROTATE_270)
+                    .setPosition(layer, baseWidth, 0).apply();
+        }
     }
 
     private void removePreviousOutput() {
@@ -1153,7 +1196,9 @@ public final class MainActivity extends Activity {
         if (outputSurface == null || presentation == null) return;
         int width = portraitMode ? baseHeight : baseWidth;
         int height = portraitMode ? baseWidth : baseHeight;
-        FrameLayout.LayoutParams params = new FrameLayout.LayoutParams(width, height, Gravity.CENTER);
+        boolean rotatedLayer = portraitMode && outputSurface instanceof SurfaceView;
+        FrameLayout.LayoutParams params = new FrameLayout.LayoutParams(
+                rotatedLayer ? baseWidth : width, rotatedLayer ? baseHeight : height, Gravity.CENTER);
         outputSurface.setLayoutParams(params);
         setOutputBufferSize(width, height);
         if (outputSurface instanceof TextureView) outputSurface.setRotation(90f);
