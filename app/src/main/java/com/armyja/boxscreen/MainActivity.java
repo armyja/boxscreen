@@ -139,6 +139,9 @@ public final class MainActivity extends Activity {
     private GridLayout appGrid;
     private EditText appSearch;
     private Switch systemAppsSwitch;
+    private Switch bufferedOutputSwitch;
+    /** Buffered output holds every frame for one vsync: smoother, +16 ms latency. */
+    private boolean bufferedOutput;
     private Button editFavoritesButton;
     private List<ResolveInfo> appEntries = Collections.emptyList();
     private final ArrayList<String> recentAppPackages = new ArrayList<>();
@@ -286,6 +289,16 @@ public final class MainActivity extends Activity {
      * pushes the app list below the fold on a short landscape screen. Pin the panel's own
      * density so the layout (and the visible app list) never depends on that global value.
      */
+    /** Reads a system property (experimental switches live here, not in the UI yet). */
+    static String booleanProp(String key) {
+        try {
+            return (String) Class.forName("android.os.SystemProperties")
+                    .getMethod("get", String.class).invoke(null, key);
+        } catch (ReflectiveOperationException | RuntimeException e) {
+            return null;
+        }
+    }
+
     @Override
     protected void attachBaseContext(android.content.Context base) {
         android.content.res.Configuration config =
@@ -314,6 +327,7 @@ public final class MainActivity extends Activity {
         Shizuku.addRequestPermissionResultListener(permissionListener);
         externalDisplay = findExternalDisplay();
         showSystemApps = getPreferences(MODE_PRIVATE).getBoolean("show_system_apps", false);
+        bufferedOutput = getPreferences(MODE_PRIVATE).getBoolean("buffered_output", false);
         favoritePackages = new HashSet<>(getPreferences(MODE_PRIVATE).getStringSet("favorite_apps", Collections.emptySet()));
         android.content.SharedPreferences preferences = getPreferences(MODE_PRIVATE);
         mouseModePackages = new HashSet<>(preferences.getStringSet("mouse_mode_apps", Collections.emptySet()));
@@ -484,6 +498,18 @@ public final class MainActivity extends Activity {
             }
         });
 
+        LinearLayout bufferedRow = new LinearLayout(this);
+        bufferedRow.setOrientation(LinearLayout.HORIZONTAL);
+        bufferedRow.setGravity(Gravity.CENTER_VERTICAL);
+        content.addView(bufferedRow, margins(0, 4, 0, 2));
+        TextView bufferedLabel = text("缓冲输出（更顺滑，延迟 +1 帧）", 12, false);
+        bufferedLabel.setTextColor(0xffc9d3dd);
+        bufferedRow.addView(bufferedLabel, new LinearLayout.LayoutParams(0, -2, 1f));
+        bufferedOutputSwitch = new Switch(this);
+        bufferedOutputSwitch.setChecked(bufferedOutput);
+        bufferedOutputSwitch.setOnCheckedChangeListener((button, checked) -> setBufferedOutput(checked));
+        bufferedRow.addView(bufferedOutputSwitch, new LinearLayout.LayoutParams(-2, -2));
+
         TextView shizukuHint = text("需在本机启动 Shizuku", 11, false);
         content.addView(shizukuHint, margins(0, 0, 0, 4));
 
@@ -630,6 +656,21 @@ public final class MainActivity extends Activity {
     }
 
     private View newOutputView() {
+        boolean useBuffered = bufferedOutput
+                || "1".equals(booleanProp("debug.boxscreen.buffered"));
+        if (useBuffered) {
+            BufferedOutputView buffered = new BufferedOutputView(this);
+            buffered.setListener(new BufferedOutputView.Listener() {
+                @Override public void onOutputReady(BufferedOutputView view) {
+                    if (outputSurface == view) attachOutputSurface();
+                }
+
+                @Override public void onOutputLost(BufferedOutputView view) {
+                    if (outputSurface == view) detachOutputSurfaceForRecreation();
+                }
+            });
+            return buffered;
+        }
         if (!portraitMode || Build.VERSION.SDK_INT >= 36) {
             boolean rotate = portraitMode;
             SurfaceView view = new SurfaceView(this) {
@@ -721,15 +762,19 @@ public final class MainActivity extends Activity {
         if (previous != null && previous.getParent() instanceof FrameLayout frame) {
             frame.removeView(previous);
         }
+        releaseBufferedOutput(previous);
     }
 
     private boolean isOutputAvailable(View view) {
+        if (view instanceof BufferedOutputView buffered) return buffered.isReady();
         if (view instanceof SurfaceView surfaceView) return surfaceView.getHolder().getSurface().isValid();
         return view instanceof TextureView textureView && textureView.isAvailable();
     }
 
     private void setOutputBufferSize(int width, int height) {
-        if (outputSurface instanceof SurfaceView surfaceView) {
+        if (outputSurface instanceof BufferedOutputView buffered) {
+            buffered.setBufferSize(width, height);
+        } else if (outputSurface instanceof SurfaceView surfaceView) {
             surfaceView.getHolder().setFixedSize(width, height);
         } else if (outputSurface instanceof TextureView textureView && textureView.isAvailable()) {
             textureView.getSurfaceTexture().setDefaultBufferSize(width, height);
@@ -737,12 +782,17 @@ public final class MainActivity extends Activity {
     }
 
     private Surface acquireOutputSurface(View view) {
+        if (view instanceof BufferedOutputView buffered) return buffered.inputSurface();
         if (view instanceof SurfaceView surfaceView) return surfaceView.getHolder().getSurface();
         return new Surface(((TextureView) view).getSurfaceTexture());
     }
 
     private void releaseOutputSurface(View view, Surface surface) {
         if (view instanceof TextureView) surface.release();
+    }
+
+    private void releaseBufferedOutput(View view) {
+        if (view instanceof BufferedOutputView buffered) buffered.release();
     }
 
     private void createVirtualDisplay() {
@@ -1282,6 +1332,7 @@ public final class MainActivity extends Activity {
                 previousOutputSurface = oldOutput;
             } else {
                 frame.removeView(oldOutput);
+                releaseBufferedOutput(oldOutput);
             }
             outputSurface = nextOutput;
             frame.addView(nextOutput, 1);
@@ -1328,6 +1379,34 @@ public final class MainActivity extends Activity {
         outputSurface = previousOutputSurface = null;
         transitionFramesRemaining = 0;
         status("虚拟屏已停止");
+    }
+
+    /**
+     * Swaps the output pipeline in place: the virtual display is re-attached to the new view
+     * with setDisplaySurface(), so running apps, split panes and tasks stay untouched.
+     */
+    private void setBufferedOutput(boolean enabled) {
+        if (bufferedOutput == enabled) return;
+        bufferedOutput = enabled;
+        getPreferences(MODE_PRIVATE).edit().putBoolean("buffered_output", enabled).apply();
+        View old = outputSurface;
+        if (old == null || !(old.getParent() instanceof FrameLayout frame)) {
+            status(enabled ? "已开启缓冲输出" : "已关闭缓冲输出");
+            return;
+        }
+        View next = newOutputView();
+        outputSurface = next;
+        int index = frame.indexOfChild(old);
+        frame.addView(next, Math.max(0, index));
+        frame.removeView(old);
+        releaseBufferedOutput(old);
+        if (!isOutputAvailable(next)) {
+            // The renderer signals readiness and attachOutputSurface() re-attaches there.
+            status(enabled ? "正在切换到缓冲输出…" : "正在切换回直连输出…");
+            return;
+        }
+        attachOutputSurface();
+        status(enabled ? "已开启缓冲输出（延迟 +1 帧）" : "已关闭缓冲输出");
     }
 
     private void toggleMouseRoute() {
