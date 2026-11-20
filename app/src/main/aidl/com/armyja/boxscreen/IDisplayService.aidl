@@ -23,7 +23,6 @@ interface IDisplayService {
     void setPrimaryDensity(int dpi);
     void launchSplit(String firstPackage, String firstClass, String secondPackage, String secondClass);
     boolean closeSplit();
-    void pruneSplitSessions();
     String killSplitSide(boolean firstSide);
     boolean hideSplitSide(boolean firstSide);
     void beginSplit(String packageName);

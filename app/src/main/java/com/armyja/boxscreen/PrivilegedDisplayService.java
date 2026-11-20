@@ -83,13 +83,6 @@ public final class PrivilegedDisplayService extends IDisplayService.Stub {
     }
 
     @Override
-    public synchronized void pruneSplitSessions() {
-        if (virtualDisplay == null || virtualDisplay.getDisplay() == null) return;
-        int keep = splitSession == null ? -1 : splitSession.rootTaskId;
-        pruneStaleSplitRoots(virtualDisplay.getDisplay().getDisplayId(), keep);
-    }
-
-    @Override
     public synchronized int createDisplay(String name, int width, int height, int densityDpi, Surface surface,
             boolean blockPointerCapture) {
         if (width < 1 || height < 1 || densityDpi < 1 || surface == null || !surface.isValid()) {
@@ -241,9 +234,6 @@ public final class PrivilegedDisplayService extends IDisplayService.Stub {
     private void cleanupPartialDisplay(Throwable originalFailure) {
         clearMouseAssociation();
         restoreDisplayImePolicy();
-        if (virtualDisplay != null) {
-            pruneStaleSplitRoots(virtualDisplay.getDisplay().getDisplayId(), -1);
-        }
         if (virtualDisplay != null) {
             try {
                 virtualDisplay.release();
@@ -586,52 +576,6 @@ public final class PrivilegedDisplayService extends IDisplayService.Stub {
         }
     }
 
-    /**
-     * Removes split containers that no longer belong to a live session. Replacing a session
-     * (activity restart, new split from the panel, failed open) used to leave the previous
-     * root task behind, so the virtual display accumulated dozens of invisible containers.
-     */
-    private void pruneStaleSplitRoots(int displayId, int keepTaskId) {
-        try {
-            Process process = new ProcessBuilder("/system/bin/dumpsys", "activity", "activities")
-                    .redirectErrorStream(true).start();
-            java.util.List<Integer> stale = new java.util.ArrayList<>();
-            try (BufferedReader reader = new BufferedReader(
-                    new InputStreamReader(process.getInputStream()))) {
-                String line;
-                java.util.regex.Pattern pattern = java.util.regex.Pattern.compile(
-                        "^\\s*\\*?\\s*Task\\{[0-9a-f]+ #(\\d+) name=BoxScreenSplit type=");
-                while ((line = reader.readLine()) != null) {
-                    java.util.regex.Matcher matcher = pattern.matcher(line);
-                    if (!matcher.find()) continue;
-                    int id = Integer.parseInt(matcher.group(1));
-                    if (id != keepTaskId) stale.add(id);
-                }
-            }
-            process.waitFor(3, TimeUnit.SECONDS);
-            if (stale.isEmpty()) return;
-            Object atm = activityTaskManager();
-            java.lang.reflect.Method removeTask = atm.getClass().getMethod("removeTask", int.class);
-            for (int id : stale) {
-                try {
-                    removeTask.invoke(atm, id);
-                } catch (ReflectiveOperationException | RuntimeException e) {
-                    Log.w("BoxScreenService", "could not remove stale split root " + id, e);
-                }
-            }
-            Log.i("BoxScreenService", "removed " + stale.size() + " stale split roots");
-        } catch (InterruptedException | java.io.IOException | ReflectiveOperationException e) {
-            Log.w("BoxScreenService", "could not prune stale split roots", e);
-        }
-    }
-
-    private Object activityTaskManager() throws ReflectiveOperationException {
-        android.os.IBinder binder = (android.os.IBinder) Class.forName("android.os.ServiceManager")
-                .getMethod("getService", String.class).invoke(null, "activity_task");
-        return Class.forName("android.app.IActivityTaskManager$Stub")
-                .getMethod("asInterface", android.os.IBinder.class).invoke(null, binder);
-    }
-
     @Override
     public synchronized void beginSplit(String packageName) {
         if (virtualDisplay == null) throw new IllegalStateException("当前无法开始分屏");
@@ -641,7 +585,6 @@ public final class PrivilegedDisplayService extends IDisplayService.Stub {
                 splitSession.beginAgain(packageName, displayWidth, displayHeight);
                 return;
             }
-            pruneStaleSplitRoots(virtualDisplay.getDisplay().getDisplayId(), -1);
             next = new SplitSession(virtualDisplay.getDisplay().getDisplayId());
             Object first = next.awaitTask(packageName, next.taskIds());
             next.open(first, null, displayWidth, displayHeight);

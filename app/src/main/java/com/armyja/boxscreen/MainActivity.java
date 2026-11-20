@@ -212,7 +212,6 @@ public final class MainActivity extends Activity {
                 showExternalOutput();
             }
             syncSplitState();
-            pruneLeftoverSplitContainers();
         }
         @Override public void onServiceDisconnected(ComponentName name) {
             displayService = null;
@@ -540,7 +539,7 @@ public final class MainActivity extends Activity {
                     new ComponentName(getPackageName(), PrivilegedDisplayService.class.getName()))
                     .daemon(false)
                     .processNameSuffix("display")
-                    .version(26);
+                    .version(27);
             Shizuku.bindUserService(shizukuServiceArgs, shizukuServiceConnection);
             status("正在连接 Shizuku 主机服务…");
         } catch (RuntimeException e) {
@@ -3323,19 +3322,6 @@ public final class MainActivity extends Activity {
      * (activity restart, new build install, low-memory kill). Adopt whatever the service
      * reports instead of trusting the in-memory flag only.
      */
-    /** Drops split containers left behind by earlier sessions or a previous service process. */
-    private void pruneLeftoverSplitContainers() {
-        final IDisplayService service = displayService;
-        if (service == null) return;
-        new Thread(() -> {
-            try {
-                service.pruneSplitSessions();
-            } catch (RemoteException | RuntimeException e) {
-                Log.w(TAG, "could not prune stale split containers", e);
-            }
-        }, "boxscreen-split-prune").start();
-    }
-
     private void syncSplitState() {
         if (displayService == null || virtualDisplayId < 0) return;
         try {
@@ -3363,7 +3349,6 @@ public final class MainActivity extends Activity {
         } catch (RemoteException | RuntimeException e) {
             Log.w(TAG, "could not sync split state", e);
         }
-        pruneLeftoverSplitContainers();
     }
 
     private void refreshSplitState() {

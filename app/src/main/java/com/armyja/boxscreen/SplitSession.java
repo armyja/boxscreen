@@ -42,9 +42,6 @@ final class SplitSession {
 
     private record Stage(Object token, SurfaceControl surface) {}
 
-    /** Task id of the root container, so stale roots can be told apart from the live one. */
-    int rootTaskId = -1;
-
     SplitSession(int displayId) throws ReflectiveOperationException {
         this.displayId = displayId;
         IBinder binder = (IBinder) Class.forName("android.os.ServiceManager")
@@ -102,13 +99,6 @@ final class SplitSession {
         if (appeared == null) throw new IllegalStateException("系统未创建分屏区域");
         Object info = appeared.getClass().getMethod("getTaskInfo").invoke(appeared);
         SurfaceControl surface = (SurfaceControl) appeared.getClass().getMethod("getLeash").invoke(appeared);
-        if (parent == null) {
-            try {
-                rootTaskId = info.getClass().getField("taskId").getInt(info);
-            } catch (ReflectiveOperationException | RuntimeException ignored) {
-                rootTaskId = -1;
-            }
-        }
         return new Stage(token(info), surface);
     }
 
@@ -518,8 +508,20 @@ final class SplitSession {
         layoutGeneration++;
         if (root == null) return;
         try {
-            Method remove = transactionType.getMethod("removeRootTask", tokenType);
             Object tx = transaction();
+            Method remove = transactionType.getMethod("removeRootTask", tokenType);
+            Method reparent = transactionType.getMethod("reparent", tokenType, tokenType, boolean.class);
+            // The system only accepts removeRootTask for top-level organizer tasks.
+            // Promote the stages within this display so all three containers can be removed.
+            if (first != null) {
+                transactionType.getMethod("clearAdjacentRoots", tokenType).invoke(tx, first.token());
+                reparent.invoke(tx, first.token(), null, false);
+                remove.invoke(tx, first.token());
+            }
+            if (second != null) {
+                reparent.invoke(tx, second.token(), null, false);
+                remove.invoke(tx, second.token());
+            }
             remove.invoke(tx, root.token());
             apply(tx);
         } finally {
