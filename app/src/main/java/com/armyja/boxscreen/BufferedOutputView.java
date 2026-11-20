@@ -1,5 +1,6 @@
 package com.armyja.boxscreen;
 
+import android.graphics.Region;
 import android.graphics.SurfaceTexture;
 import android.opengl.EGL14;
 import android.opengl.EGLExt;
@@ -12,7 +13,6 @@ import android.view.SurfaceHolder;
 import android.view.SurfaceView;
 import android.content.Context;
 import android.util.Log;
-import android.widget.FrameLayout;
 
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
@@ -22,7 +22,7 @@ import java.nio.FloatBuffer;
  * Draws virtual display frames into a separate SurfaceView so the external display can
  * compose them independently of the virtual display's composition pass.
  */
-final class BufferedOutputView extends FrameLayout {
+final class BufferedOutputView extends SurfaceView {
 
     interface Listener {
         /** The input surface is ready and can be handed to the virtual display. */
@@ -34,7 +34,7 @@ final class BufferedOutputView extends FrameLayout {
 
     private static final String TAG = "BoxScreenBuffered";
 
-    private final SurfaceView display;
+    private final boolean portrait;
     private final HandlerThread renderThread = new HandlerThread("boxscreen-buffered-out");
     private Handler renderHandler;
     private Listener listener;
@@ -49,10 +49,10 @@ final class BufferedOutputView extends FrameLayout {
     private int bufferWidth;
     private int bufferHeight;
 
-    BufferedOutputView(Context context) {
+    BufferedOutputView(Context context, boolean portrait) {
         super(context);
-        display = new SurfaceView(context);
-        display.getHolder().addCallback(new SurfaceHolder.Callback() {
+        this.portrait = portrait;
+        getHolder().addCallback(new SurfaceHolder.Callback() {
             @Override public void surfaceCreated(SurfaceHolder holder) {
                 startRenderer(holder.getSurface());
             }
@@ -66,10 +66,12 @@ final class BufferedOutputView extends FrameLayout {
                 stopRenderer();
             }
         });
-        addView(display, new LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT));
-        setBackgroundColor(0xff000000);
         renderThread.start();
         renderHandler = new Handler(renderThread.getLooper());
+    }
+
+    @Override public boolean gatherTransparentRegion(Region region) {
+        return !portrait && super.gatherTransparentRegion(region);
     }
 
     void setListener(Listener listener) {
@@ -86,13 +88,13 @@ final class BufferedOutputView extends FrameLayout {
 
     /** The surface the monitor actually shows; used for screenshots and frame capture. */
     Surface displaySurface() {
-        return display.getHolder().getSurface();
+        return getHolder().getSurface();
     }
 
     void setBufferSize(int width, int height) {
         bufferWidth = width;
         bufferHeight = height;
-        display.getHolder().setFixedSize(width, height);
+        getHolder().setFixedSize(width, height);
         Handler handler = renderHandler;
         if (handler != null) handler.post(() -> {
             if (inputTexture != null && bufferWidth > 0 && bufferHeight > 0) {
