@@ -32,6 +32,8 @@ import android.view.PointerIcon;
 import android.view.Surface;
 import android.view.SurfaceHolder;
 import android.graphics.SurfaceTexture;
+import android.view.SurfaceHolder;
+import android.view.SurfaceView;
 import android.view.TextureView;
 import android.view.InputDevice;
 import android.view.View;
@@ -187,7 +189,8 @@ public final class MainActivity extends Activity {
     private Button mouseRouteButton;
     private boolean mouseBound;
     private String boundMouseDescriptor;
-    private TextureView outputSurface;
+    private View outputSurface;
+    private View previousOutputSurface;
     private MousePointerView mousePointerView;
     private Presentation presentation;
     private Bitmap screenshotPreviewBitmap;
@@ -554,9 +557,7 @@ public final class MainActivity extends Activity {
                 return;
             }
             if (outputSurface != null) {
-                if (outputSurface.isAvailable() && displayService != null) {
-                    createVirtualDisplay(outputSurface.getSurfaceTexture());
-                }
+                attachOutputSurface();
                 return;
             }
             stopOutput();
@@ -595,57 +596,113 @@ public final class MainActivity extends Activity {
                     | WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE);
             FrameLayout frame = new FrameLayout(this);
             frame.setBackgroundColor(0xff000000);
-            outputSurface = new TextureView(this);
-            outputSurface.setSurfaceTextureListener(new TextureView.SurfaceTextureListener() {
-                @Override public void onSurfaceTextureAvailable(SurfaceTexture texture, int width, int height) {
-                    attachOutputSurface(texture);
-                }
-                @Override public void onSurfaceTextureSizeChanged(SurfaceTexture texture, int width, int height) {
-                    resizeVirtualDisplay();
-                }
-                @Override public boolean onSurfaceTextureDestroyed(SurfaceTexture texture) {
-                    detachOutputSurfaceForRecreation();
-                    return true;
-                }
-                @Override public void onSurfaceTextureUpdated(SurfaceTexture texture) {
-                    if (mousePointerView != null) mousePointerView.onSplitOutputFrame();
-                    if (transitionFramesRemaining > 0 && --transitionFramesRemaining == 0) {
-                        outputSurface.setVisibility(View.VISIBLE);
-                        outputSurface.setAlpha(1f);
-                        Log.i(TAG, "orientation transition complete on fresh frame");
-                    }
-                }
-            });
-            outputSurface.setOpaque(true);
+            outputSurface = newOutputView();
             frame.addView(outputSurface);
             mousePointerView = new MousePointerView(this);
             frame.addView(mousePointerView, new FrameLayout.LayoutParams(
                     FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
             presentation.setContentView(frame);
-            presentation.show();
             updateOutputLayout();
+            presentation.show();
             status("外接输出已启动：" + baseWidth + "×" + baseHeight + "，" + densityDpi + " dpi");
         } catch (RuntimeException e) {
             status("无法在外接显示器上显示：" + e.getMessage());
         }
     }
 
-    private void createVirtualDisplay(SurfaceTexture texture) {
-        if (displayService == null || texture == null) return;
+    private View newOutputView() {
+        if (!portraitMode) {
+            SurfaceView view = new SurfaceView(this);
+            view.getHolder().setFixedSize(baseWidth, baseHeight);
+            view.getHolder().addCallback(new SurfaceHolder.Callback() {
+                @Override public void surfaceCreated(SurfaceHolder holder) {
+                    if (outputSurface == view) attachOutputSurface();
+                }
+
+                @Override public void surfaceChanged(SurfaceHolder holder, int format, int width, int height) {}
+
+                @Override public void surfaceDestroyed(SurfaceHolder holder) {
+                    if (outputSurface == view) detachOutputSurfaceForRecreation();
+                }
+            });
+            return view;
+        }
+
+        // Keep TextureView for portrait, where the picture and mouse overlay rotate together.
+        TextureView view = new TextureView(this);
+        view.setOpaque(true);
+        view.setSurfaceTextureListener(new TextureView.SurfaceTextureListener() {
+            @Override public void onSurfaceTextureAvailable(SurfaceTexture texture, int width, int height) {
+                if (outputSurface == view) attachOutputSurface();
+            }
+
+            @Override public void onSurfaceTextureSizeChanged(SurfaceTexture texture, int width, int height) {}
+
+            @Override public boolean onSurfaceTextureDestroyed(SurfaceTexture texture) {
+                if (outputSurface == view) detachOutputSurfaceForRecreation();
+                return true;
+            }
+
+            @Override public void onSurfaceTextureUpdated(SurfaceTexture texture) {
+                if (outputSurface != view) return;
+                if (mousePointerView != null) mousePointerView.onSplitOutputFrame();
+                if (transitionFramesRemaining > 0 && --transitionFramesRemaining == 0
+                        && mousePointerView != null) {
+                    mousePointerView.invalidate();
+                }
+            }
+        });
+        return view;
+    }
+
+    private void removePreviousOutput() {
+        View previous = previousOutputSurface;
+        previousOutputSurface = null;
+        if (previous != null && previous.getParent() instanceof FrameLayout frame) {
+            frame.removeView(previous);
+        }
+    }
+
+    private boolean isOutputAvailable(View view) {
+        if (view instanceof SurfaceView surfaceView) return surfaceView.getHolder().getSurface().isValid();
+        return view instanceof TextureView textureView && textureView.isAvailable();
+    }
+
+    private void setOutputBufferSize(int width, int height) {
+        if (outputSurface instanceof SurfaceView surfaceView) {
+            surfaceView.getHolder().setFixedSize(width, height);
+        } else if (outputSurface instanceof TextureView textureView && textureView.isAvailable()) {
+            textureView.getSurfaceTexture().setDefaultBufferSize(width, height);
+        }
+    }
+
+    private Surface acquireOutputSurface(View view) {
+        if (view instanceof SurfaceView surfaceView) return surfaceView.getHolder().getSurface();
+        return new Surface(((TextureView) view).getSurfaceTexture());
+    }
+
+    private void releaseOutputSurface(View view, Surface surface) {
+        if (view instanceof TextureView) surface.release();
+    }
+
+    private void createVirtualDisplay() {
+        View view = outputSurface;
+        if (displayService == null || !isOutputAvailable(view)) return;
         int width = portraitMode ? baseHeight : baseWidth;
         int height = portraitMode ? baseWidth : baseHeight;
         try {
-            texture.setDefaultBufferSize(width, height);
+            setOutputBufferSize(width, height);
             Log.i(TAG, "create buffer=" + width + "x" + height + " dpi=" + densityDpi);
-            Surface surface = new Surface(texture);
+            Surface surface = acquireOutputSurface(view);
             try {
                 boolean blockCapture = pendingLaunchPackage == null ? captureBlockedDisplay
                         : "com.netease.uuremote".equals(pendingLaunchPackage);
                 virtualDisplayId = displayService.createDisplay("BoxScreen", width, height,
                         densityDpi, surface, blockCapture);
                 captureBlockedDisplay = blockCapture;
+                removePreviousOutput();
             } finally {
-                surface.release();
+                releaseOutputSurface(view, surface);
             }
             updateMouseRouteButton();
             status("虚拟屏已创建，系统 display ID=" + virtualDisplayId);
@@ -664,11 +721,12 @@ public final class MainActivity extends Activity {
         }
     }
 
-    private void attachOutputSurface(SurfaceTexture texture) {
-        if (texture == null || displayService == null) return;
+    private void attachOutputSurface() {
+        View view = outputSurface;
+        if (displayService == null || !isOutputAvailable(view)) return;
         int width = portraitMode ? baseHeight : baseWidth;
         int height = portraitMode ? baseWidth : baseHeight;
-        texture.setDefaultBufferSize(width, height);
+        setOutputBufferSize(width, height);
         if (virtualDisplayId < 0) {
             // The display lives in the shell service and can outlive this activity (new
             // build installed, activity recreated). Re-attach to it instead of creating a
@@ -680,18 +738,21 @@ public final class MainActivity extends Activity {
                 Log.w(TAG, "could not read the existing virtual display", e);
             }
             if (existing < 0) {
-                createVirtualDisplay(texture);
+                createVirtualDisplay();
                 return;
             }
-            Surface surface = new Surface(texture);
+            Surface surface = acquireOutputSurface(view);
             try {
                 displayService.setDisplaySurface(surface);
             } catch (RemoteException | RuntimeException e) {
                 Log.e(TAG, "could not re-attach the existing virtual display", e);
+                status("无法接回运行中的虚拟屏：" + e.getMessage());
+                return;
             } finally {
-                surface.release();
+                releaseOutputSurface(view, surface);
             }
             virtualDisplayId = existing;
+            removePreviousOutput();
             Log.i(TAG, "re-attached existing virtual display id=" + existing);
             status("已接回运行中的虚拟屏 display ID=" + existing);
             syncSplitState();
@@ -700,9 +761,10 @@ public final class MainActivity extends Activity {
             return;
         }
 
-        Surface surface = new Surface(texture);
+        Surface surface = acquireOutputSurface(view);
         try {
             displayService.setDisplaySurface(surface);
+            removePreviousOutput();
             Log.i(TAG, "reattached output surface to virtual display=" + virtualDisplayId);
             updateOutputLayout();
             if (mouseBound && boundMouseDescriptor != null) rebindMouseToExternalDisplay();
@@ -710,25 +772,25 @@ public final class MainActivity extends Activity {
         } catch (RemoteException | RuntimeException e) {
             Log.e(TAG, "failed to reattach surface; recreating virtual display", e);
             virtualDisplayId = -1;
-            createVirtualDisplay(texture);
+            createVirtualDisplay();
         } finally {
-            surface.release();
+            releaseOutputSurface(view, surface);
         }
     }
 
     private void captureVirtualScreen() {
-        TextureView source = outputSurface;
-        if (source == null || !source.isAvailable() || virtualDisplayId < 0) {
+        View source = outputSurface;
+        if (!isOutputAvailable(source) || virtualDisplayId < 0) {
             Toast.makeText(this, "虚拟屏当前没有可截图的画面", Toast.LENGTH_SHORT).show();
             return;
         }
         int width = portraitMode ? baseHeight : baseWidth;
         int height = portraitMode ? baseWidth : baseHeight;
         Bitmap bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888);
-        Surface surface = new Surface(source.getSurfaceTexture());
+        Surface surface = acquireOutputSurface(source);
         Log.i(TAG, "screenshot requested display=" + virtualDisplayId + " size=" + width + "x" + height);
         PixelCopy.request(surface, bitmap, result -> {
-            surface.release();
+            releaseOutputSurface(source, surface);
             if (result != PixelCopy.SUCCESS) {
                 bitmap.recycle();
                 Log.e(TAG, "PixelCopy failed result=" + result);
@@ -852,7 +914,8 @@ public final class MainActivity extends Activity {
         detachOutputSurfaceForRecreation();
         Presentation oldPresentation = presentation;
         presentation = null;
-        outputSurface = null;
+        outputSurface = previousOutputSurface = null;
+        transitionFramesRemaining = 0;
         mousePointerView = null;
         if (oldPresentation != null) {
             try { oldPresentation.dismiss(); }
@@ -942,26 +1005,7 @@ public final class MainActivity extends Activity {
         int height = portraitMode ? baseWidth : baseHeight;
         try {
             Log.i(TAG, "resize=" + width + "x" + height + " dpi=" + densityDpi + " portrait=" + portraitMode);
-            TextureView view = outputSurface;
-            boolean orientationChange = view != null && view.isAvailable()
-                    && ((view.getWidth() != width) || (view.getHeight() != height));
-            if (orientationChange) {
-                transitionFramesRemaining = 2;
-                if (mousePointerView != null) mousePointerView.resetPointerPosition();
-                view.setAlpha(0f);
-                view.setVisibility(View.INVISIBLE);
-                view.postDelayed(() -> {
-                    if (outputSurface == view && transitionFramesRemaining > 0) {
-                        transitionFramesRemaining = 0;
-                        view.setVisibility(View.VISIBLE);
-                        view.setAlpha(1f);
-                        Log.w(TAG, "orientation transition used timeout fallback");
-                    }
-                }, 180);
-            }
-            if (outputSurface != null && outputSurface.isAvailable()) {
-                outputSurface.getSurfaceTexture().setDefaultBufferSize(width, height);
-            }
+            setOutputBufferSize(width, height);
             if (forceDensityOverride) {
                 displayService.resizeDisplay(width, height, densityDpi);
             } else {
@@ -1011,9 +1055,7 @@ public final class MainActivity extends Activity {
                 return;
             }
             try {
-                if (outputSurface != null && outputSurface.isAvailable()) {
-                    outputSurface.getSurfaceTexture().setDefaultBufferSize(nudgeWidth, nudgeHeight);
-                }
+                setOutputBufferSize(nudgeWidth, nudgeHeight);
                 displayService.resizeDisplaySize(nudgeWidth, nudgeHeight, expectedDensity);
                 Log.i(TAG, "layout refresh (" + reason + ") nudge display=" + expectedDisplayId
                         + " size=" + nudgeWidth + "x" + nudgeHeight
@@ -1030,9 +1072,7 @@ public final class MainActivity extends Activity {
                     return;
                 }
                 try {
-                    if (outputSurface != null && outputSurface.isAvailable()) {
-                        outputSurface.getSurfaceTexture().setDefaultBufferSize(width, height);
-                    }
+                    setOutputBufferSize(width, height);
                     displayService.resizeDisplaySize(width, height, expectedDensity);
                     Log.i(TAG, "layout refresh (" + reason + ") restored display=" + expectedDisplayId
                             + " size=" + width + "x" + height
@@ -1103,8 +1143,8 @@ public final class MainActivity extends Activity {
         int height = portraitMode ? baseWidth : baseHeight;
         FrameLayout.LayoutParams params = new FrameLayout.LayoutParams(width, height, Gravity.CENTER);
         outputSurface.setLayoutParams(params);
-        if (outputSurface.isAvailable()) outputSurface.getSurfaceTexture().setDefaultBufferSize(width, height);
-        outputSurface.setRotation(portraitMode ? 90f : 0f);
+        setOutputBufferSize(width, height);
+        if (outputSurface instanceof TextureView) outputSurface.setRotation(90f);
         if (mousePointerView != null) {
             FrameLayout.LayoutParams pointerParams = new FrameLayout.LayoutParams(width, height, Gravity.CENTER);
             mousePointerView.setLayoutParams(pointerParams);
@@ -1133,7 +1173,26 @@ public final class MainActivity extends Activity {
         if (densitySlider != null) densitySlider.setProgress((densityDpi - 140) / 10);
         updateDensityStatus();
         Log.i(TAG, "orientation=" + (portrait ? "portrait" : "landscape"));
-        resizeVirtualDisplay();
+        View oldOutput = outputSurface;
+        if (oldOutput != null && oldOutput.getParent() instanceof FrameLayout frame) {
+            View nextOutput = newOutputView();
+            transitionFramesRemaining = 2;
+            if (mousePointerView != null) mousePointerView.hidePointer();
+            if (previousOutputSurface == null) {
+                previousOutputSurface = oldOutput;
+            } else {
+                frame.removeView(oldOutput);
+            }
+            outputSurface = nextOutput;
+            frame.addView(nextOutput, 1);
+            nextOutput.postDelayed(() -> {
+                if (outputSurface != nextOutput || transitionFramesRemaining == 0) return;
+                transitionFramesRemaining = 0;
+                if (mousePointerView != null) mousePointerView.invalidate();
+            }, 180);
+        }
+        if (virtualDisplayId >= 0) resizeVirtualDisplay();
+        else updateOutputLayout();
         if (modeButton != null) modeButton.setText(portraitMode
                 ? "竖屏 · 切换横屏" : "横屏 · 切换竖屏");
     }
@@ -1160,7 +1219,8 @@ public final class MainActivity extends Activity {
             presentation.dismiss();
             presentation = null;
         }
-        outputSurface = null;
+        outputSurface = previousOutputSurface = null;
+        transitionFramesRemaining = 0;
         status("虚拟屏已停止");
     }
 
@@ -2704,16 +2764,16 @@ public final class MainActivity extends Activity {
             IDisplayService service = displayService;
             int targetDisplay = virtualDisplayId;
             Runnable apply = () -> applySplitLayout(service, targetDisplay, ratio, swap);
-            TextureView output = outputSurface;
-            if (!swap || output == null || !output.isAvailable() || getWidth() < 1 || getHeight() < 1) {
+            View output = outputSurface;
+            if (!swap || !isOutputAvailable(output) || getWidth() < 1 || getHeight() < 1) {
                 apply.run();
                 return;
             }
             Bitmap previous = Bitmap.createBitmap(getWidth(), getHeight(), Bitmap.Config.ARGB_8888);
-            Surface source = new Surface(output.getSurfaceTexture());
+            Surface source = acquireOutputSurface(output);
             try {
                 PixelCopy.request(source, previous, result -> {
-                    source.release();
+                    releaseOutputSurface(output, source);
                     if (result == PixelCopy.SUCCESS && splitActive && mousePointerView == this
                             && outputSurface == output && virtualDisplayId == targetDisplay) {
                         splitPreviousFrame = previous;
@@ -2725,7 +2785,7 @@ public final class MainActivity extends Activity {
                     }
                 }, handler);
             } catch (RuntimeException e) {
-                source.release();
+                releaseOutputSurface(output, source);
                 previous.recycle();
                 apply.run();
             }
@@ -3054,6 +3114,10 @@ public final class MainActivity extends Activity {
         @Override
         protected void onDraw(Canvas canvas) {
             super.onDraw(canvas);
+            if (transitionFramesRemaining > 0) {
+                canvas.drawColor(0xff000000);
+                return;
+            }
             if (splitActive && splitPreviousFrame != null) {
                 canvas.drawBitmap(splitPreviousFrame, null, new RectF(0, 0, getWidth(), getHeight()),
                         screenshotImagePaint);
@@ -3075,10 +3139,6 @@ public final class MainActivity extends Activity {
             pointerVisible = false;
             lastHideRescheduleAt = 0;
             invalidate();
-        }
-
-        void resetPointerPosition() {
-            hidePointer();
         }
     }
 
@@ -3413,7 +3473,7 @@ public final class MainActivity extends Activity {
         if (captureBlockedDisplay != needsCaptureBlocked) {
             pendingLaunchPackage = packageName;
             pendingLaunchActivity = activityName;
-            if (outputSurface == null || !outputSurface.isAvailable()) {
+            if (outputSurface == null || !isOutputAvailable(outputSurface)) {
                 status("外接屏画面尚未准备好，无法切换虚拟屏");
                 return;
             }
@@ -3421,7 +3481,7 @@ public final class MainActivity extends Activity {
                 if (mousePointerView != null) mousePointerView.cancelTouchGesture();
                 displayService.releaseDisplay();
                 virtualDisplayId = -1;
-                createVirtualDisplay(outputSurface.getSurfaceTexture());
+                createVirtualDisplay();
             } catch (RemoteException | RuntimeException e) {
                 Log.e(TAG, "switch virtual display failed", e);
                 status("切换虚拟屏失败：" + e.getMessage());
