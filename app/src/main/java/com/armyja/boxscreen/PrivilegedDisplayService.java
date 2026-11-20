@@ -601,15 +601,19 @@ public final class PrivilegedDisplayService extends IDisplayService.Stub {
     }
 
     @Override
-    public synchronized void beginSplit(String packageName) {
+    public synchronized String beginSplit() {
         if (virtualDisplay == null) throw new IllegalStateException("当前无法开始分屏");
         SplitSession next = null;
         try {
             if (splitSession != null) throw new IllegalStateException("当前已处于分屏");
-            next = new SplitSession(virtualDisplay.getDisplay().getDisplayId());
-            Object first = next.awaitTask(packageName, next.taskIds());
-            next.open(first, null, displayWidth, displayHeight);
+            int displayId = virtualDisplay.getDisplay().getDisplayId();
+            int foregroundTaskId = findTopTaskId(displayId);
+            if (foregroundTaskId < 0) throw new IllegalStateException("虚拟屏没有可分屏的前台应用");
+            next = new SplitSession(displayId);
+            String firstPackage = next.openFromForegroundTask(
+                    foregroundTaskId, displayWidth, displayHeight);
             splitSession = next;
+            return firstPackage;
         } catch (Exception e) {
             if (next != null) {
                 try { next.close(); } catch (Exception cleanup) { e.addSuppressed(cleanup); }

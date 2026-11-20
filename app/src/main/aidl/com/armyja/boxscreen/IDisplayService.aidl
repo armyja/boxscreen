@@ -25,7 +25,7 @@ interface IDisplayService {
     boolean closeSplit();
     String killSplitSide(boolean firstSide);
     boolean hideSplitSide(boolean firstSide);
-    void beginSplit(String packageName);
+    String beginSplit();
     void fillSplit(String packageName, String className, boolean firstSide);
     void adjustSplit(float ratio, boolean swap);
     String[] getSplitPackages();

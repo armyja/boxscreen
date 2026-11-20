@@ -110,6 +110,18 @@ final class SplitSession {
                 .getMethod("applyTransaction", transactionType).invoke(windowOrganizer, tx);
     }
 
+    String openFromForegroundTask(int foregroundTaskId, int width, int height)
+            throws ReflectiveOperationException {
+        for (Object task : roots()) {
+            if (taskId(task) != foregroundTaskId) continue;
+            String packageName = packageOf(task);
+            if (packageName == null) break;
+            open(token(task), null, width, height);
+            return packageName;
+        }
+        throw new IllegalStateException("前台任务已切换或无法分屏");
+    }
+
     synchronized void open(Object firstTask, Object secondTask, int width, int height) throws ReflectiveOperationException {
         firstAppToken = firstTask;
         secondAppToken = secondTask;

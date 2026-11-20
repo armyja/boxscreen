@@ -565,7 +565,7 @@ public final class MainActivity extends Activity {
                     new ComponentName(getPackageName(), PrivilegedDisplayService.class.getName()))
                     .daemon(false)
                     .processNameSuffix("display")
-                    .version(30);
+                    .version(31);
             Shizuku.bindUserService(shizukuServiceArgs, shizukuServiceConnection);
             status("正在连接 Shizuku 主机服务…");
         } catch (RuntimeException e) {
@@ -3505,18 +3505,19 @@ public final class MainActivity extends Activity {
         }
         IDisplayService service = displayService;
         int targetDisplay = virtualDisplayId;
-        String firstPackage = currentVirtualPackage;
         boolean targetFirst = splitPickerFirst;
         splitOpening = true;
         new Thread(() -> {
             Exception failure = null;
+            String openedFirstPackage = null;
             try {
-                if (second == null) service.beginSplit(firstPackage);
+                if (second == null) openedFirstPackage = service.beginSplit();
                 else service.fillSplit(second.activityInfo.packageName, second.activityInfo.name, targetFirst);
             } catch (Exception e) {
                 failure = e;
             }
             Exception result = failure;
+            String firstPackage = openedFirstPackage;
             runOnUiThread(() -> {
                 splitOpening = false;
                 if (virtualDisplayId != targetDisplay || displayService != service) return;
@@ -3531,6 +3532,7 @@ public final class MainActivity extends Activity {
                     splitRatio = 0.5f;
                     splitLastFirst = true;
                     splitPickerFirst = false;
+                    currentVirtualPackage = firstPackage;
                     splitFirstPackage = firstPackage;
                     splitSecondPackage = null;
                 } else {
