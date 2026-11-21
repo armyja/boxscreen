@@ -13,7 +13,6 @@ import java.lang.reflect.Array;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.HashSet;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Set;
 
@@ -28,8 +27,7 @@ final class SplitSession {
     private final Class<?> organizerType = Class.forName("android.window.ITaskOrganizerController");
     private final Class<?> transactionType = Class.forName("android.window.WindowContainerTransaction");
     private final Class<?> tokenType = Class.forName("android.window.WindowContainerToken");
-    private final Class<?> paramsType = Class.forName("android.window.TaskCreationParams");
-    private final Class<?> builderType = Class.forName("android.window.TaskCreationParams$Builder");
+    private SplitStageOrganizer stageOrganizer;
     private Stage root;
     private Stage first;
     private Stage second;
@@ -41,7 +39,7 @@ final class SplitSession {
     private long layoutGeneration;
     private final android.os.Handler surfaceHandler = new android.os.Handler(android.os.Looper.getMainLooper());
 
-    private record Stage(Object token, SurfaceControl surface) {}
+    record Stage(Object token, SurfaceControl surface) {}
 
     SplitSession(int displayId) throws ReflectiveOperationException {
         this.displayId = displayId;
@@ -53,7 +51,6 @@ final class SplitSession {
                 .getMethod("getWindowOrganizerController").invoke(activityTaskManager);
         organizer = Class.forName("android.window.IWindowOrganizerController")
                 .getMethod("getTaskOrganizerController").invoke(windowOrganizer);
-        organizerType.getMethod("createTask", paramsType);
         transactionType.getMethod("removeRootTask", tokenType);
     }
 
@@ -88,19 +85,11 @@ final class SplitSession {
     }
 
     private Stage create(String name, int mode, Stage parent) throws ReflectiveOperationException {
-        Object builder = builderType.getConstructor().newInstance();
-        builderType.getMethod("setDisplayId", int.class).invoke(builder, displayId);
-        builderType.getMethod("setWindowingMode", int.class).invoke(builder, mode);
-        builderType.getMethod("setName", String.class).invoke(builder, name);
-        if (parent != null) {
-            builderType.getMethod("setParentContainer", tokenType).invoke(builder, parent.token());
+        if (stageOrganizer == null) {
+            stageOrganizer = SplitStageOrganizerSelector.create(
+                    displayId, organizer, organizerType, tokenType);
         }
-        Object appeared = organizerType.getMethod("createTask", paramsType)
-                .invoke(organizer, builderType.getMethod("build").invoke(builder));
-        if (appeared == null) throw new IllegalStateException("系统未创建分屏区域");
-        Object info = appeared.getClass().getMethod("getTaskInfo").invoke(appeared);
-        SurfaceControl surface = (SurfaceControl) appeared.getClass().getMethod("getLeash").invoke(appeared);
-        return new Stage(token(info), surface);
+        return stageOrganizer.create(name, mode, parent);
     }
 
     private Object transaction() throws ReflectiveOperationException {
@@ -131,11 +120,15 @@ final class SplitSession {
         first = create("BoxScreenSplitFirst", 6, root);
         second = create("BoxScreenSplitSecond", 6, root);
         Object tx = transaction();
+        Method reparent = transactionType.getMethod("reparent", tokenType, tokenType, boolean.class);
+        if (stageOrganizer != null && stageOrganizer.requiresExplicitStageParenting()) {
+            reparent.invoke(tx, first.token(), root.token(), true);
+            reparent.invoke(tx, second.token(), root.token(), true);
+        }
         Object pair = Array.newInstance(tokenType, 2);
         Array.set(pair, 0, first.token());
         Array.set(pair, 1, second.token());
         transactionType.getMethod("setAdjacentRoots", pair.getClass()).invoke(tx, pair);
-        Method reparent = transactionType.getMethod("reparent", tokenType, tokenType, boolean.class);
         reparent.invoke(tx, firstTask, first.token(), true);
         if (secondTask != null) reparent.invoke(tx, secondTask, second.token(), true);
         transactionType.getMethod("reorder", tokenType, boolean.class).invoke(tx, root.token(), true);
@@ -481,53 +474,8 @@ final class SplitSession {
         return top == null ? null : top.getPackageName();
     }
 
-    synchronized String[] recentTasks() throws ReflectiveOperationException {
-        LinkedHashMap<Integer, String> tasks = new LinkedHashMap<>();
-        // Android's global Recents list includes apps running on the phone display too.
-        // Reading only roots attached to this virtual display can therefore return one item.
-        addRecentTasks(tasks, systemRecentTasks());
-        if (active) {
-            addRecentTasks(tasks, stageTasks(first));
-            addRecentTasks(tasks, stageTasks(second));
-        }
-        addRecentTasks(tasks, roots());
-        ArrayList<String> result = new ArrayList<>();
-        for (var entry : tasks.entrySet()) {
-            result.add(entry.getKey() + "\t" + entry.getValue());
-        }
-        return result.toArray(new String[0]);
-    }
-
     private List<?> systemRecentTasks() throws ReflectiveOperationException {
-        Class<?> taskManagerType = Class.forName("android.app.IActivityTaskManager");
-        Object recentSlice = taskManagerType
-                .getMethod("getRecentTasks", int.class, int.class, int.class)
-                .invoke(activityTaskManager, 50, 0, 0);
-        if (recentSlice == null) return List.of();
-        Object list = recentSlice.getClass().getMethod("getList").invoke(recentSlice);
-        return list instanceof List<?> recentList ? recentList : List.of();
-    }
-
-    private void addRecentTasks(LinkedHashMap<Integer, String> result, List<?> taskList)
-            throws ReflectiveOperationException {
-        for (Object task : taskList) {
-            int id = taskId(task);
-            String packageName = packageOf(task);
-            if (id > 0 && packageName != null && !packageName.equals("com.armyja.boxscreen")
-                    && !isSystemRecentsActivity(task)) {
-                result.putIfAbsent(id, packageName);
-            }
-        }
-    }
-
-    private boolean isSystemRecentsActivity(Object task) throws ReflectiveOperationException {
-        ComponentName top = (ComponentName) task.getClass().getField("topActivity").get(task);
-        ComponentName base = (ComponentName) task.getClass().getField("baseActivity").get(task);
-        return isRecentsActivity(top) || isRecentsActivity(base);
-    }
-
-    private boolean isRecentsActivity(ComponentName activity) {
-        return activity != null && activity.getClassName().contains("RecentsActivity");
+        return RecentTaskReader.systemRecentTasks(activityTaskManager);
     }
 
     synchronized String activateTask(int taskId) throws ReflectiveOperationException {
@@ -749,30 +697,35 @@ final class SplitSession {
     synchronized void close() throws ReflectiveOperationException {
         active = false;
         layoutGeneration++;
-        if (root == null) return;
         try {
-            Object tx = transaction();
-            Method remove = transactionType.getMethod("removeRootTask", tokenType);
-            Method reparent = transactionType.getMethod("reparent", tokenType, tokenType, boolean.class);
-            // The system only accepts removeRootTask for top-level organizer tasks.
-            // Promote the stages within this display so all three containers can be removed.
-            if (first != null) {
-                transactionType.getMethod("clearAdjacentRoots", tokenType).invoke(tx, first.token());
-                reparent.invoke(tx, first.token(), null, false);
-                remove.invoke(tx, first.token());
+            if (root != null) {
+                Object tx = transaction();
+                Method remove = transactionType.getMethod("removeRootTask", tokenType);
+                Method reparent = transactionType.getMethod("reparent", tokenType, tokenType, boolean.class);
+                // The system only accepts removeRootTask for top-level organizer tasks.
+                // Promote the stages within this display so all three containers can be removed.
+                if (first != null) {
+                    transactionType.getMethod("clearAdjacentRoots", tokenType).invoke(tx, first.token());
+                    reparent.invoke(tx, first.token(), null, false);
+                    remove.invoke(tx, first.token());
+                }
+                if (second != null) {
+                    reparent.invoke(tx, second.token(), null, false);
+                    remove.invoke(tx, second.token());
+                }
+                remove.invoke(tx, root.token());
+                apply(tx);
             }
-            if (second != null) {
-                reparent.invoke(tx, second.token(), null, false);
-                remove.invoke(tx, second.token());
-            }
-            remove.invoke(tx, root.token());
-            apply(tx);
         } finally {
             for (Stage stage : new Stage[]{first, second, root}) {
                 if (stage != null) stage.surface().release();
             }
             first = second = root = null;
             firstAppToken = secondAppToken = null;
+            if (stageOrganizer != null) {
+                stageOrganizer.close();
+                stageOrganizer = null;
+            }
         }
     }
 }

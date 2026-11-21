@@ -816,9 +816,7 @@ public final class PrivilegedDisplayService extends IDisplayService.Stub {
     public synchronized String[] getVirtualDisplayRecentTasks() {
         if (virtualDisplay == null || virtualDisplay.getDisplay() == null) return new String[0];
         try {
-            SplitSession tasks = splitSession != null ? splitSession
-                    : new SplitSession(virtualDisplay.getDisplay().getDisplayId());
-            return tasks.recentTasks();
+            return RecentTaskReader.read(virtualDisplay.getDisplay().getDisplayId());
         } catch (ReflectiveOperationException | RuntimeException e) {
             throw new IllegalStateException("无法读取虚拟屏最近任务：" + describeFailure(e), e);
         }
