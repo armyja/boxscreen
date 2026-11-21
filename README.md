@@ -1,10 +1,10 @@
 # BoxScreen
 
-BoxScreen 把手机变成一台「安卓盒子」：外接显示器上独立运行安卓应用，以**鼠标为核心输入**进行大屏展示与操作——看视频、玩游戏、轻办公。手机屏幕保留控制界面，外接屏显示所选应用。当前版本以 **OnePlus 16（PYB110）** 为目标设备。
+BoxScreen 把手机变成一台「安卓盒子」：外接显示器上独立运行安卓应用，以**鼠标为核心输入**进行大屏展示与操作——看视频、玩游戏、轻办公。手机屏幕保留控制界面，外接屏显示所选应用。当前版本支持下方列出的 OnePlus 16 和 OnePlus 8 两种设备与系统配置。
 
-> **当前公开版本：v1.0.15。** 本版本面向 OnePlus 16（PYB110），并在该设备上开发和验证。其他 Android 设备可能可用，但外接显示、Shizuku 权限和鼠标路由行为取决于厂商系统，尚未承诺兼容。
+> **当前公开版本：v1.0.16。** 适配 OnePlus 16（PYB110，Android 17）和 OnePlus 8（IN2010，第三方 Android 16 系统，API 36，构建号 `BP4A.251205.006`）。OnePlus 8 的适配针对该系统构建，不代表支持原厂 OxygenOS 或所有第三方 ROM。
 
-v1.0.15 增加 Android 最近任务快捷操作：可从状态栏或应用卡片拖入分屏，并从状态栏图标重启或关闭对应的前台应用。详见[本次发布说明](docs/RELEASE_NOTES_v1.0.15.md)。
+v1.0.16 将最近任务读取与分屏容器创建解耦，并按运行时可用接口选择分屏实现；OnePlus 16 保留原有路径，新增 OnePlus 8 第三方 Android 16 系统适配。详见[本次发布说明](docs/RELEASE_NOTES_v1.0.16.md)。
 
 ## 功能
 
@@ -41,14 +41,14 @@ v1.0.15 增加 Android 最近任务快捷操作：可从状态栏或应用卡片
 
 ## 设备与要求
 
-- 主机：OnePlus 16，型号 **PYB110**，连接支持视频输出的外接显示器。
-- Android 端：Shizuku 在 PYB110 上运行，并授予 BoxScreen 权限。
+- 主机：OnePlus 16（PYB110，Android 17，构建号 `PYB110_17.0.0.157(CN01)`），或 OnePlus 8（IN2010，第三方 Android 16 系统，API 36，构建号 `BP4A.251205.006`）；手机需连接支持视频输出的外接显示器。
+- Android 端：Shizuku 在手机上运行，并授予 BoxScreen 权限。
 - 外接鼠标为可选项。没有鼠标时仍可使用应用列表和虚拟屏功能。
 - 构建环境：JDK 17 或更新版本、Android SDK Platform 36、Android Build Tools，以及仓库自带的 Gradle Wrapper。
 
 ## 快速开始
 
-1. 在 PYB110 上启动 Shizuku，并连接外接显示器。
+1. 在手机上启动 Shizuku，并连接外接显示器。
 2. 安装并打开 BoxScreen。连接 Shizuku 时按提示授权。
 3. 在“可启动的应用”中点选应用。BoxScreen 会按需创建或复用虚拟屏，并把应用启动到外接屏。
 4. 若连接了鼠标，点击应用启动后会自动启用鼠标转发；手机随后进入黑屏。触摸手机即可恢复显示和原来的亮度。
@@ -58,7 +58,7 @@ v1.0.15 增加 Android 最近任务快捷操作：可从状态栏或应用卡片
 
 ## 下载与安装
 
-从 [GitHub Releases](https://github.com/armyja/boxscreen/releases/latest) 下载适用于 PYB110 的 APK。首次安装时，按 Android 提示允许该来源安装应用。v1.0.15 使用项目正式发布签名，可覆盖升级并保留本地设置；若设备上装的是签名不同的 Debug 版，则需先卸载旧版（会清除 BoxScreen 的本地收藏和 DPI 设置）。
+从 [GitHub Releases](https://github.com/armyja/boxscreen/releases/latest) 下载适用于上述两种配置的 APK。首次安装时，按 Android 提示允许该来源安装应用。v1.0.16 使用项目正式发布签名，可覆盖升级并保留本地设置；若设备上装的是签名不同的 Debug 版，则需先卸载旧版（会清除 BoxScreen 的本地收藏和 DPI 设置）。
 
 ## 从源码构建
 
@@ -76,7 +76,7 @@ APK 输出路径：`app/build/outputs/apk/debug/app-debug.apk`。
 
 ## 兼容性说明
 
-BoxScreen 使用 Android 的公开虚拟显示能力和 Shizuku 主机服务。个别应用可能拒绝在副屏启动、强制回到主屏，或自行限制方向和窗口尺寸；这些行为由应用自身的副屏适配决定。竖屏效果是把竖屏虚拟画面旋转后铺到保持横向的视频输出上。
+BoxScreen 使用 Android 的公开虚拟显示能力和 Shizuku 主机服务。分屏容器按系统实际提供的接口选择实现：OnePlus 16 使用 `TaskCreationParams` 路径；OnePlus 8 的上述第三方 Android 16 构建使用 `createRootTask` 路径。最近任务读取不依赖任一分屏实现。其他 Android 设备及未列出的系统构建尚未承诺兼容。个别应用可能拒绝在副屏启动、强制回到主屏，或自行限制方向和窗口尺寸；这些行为由应用自身的副屏适配决定。竖屏效果是把竖屏虚拟画面旋转后铺到保持横向的视频输出上。
 
 ## 许可证
 
