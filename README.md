@@ -2,9 +2,9 @@
 
 BoxScreen 把手机变成一台「安卓盒子」：外接显示器上独立运行安卓应用，以**鼠标为核心输入**进行大屏展示与操作——看视频、玩游戏、轻办公。手机屏幕保留控制界面，外接屏显示所选应用。当前版本支持下方列出的 OnePlus 16 和 OnePlus 8 两种设备与系统配置。
 
-> **当前公开版本：v1.0.16。** 适配 OnePlus 16（PYB110，Android 17）和 OnePlus 8（IN2010，第三方 Android 16 系统，API 36，构建号 `BP4A.251205.006`）。OnePlus 8 的适配针对该系统构建，不代表支持原厂 OxygenOS 或所有第三方 ROM。
+> **当前公开版本：v1.0.17。** 适配 OnePlus 16（PYB110，Android 17）和 OnePlus 8（IN2010，第三方 Android 16 系统，API 36，构建号 `BP4A.251205.006`）。OnePlus 8 的适配针对该系统构建，不代表支持原厂 OxygenOS 或所有第三方 ROM。
 
-v1.0.16 将最近任务读取与分屏容器创建解耦，并按运行时可用接口选择分屏实现；OnePlus 16 保留原有路径，新增 OnePlus 8 第三方 Android 16 系统适配。详见[本次发布说明](docs/RELEASE_NOTES_v1.0.16.md)。
+v1.0.17 修复 OnePlus 8 上启动 UU 远程时虚拟屏创建失败并重复添加系统关联的问题；OnePlus 16 原有分屏和最近任务路径保持不变。详见[本次发布说明](docs/RELEASE_NOTES_v1.0.17.md)。
 
 ## 功能
 
@@ -58,7 +58,7 @@ v1.0.16 将最近任务读取与分屏容器创建解耦，并按运行时可用
 
 ## 下载与安装
 
-从 [GitHub Releases](https://github.com/armyja/boxscreen/releases/latest) 下载适用于上述两种配置的 APK。首次安装时，按 Android 提示允许该来源安装应用。v1.0.16 使用项目正式发布签名，可覆盖升级并保留本地设置；若设备上装的是签名不同的 Debug 版，则需先卸载旧版（会清除 BoxScreen 的本地收藏和 DPI 设置）。
+从 [GitHub Releases](https://github.com/armyja/boxscreen/releases/latest) 下载适用于上述两种配置的 APK。首次安装时，按 Android 提示允许该来源安装应用。v1.0.17 使用项目正式发布签名，可覆盖升级并保留本地设置；若设备上装的是签名不同的 Debug 版，则需先卸载旧版（会清除 BoxScreen 的本地收藏和 DPI 设置）。
 
 ## 从源码构建
 
