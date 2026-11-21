@@ -21,8 +21,10 @@ import android.view.WindowManager;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.Executor;
@@ -50,6 +52,7 @@ public final class PrivilegedDisplayService extends IDisplayService.Stub {
     private static final String ASSOCIATION_MAC = "02:42:4f:58:53:02";
     private static final String ASSOCIATION_PROFILE = "android.app.role.COMPANION_DEVICE_APP_STREAMING";
     private int associationId = -1;
+    private boolean associationCreatedByService;
     private Surface outputSurface;
     private String mouseAssociationDescriptor;
     private WindowManager imeWindowManager;
@@ -127,16 +130,24 @@ public final class PrivilegedDisplayService extends IDisplayService.Stub {
     private VirtualDisplay createCaptureIneligibleDisplay(String name, int width, int height,
             int densityDpi, Surface surface, int flags) throws ReflectiveOperationException {
         String[] list = {"/system/bin/cmd", "companiondevice", "list", "0"};
-        String associations = run(list);
-        Matcher match = Pattern.compile("Association\\{mId=(\\d+),[^\\n]*mPackageName='com\\.android\\.shell'[^\\n]*mDeviceMacAddress=" + ASSOCIATION_MAC, Pattern.CASE_INSENSITIVE).matcher(associations);
-        if (!match.find()) {
+        List<Integer> associationIds = findShellAssociationIds(run(list));
+        associationCreatedByService = false;
+        if (associationIds.isEmpty()) {
             run(new String[]{"/system/bin/cmd", "companiondevice", "associate", "0",
                     "com.android.shell", ASSOCIATION_MAC, ASSOCIATION_PROFILE});
-            match = Pattern.compile("Association\\{mId=(\\d+),[^\\n]*mPackageName='com\\.android\\.shell'[^\\n]*mDeviceMacAddress=" + ASSOCIATION_MAC, Pattern.CASE_INSENSITIVE).matcher(run(list));
-            if (!match.find()) throw new IllegalStateException("Cannot find BoxScreen association");
+            associationIds = findShellAssociationIds(run(list));
+            if (associationIds.isEmpty()) {
+                throw new IllegalStateException("Cannot find BoxScreen association after creating it; "
+                        + "check companiondevice list output format");
+            }
+            associationCreatedByService = true;
         }
-        associationId = Integer.parseInt(match.group(1));
+        associationId = associationIds.get(0);
         Context shell = createShellContext();
+        Log.i("BoxScreenService", "UU display association selected id=" + associationId
+                + " matches=" + associationIds.size() + " created=" + associationCreatedByService
+                + " serviceUid=" + android.os.Process.myUid()
+                + " contextPackage=" + shell.getPackageName());
         Class<?> managerClass = Class.forName("android.companion.virtual.VirtualDeviceManager");
         Object manager = shell.getSystemService(managerClass);
         java.lang.reflect.Field service = managerClass.getDeclaredField("mService");
@@ -155,17 +166,39 @@ public final class PrivilegedDisplayService extends IDisplayService.Stub {
                 .invoke(virtualDevice, config, null, null);
     }
 
+    private static List<Integer> findShellAssociationIds(String output) {
+        List<Integer> ids = new ArrayList<>();
+        Pattern tableRow = Pattern.compile("^\\s*(\\d+)\\s*\\|\\s*com\\.android\\.shell\\s*\\|\\s*"
+                + Pattern.quote(ASSOCIATION_MAC) + "\\s*$",
+                Pattern.CASE_INSENSITIVE | Pattern.MULTILINE);
+        Matcher tableMatcher = tableRow.matcher(output);
+        while (tableMatcher.find()) addAssociationId(ids, tableMatcher.group(1));
+
+        Pattern associationObject = Pattern.compile("Association\\{mId=(\\d+),[^\\n]*"
+                + "mPackageName='com\\.android\\.shell'[^\\n]*mDeviceMacAddress="
+                + Pattern.quote(ASSOCIATION_MAC), Pattern.CASE_INSENSITIVE);
+        Matcher objectMatcher = associationObject.matcher(output);
+        while (objectMatcher.find()) addAssociationId(ids, objectMatcher.group(1));
+        return ids;
+    }
+
+    private static void addAssociationId(List<Integer> ids, String value) {
+        int id = Integer.parseInt(value);
+        if (!ids.contains(id)) ids.add(id);
+    }
+
     private void closeVirtualDevice() {
         if (virtualDevice != null) {
             try { virtualDevice.getClass().getMethod("close").invoke(virtualDevice); }
             catch (ReflectiveOperationException | RuntimeException e) { Log.w("BoxScreenService", "virtual device close failed", e); }
             virtualDevice = null;
         }
-        if (associationId >= 0) {
+        if (associationId >= 0 && associationCreatedByService) {
             try { run(new String[]{"/system/bin/cmd", "companiondevice", "disassociate", "0", "com.android.shell", ASSOCIATION_MAC}); }
             catch (RuntimeException e) { Log.w("BoxScreenService", "association cleanup failed", e); }
-            associationId = -1;
         }
+        associationId = -1;
+        associationCreatedByService = false;
     }
 
     private DisplayManager createShellDisplayManager() throws ReflectiveOperationException {
