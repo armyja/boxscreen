@@ -1,6 +1,5 @@
 package com.armyja.boxscreen;
 
-import android.app.ActivityManager;
 import android.content.ComponentName;
 import android.os.IBinder;
 import android.util.Log;
@@ -47,7 +46,6 @@ final class RecentTaskReader {
 
         ArrayList<String> result = new ArrayList<>(tasks.size());
         for (var entry : tasks.entrySet()) result.add(entry.getKey() + "\t" + entry.getValue());
-        Log.d(TAG, "read " + result.size() + " tasks for display=" + displayId);
         return result.toArray(new String[0]);
     }
 

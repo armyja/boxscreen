@@ -29,6 +29,7 @@ final class RootTaskSplitOrganizer implements SplitStageOrganizer {
     private final Object callbackLock = new Object();
     private IBinder pendingCookie;
     private int pendingWindowingMode;
+    private Set<Integer> pendingExistingTaskIds = Set.of();
     private SplitSession.Stage appearedStage;
     private boolean registered;
 
@@ -67,9 +68,18 @@ final class RootTaskSplitOrganizer implements SplitStageOrganizer {
     public SplitSession.Stage create(String name, int windowingMode, SplitSession.Stage parent)
             throws ReflectiveOperationException {
         IBinder cookie = new Binder();
+        Set<Integer> existingTaskIds = new HashSet<>();
+        Method getRootTasks = controllerType.getMethod("getRootTasks", int.class, int[].class);
+        List<?> existingRoots = (List<?>) getRootTasks.invoke(controller, displayId, null);
+        if (existingRoots != null) {
+            for (Object task : existingRoots) {
+                existingTaskIds.add(task.getClass().getField("taskId").getInt(task));
+            }
+        }
         synchronized (callbackLock) {
             pendingCookie = cookie;
             pendingWindowingMode = windowingMode;
+            pendingExistingTaskIds = existingTaskIds;
             appearedStage = null;
         }
 
@@ -95,6 +105,7 @@ final class RootTaskSplitOrganizer implements SplitStageOrganizer {
         } finally {
             synchronized (callbackLock) {
                 pendingCookie = null;
+                pendingExistingTaskIds = Set.of();
                 appearedStage = null;
             }
         }
@@ -124,14 +135,17 @@ final class RootTaskSplitOrganizer implements SplitStageOrganizer {
                 return false;
             }
         } catch (ReflectiveOperationException ignored) {
-            // Older RunningTaskInfo variants do not expose launchCookies. Use display and mode.
+            // Older RunningTaskInfo variants do not expose launchCookies. Use only a new root
+            // task on the expected display and in the requested mode as the fallback.
         }
         try {
+            int taskId = task.getClass().getField("taskId").getInt(task);
+            if (pendingExistingTaskIds.contains(taskId)) return false;
             if (task.getClass().getField("displayId").getInt(task) != displayId) return false;
             Method getWindowingMode = task.getClass().getMethod("getWindowingMode");
             return ((Number) getWindowingMode.invoke(task)).intValue() == expectedWindowingMode;
         } catch (ReflectiveOperationException ignored) {
-            return true;
+            return false;
         }
     }
 
