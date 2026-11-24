@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 592 392" width="592" height="392" role="img" aria-label="「触摸模式 vs 鼠标模式」按键对照与手柄">
+  <rect x="1" y="1" width="590" height="390" rx="18" fill="#ffffff" stroke="#dce4e1" stroke-width="1.5"/>
+  <rect x="16" y="14" width="101" height="24" rx="7" fill="#eff6ff" stroke="#2563eb" stroke-opacity="0.3" stroke-width="1"/>
+  <text x="66.5" y="30" font-size="11.5" fill="#2563eb" text-anchor="middle" font-weight="700" font-family="-apple-system,BlinkMacSystemFont,'PingFang SC','Microsoft YaHei','Noto Sans SC',sans-serif">键鼠模式与手柄</text>
+  <text x="127" y="30.5" font-size="14.5" fill="#1a2120" text-anchor="start" font-weight="700" font-family="-apple-system,BlinkMacSystemFont,'PingFang SC','Microsoft YaHei','Noto Sans SC',sans-serif">「触摸模式 vs 鼠标模式」按键对照与手柄</text>
+  <text x="18" y="52" font-size="11.5" fill="#586562" text-anchor="start" font-weight="500" font-family="-apple-system,BlinkMacSystemFont,'PingFang SC','Microsoft YaHei','Noto Sans SC',sans-serif">快捷面板按单个应用独立保存输入模式；连上手柄后，按键与摇杆直发大屏焦点：</text>
+  <line x1="16" y1="62" x2="576" y2="62" stroke="#edf2f0" stroke-width="1.2"/>
+  <g transform="translate(16, 68)">
+    <!-- Touch Mode Card (12..272) -->
+      <rect x="12" y="12" width="262" height="222" rx="14" fill="#e6f5f0" stroke="#0d7a64" stroke-width="1.5"/>
+      <g transform="translate(38,38) scale(1.2)">
+    <path d="M-2 5V-5a1.8 1.8 0 0 1 3.6 0V-1h1.1a1.5 1.5 0 0 1 1.5 1.5v.3h.9a1.4 1.4 0 0 1 1.4 1.4v2.6a4.5 4.5 0 0 1-4.5 4.5h-1.8A4 4 0 0 1-5 6.8L-6.8 3a1.5 1.5 0 0 1 2.4-1.7z" fill="none" stroke="#075848" stroke-width="1.6" stroke-linejoin="round"/>
+  </g>
+      <text x="56" y="38" font-size="14.5" fill="#075848" text-anchor="start" font-weight="700" font-family="-apple-system,BlinkMacSystemFont,'PingFang SC','Microsoft YaHei',sans-serif">触摸模式（默认）</text>
+      <text x="56" y="55" font-size="10.5" fill="#586562" text-anchor="start" font-weight="500" font-family="-apple-system,BlinkMacSystemFont,'PingFang SC','Microsoft YaHei',sans-serif">鼠标当作“隔空手指”，适合多数 App</text>
+      <rect x="26" y="76" width="66" height="118" rx="30" fill="#fff" stroke="#0d7a64" stroke-width="1.8"/>
+      <line x1="59" y1="76" x2="59" y2="130" stroke="#cfd8d5" stroke-width="1.5"/><line x1="26" y1="130" x2="92" y2="130" stroke="#cfd8d5" stroke-width="1.5"/>
+      <rect x="54" y="90" width="10" height="22" rx="5" fill="#fffbeb" stroke="#d97706" stroke-width="1.5"/>
+      <text x="42" y="109" font-size="11.5" fill="#075848" text-anchor="middle" font-weight="700" font-family="-apple-system,BlinkMacSystemFont,'PingFang SC','Microsoft YaHei',sans-serif">左</text><text x="76" y="109" font-size="11.5" fill="#e11d48" text-anchor="middle" font-weight="700" font-family="-apple-system,BlinkMacSystemFont,'PingFang SC','Microsoft YaHei',sans-serif">右</text>
+      <text x="59" y="166" font-size="10" fill="#586562" text-anchor="middle" font-weight="500" font-family="-apple-system,BlinkMacSystemFont,'PingFang SC','Microsoft YaHei',sans-serif">拖=划屏</text>
+      <text x="102" y="94" font-size="11.5" fill="#1a2120" text-anchor="start" font-weight="700" font-family="-apple-system,BlinkMacSystemFont,'PingFang SC','Microsoft YaHei',sans-serif">左键：</text><text x="134" y="94" font-size="11.5" fill="#586562" text-anchor="start" font-weight="500" font-family="-apple-system,BlinkMacSystemFont,'PingFang SC','Microsoft YaHei',sans-serif">手指点击 / 拖动</text>
+      <text x="102" y="120" font-size="11.5" fill="#e11d48" text-anchor="start" font-weight="700" font-family="-apple-system,BlinkMacSystemFont,'PingFang SC','Microsoft YaHei',sans-serif">右键：</text><text x="134" y="120" font-size="11.5" fill="#1a2120" text-anchor="start" font-weight="600" font-family="-apple-system,BlinkMacSystemFont,'PingFang SC','Microsoft YaHei',sans-serif">系统返回（松开触发）</text>
+      <text x="102" y="146" font-size="11.5" fill="#d97706" text-anchor="start" font-weight="700" font-family="-apple-system,BlinkMacSystemFont,'PingFang SC','Microsoft YaHei',sans-serif">中键：</text><text x="134" y="146" font-size="11.5" fill="#586562" text-anchor="start" font-weight="500" font-family="-apple-system,BlinkMacSystemFont,'PingFang SC','Microsoft YaHei',sans-serif">菜单键（部分支持）</text>
+      <text x="102" y="172" font-size="11.5" fill="#1a2120" text-anchor="start" font-weight="700" font-family="-apple-system,BlinkMacSystemFont,'PingFang SC','Microsoft YaHei',sans-serif">滚轮：</text><text x="134" y="172" font-size="11.5" fill="#586562" text-anchor="start" font-weight="500" font-family="-apple-system,BlinkMacSystemFont,'PingFang SC','Microsoft YaHei',sans-serif">上下滚动页面</text>
+      <text x="143" y="218" font-size="11" fill="#075848" text-anchor="middle" font-weight="700" font-family="-apple-system,BlinkMacSystemFont,'PingFang SC','Microsoft YaHei',sans-serif">面板按钮样式：手指图标</text>
+
+      <!-- Mouse Mode Card (286..548) -->
+      <rect x="286" y="12" width="262" height="222" rx="14" fill="#eff6ff" stroke="#2563eb" stroke-width="1.5"/>
+      <g transform="translate(312,38) scale(1.15)">
+    <rect x="-5.5" y="-7.5" width="11" height="15" rx="5.5" fill="none" stroke="#2563eb" stroke-width="1.6"/>
+    <line x1="0" y1="-7.5" x2="0" y2="-1.5" stroke="#2563eb" stroke-width="1.5"/>
+    <line x1="-5.5" y1="-1.5" x2="5.5" y2="-1.5" stroke="#2563eb" stroke-width="1.3"/>
+  </g>
+      <text x="328" y="38" font-size="14.5" fill="#2563eb" text-anchor="start" font-weight="700" font-family="-apple-system,BlinkMacSystemFont,'PingFang SC','Microsoft YaHei',sans-serif">鼠标模式（按应用切换）</text>
+      <text x="328" y="55" font-size="10.5" fill="#586562" text-anchor="start" font-weight="500" font-family="-apple-system,BlinkMacSystemFont,'PingFang SC','Microsoft YaHei',sans-serif">将原生鼠标事件直接透传给当前应用</text>
+      <rect x="300" y="76" width="66" height="118" rx="30" fill="#fff" stroke="#2563eb" stroke-width="1.8"/>
+      <line x1="333" y1="76" x2="333" y2="130" stroke="#cfd8d5" stroke-width="1.5"/><line x1="300" y1="130" x2="366" y2="130" stroke="#cfd8d5" stroke-width="1.5"/>
+      <rect x="328" y="90" width="10" height="22" rx="5" fill="#eff6ff" stroke="#2563eb" stroke-width="1.5"/>
+      <text x="316" y="109" font-size="11.5" fill="#2563eb" text-anchor="middle" font-weight="700" font-family="-apple-system,BlinkMacSystemFont,'PingFang SC','Microsoft YaHei',sans-serif">左</text><text x="350" y="109" font-size="11.5" fill="#2563eb" text-anchor="middle" font-weight="700" font-family="-apple-system,BlinkMacSystemFont,'PingFang SC','Microsoft YaHei',sans-serif">右</text>
+      <text x="333" y="166" font-size="10" fill="#586562" text-anchor="middle" font-weight="500" font-family="-apple-system,BlinkMacSystemFont,'PingFang SC','Microsoft YaHei',sans-serif">真指针</text>
+      <text x="376" y="94" font-size="11.5" fill="#1a2120" text-anchor="start" font-weight="700" font-family="-apple-system,BlinkMacSystemFont,'PingFang SC','Microsoft YaHei',sans-serif">左键：</text><text x="408" y="94" font-size="11.5" fill="#586562" text-anchor="start" font-weight="500" font-family="-apple-system,BlinkMacSystemFont,'PingFang SC','Microsoft YaHei',sans-serif">原生鼠标左键</text>
+      <text x="376" y="120" font-size="11.5" fill="#2563eb" text-anchor="start" font-weight="700" font-family="-apple-system,BlinkMacSystemFont,'PingFang SC','Microsoft YaHei',sans-serif">右键：</text><text x="408" y="120" font-size="11.5" fill="#1a2120" text-anchor="start" font-weight="600" font-family="-apple-system,BlinkMacSystemFont,'PingFang SC','Microsoft YaHei',sans-serif">透传应用右键菜单</text>
+      <text x="376" y="146" font-size="11.5" fill="#2563eb" text-anchor="start" font-weight="700" font-family="-apple-system,BlinkMacSystemFont,'PingFang SC','Microsoft YaHei',sans-serif">中键：</text><text x="408" y="146" font-size="11.5" fill="#586562" text-anchor="start" font-weight="500" font-family="-apple-system,BlinkMacSystemFont,'PingFang SC','Microsoft YaHei',sans-serif">透传应用自身处理</text>
+      <text x="376" y="172" font-size="11.5" fill="#1a2120" text-anchor="start" font-weight="700" font-family="-apple-system,BlinkMacSystemFont,'PingFang SC','Microsoft YaHei',sans-serif">滚轮：</text><text x="408" y="172" font-size="11.5" fill="#586562" text-anchor="start" font-weight="500" font-family="-apple-system,BlinkMacSystemFont,'PingFang SC','Microsoft YaHei',sans-serif">上下滚动页面</text>
+      <text x="417" y="218" font-size="11" fill="#2563eb" text-anchor="middle" font-weight="700" font-family="-apple-system,BlinkMacSystemFont,'PingFang SC','Microsoft YaHei',sans-serif">面板按钮样式：鼠标图标</text>
+
+      <!-- Bottom Gamepad Note -->
+      <rect x="12" y="246" width="536" height="48" rx="12" fill="#f5f3ff" stroke="#7c3aed" stroke-width="1.3"/>
+      <text x="280" y="267" font-size="12" fill="#7c3aed" text-anchor="middle" font-weight="700" font-family="-apple-system,BlinkMacSystemFont,'PingFang SC','Microsoft YaHei',sans-serif">🎮 外接游戏手柄：连上手机后（需 Shizuku 正常），摇杆与按键直接发给外接屏焦点应用</text>
+      <text x="280" y="285" font-size="11" fill="#586562" text-anchor="middle" font-weight="500" font-family="-apple-system,BlinkMacSystemFont,'PingFang SC','Microsoft YaHei',sans-serif">注：若极少数移植游戏窗口不可获焦而收不到手柄信号，请在面板保持“触摸模式”用鼠标玩</text>
+  </g>
+</svg>

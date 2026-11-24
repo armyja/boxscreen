@@ -1,5 +1,39 @@
+import org.gradle.api.DefaultTask
+import org.gradle.api.file.DirectoryProperty
+import org.gradle.api.file.RegularFileProperty
+import org.gradle.api.tasks.InputFile
+import org.gradle.api.tasks.OutputDirectory
+import org.gradle.api.tasks.PathSensitive
+import org.gradle.api.tasks.PathSensitivity
+import org.gradle.api.tasks.TaskAction
+
 plugins {
     id 'com.android.application'
+}
+
+abstract class CopyGuideAssetTask extends DefaultTask {
+    @InputFile
+    @PathSensitive(PathSensitivity.RELATIVE)
+    abstract RegularFileProperty getSourceFile()
+
+    @OutputDirectory
+    abstract DirectoryProperty getOutputDir()
+
+    @TaskAction
+    void run() {
+        File out = outputDir.get().asFile
+        out.mkdirs()
+        sourceFile.get().asFile.withInputStream { input ->
+            new File(out, 'operation_guide_zh_cn.html').withOutputStream { output ->
+                output << input
+            }
+        }
+    }
+}
+
+def syncGuideAsset = tasks.register('syncGuideAsset', CopyGuideAssetTask) {
+    sourceFile.set(rootProject.layout.projectDirectory.file('docs/OPERATION_GUIDE_zh-CN.html'))
+    outputDir.set(layout.buildDirectory.dir('generated/guideAssets'))
 }
 
 def releaseSigningPropertiesFile = new File(System.getProperty('user.home'), '.gradle/boxscreen-release.properties')
@@ -56,6 +90,12 @@ android {
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_17
         targetCompatibility JavaVersion.VERSION_17
+    }
+}
+
+androidComponents {
+    onVariants(selector().all()) { variant ->
+        variant.sources.assets.addGeneratedSourceDirectory(syncGuideAsset, { it.outputDir })
     }
 }
 

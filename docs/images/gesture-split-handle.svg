@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 592 392" width="592" height="392" role="img" aria-label="分界「隐藏滑块」：靠近才出现，3 种用法">
+  <rect x="1" y="1" width="590" height="390" rx="18" fill="#ffffff" stroke="#dce4e1" stroke-width="1.5"/>
+  <rect x="16" y="14" width="89" height="24" rx="7" fill="#f5f3ff" stroke="#7c3aed" stroke-opacity="0.3" stroke-width="1"/>
+  <text x="60.5" y="30" font-size="11.5" fill="#7c3aed" text-anchor="middle" font-weight="700" font-family="-apple-system,BlinkMacSystemFont,'PingFang SC','Microsoft YaHei','Noto Sans SC',sans-serif">分屏中线滑块</text>
+  <text x="115" y="30.5" font-size="14.5" fill="#1a2120" text-anchor="start" font-weight="700" font-family="-apple-system,BlinkMacSystemFont,'PingFang SC','Microsoft YaHei','Noto Sans SC',sans-serif">分界「隐藏滑块」：靠近才出现，3 种用法</text>
+  <text x="18" y="52" font-size="11.5" fill="#586562" text-anchor="start" font-weight="500" font-family="-apple-system,BlinkMacSystemFont,'PingFang SC','Microsoft YaHei','Noto Sans SC',sans-serif">滑块固定在分界线偏上方（高度约 18%）避开弹窗与键盘，鼠标离开自动隐藏：</text>
+  <line x1="16" y1="62" x2="576" y2="62" stroke="#edf2f0" stroke-width="1.2"/>
+  <g transform="translate(16, 68)">
+    <rect x="16" y="12" width="252" height="282" rx="12" fill="#eef4f2" stroke="#b7c7c2" stroke-width="1.3"/>
+      <rect x="22" y="18" width="116" height="270" rx="8" fill="#142321" stroke="none" stroke-width="1.2"/>
+      <rect x="146" y="18" width="116" height="270" rx="8" fill="#ffffff" stroke="#cfd8d5" stroke-width="1"/>
+      <text x="80" y="152" font-size="14" fill="#5eead4" text-anchor="middle" font-weight="700" font-family="-apple-system,BlinkMacSystemFont,'PingFang SC','Microsoft YaHei',sans-serif">左栏 A</text>
+      <text x="204" y="152" font-size="14" fill="#2563eb" text-anchor="middle" font-weight="700" font-family="-apple-system,BlinkMacSystemFont,'PingFang SC','Microsoft YaHei',sans-serif">右栏 B</text>
+      <rect x="26" y="254" width="232" height="26" rx="6" fill="#0f172a" stroke="#5eead4" stroke-width="1"/>
+      <text x="142" y="271" font-size="10.5" fill="#ccfbf1" text-anchor="middle" font-weight="600" font-family="-apple-system,BlinkMacSystemFont,'PingFang SC','Microsoft YaHei',sans-serif">滑块放在偏上方，避开居中键盘与弹窗</text>
+
+      <line x1="142" y1="18" x2="142" y2="248" stroke="#94a3b8" stroke-width="2"/>
+      <rect x="136" y="54" width="12" height="48" rx="6" fill="#ffffff" stroke="#0d7a64" stroke-width="2.2"/>
+      <rect x="122" y="42" width="40" height="72" rx="12" fill="none" stroke="#0d7a64" stroke-width="1.4" stroke-dasharray="4 3"/>
+      <path d="M112 78 L131 78 M172 78 L153 78" fill="none" stroke="#2563eb" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M117 73 L110 78 L117 83 M167 73 L174 78 L167 83" fill="none" stroke="#2563eb" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+
+      <rect x="284" y="12" width="260" height="78" rx="12" fill="#eff6ff" stroke="#2563eb" stroke-width="1.3"/>
+      <text x="300" y="37" font-size="13.5" fill="#2563eb" text-anchor="start" font-weight="700" font-family="-apple-system,BlinkMacSystemFont,'PingFang SC','Microsoft YaHei',sans-serif">1. 按住左右拖（竖屏为上下拖）</text>
+      <text x="300" y="59" font-size="12" fill="#1a2120" text-anchor="start" font-weight="500" font-family="-apple-system,BlinkMacSystemFont,'PingFang SC','Microsoft YaHei',sans-serif">• 拖动时出现白线预览新宽度</text>
+      <text x="300" y="77" font-size="12" fill="#586562" text-anchor="start" font-weight="500" font-family="-apple-system,BlinkMacSystemFont,'PingFang SC','Microsoft YaHei',sans-serif">• 松手才重排画面，单栏最窄 20:9</text>
+
+      <rect x="284" y="102" width="260" height="64" rx="12" fill="#f5f3ff" stroke="#7c3aed" stroke-width="1.3"/>
+      <text x="300" y="127" font-size="13.5" fill="#7c3aed" text-anchor="start" font-weight="700" font-family="-apple-system,BlinkMacSystemFont,'PingFang SC','Microsoft YaHei',sans-serif">2. 原地轻点一下（不拖动）</text>
+      <text x="300" y="149" font-size="12" fill="#1a2120" text-anchor="start" font-weight="500" font-family="-apple-system,BlinkMacSystemFont,'PingFang SC','Microsoft YaHei',sans-serif">• 左栏 A 与右栏 B 互换位置，比例不变</text>
+
+      <rect x="284" y="178" width="260" height="116" rx="12" fill="#fff1f2" stroke="#e11d48" stroke-width="1.3"/>
+      <text x="300" y="202" font-size="12.5" fill="#e11d48" text-anchor="start" font-weight="700" font-family="-apple-system,BlinkMacSystemFont,'PingFang SC','Microsoft YaHei',sans-serif">3. 长按约 0.5 秒（先松开手，再点按钮）</text>
+      <rect x="298" y="214" width="72" height="28" rx="7" fill="#fff" stroke="#cfd8d5" stroke-width="1"/><text x="334" y="232" font-size="11.5" fill="#1a2120" text-anchor="middle" font-weight="700" font-family="-apple-system,BlinkMacSystemFont,'PingFang SC','Microsoft YaHei',sans-serif">─ 最小化</text>
+      <rect x="378" y="214" width="72" height="28" rx="7" fill="#fff" stroke="#cfd8d5" stroke-width="1"/><text x="414" y="232" font-size="11.5" fill="#1a2120" text-anchor="middle" font-weight="700" font-family="-apple-system,BlinkMacSystemFont,'PingFang SC','Microsoft YaHei',sans-serif">□ 最大化</text>
+      <rect x="458" y="214" width="72" height="28" rx="7" fill="#fff" stroke="#e11d48" stroke-width="1"/><text x="494" y="232" font-size="11.5" fill="#e11d48" text-anchor="middle" font-weight="700" font-family="-apple-system,BlinkMacSystemFont,'PingFang SC','Microsoft YaHei',sans-serif">✕ 关应用</text>
+      <text x="300" y="263" font-size="11.5" fill="#586562" text-anchor="start" font-weight="500" font-family="-apple-system,BlinkMacSystemFont,'PingFang SC','Microsoft YaHei',sans-serif">─ 和 □ 只隐藏窗口、保留应用后台存活；</text>
+      <text x="300" y="281" font-size="11.5" fill="#1a2120" text-anchor="start" font-weight="600" font-family="-apple-system,BlinkMacSystemFont,'PingFang SC','Microsoft YaHei',sans-serif">只有 ✕ 会强停结束进程。按屏幕左右对应！</text>
+  </g>
+</svg>

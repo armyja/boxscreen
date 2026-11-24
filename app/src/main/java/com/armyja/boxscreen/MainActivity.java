@@ -19,6 +19,7 @@ import android.os.BatteryManager;
 import android.os.IBinder;
 import android.os.RemoteException;
 import android.graphics.Canvas;
+import android.graphics.LinearGradient;
 import android.graphics.Matrix;
 import android.graphics.Paint;
 import android.graphics.Path;
@@ -26,6 +27,7 @@ import android.graphics.Bitmap;
 import android.graphics.Rect;
 import android.graphics.RectF;
 import android.graphics.Region;
+import android.graphics.Shader;
 import android.util.Log;
 import android.view.Display;
 import android.view.Gravity;
@@ -41,31 +43,45 @@ import android.view.InputDevice;
 import android.view.View;
 import android.view.Window;
 import android.view.WindowInsets;
+import android.view.WindowInsetsController;
 import android.view.WindowManager;
 import android.view.PixelCopy;
 import android.provider.MediaStore;
 import android.content.ContentValues;
 import android.net.Uri;
 import android.widget.Button;
-import android.widget.CheckBox;
 import android.widget.EditText;
 import android.widget.FrameLayout;
 import android.widget.GridLayout;
 import android.widget.LinearLayout;
-import android.widget.SeekBar;
 import android.widget.ScrollView;
 import android.widget.Switch;
 import android.widget.TextView;
 import android.text.Editable;
+import android.text.TextUtils;
 import android.text.TextWatcher;
+import android.content.res.ColorStateList;
+import android.graphics.drawable.Drawable;
+import android.graphics.drawable.GradientDrawable;
+import android.graphics.drawable.InsetDrawable;
+import android.graphics.drawable.LayerDrawable;
+import android.graphics.drawable.StateListDrawable;
+import android.webkit.WebResourceRequest;
+import android.webkit.WebSettings;
+import android.webkit.WebView;
+import android.webkit.WebViewClient;
+import android.widget.ImageView;
 import android.widget.Toast;
 
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
+import java.nio.charset.StandardCharsets;
 import java.net.Inet4Address;
 import java.net.NetworkInterface;
 import java.net.ServerSocket;
@@ -86,10 +102,225 @@ import rikka.shizuku.Shizuku;
 
 public final class MainActivity extends Activity {
     private static final String TAG = "BoxScreen";
+    private static final String GUIDE_ASSET_NAME = "operation_guide_zh_cn.html";
+    private static final String GUIDE_BASE_URL = "https://boxscreen.local/";
     private static final int PANEL_SCREENSHOT = 2;
     private static final int SHIZUKU_REQUEST = 410;
     private static final int MAX_DISPLAY_RECOVERY_ATTEMPTS = 12;
     private static final long DISPLAY_RECOVERY_DELAY_MS = 250;
+
+    private static final class SmartisanPalette {
+        final boolean isDark;
+        final int pageBg;
+        final int titleBarTop;
+        final int titleBarBottom;
+        final int titleBarBorder;
+        final int titleBarShadowStart;
+        final int cardBg;
+        final int appsCardBg;
+        final int cardBorder;
+        final int cardShadow;
+        final int divider;
+        final int textPrimary;
+        final int textSecondary;
+        final int textMuted;
+        final int textSection;
+        final int textDisabled;
+        final int chipBg;
+        final int chipBorder;
+        final int accentRedTop;
+        final int accentRedBottom;
+        final int accentRedBorder;
+        final int accentRedPressedTop;
+        final int accentRedPressedBottom;
+        final int accentRedPressedBorder;
+        final int softRedTop;
+        final int softRedBottom;
+        final int softRedBorder;
+        final int softRedPressedTop;
+        final int softRedPressedBottom;
+        final int softRedText;
+        final int accentBlue;
+        final int accentBlueSoftBg;
+        final int accentBlueSoftBorder;
+        final int accentBlueText;
+        final int amberSoftBg;
+        final int amberSoftBorder;
+        final int amberText;
+        final int btnTop;
+        final int btnBottom;
+        final int btnBorder;
+        final int btnPressedTop;
+        final int btnPressedBottom;
+        final int btnPressedBorder;
+        final int btnShadow;
+        final int btnDisabledBg;
+        final int btnDisabledBorder;
+        final int searchBgTop;
+        final int searchBgBottom;
+        final int searchBorder;
+        final int tilePressedBg;
+        final int tileFavEditBg;
+        final int tileFavEditBorder;
+        final int sliderTrackTop;
+        final int sliderTrackBottom;
+        final int sliderTrackBorder;
+        final int sliderThumbTop;
+        final int sliderThumbBottom;
+        final int sliderThumbBorder;
+        final int sliderThumbGrip;
+        final int switchOffTrack;
+        final int switchOffBorder;
+        final int switchOnTrack;
+        final int switchOnBorder;
+        final int webBg;
+
+        private SmartisanPalette(boolean dark) {
+            this.isDark = dark;
+            if (dark) {
+                pageBg = 0xff25282d;
+                titleBarTop = 0xff2d3036;
+                titleBarBottom = 0xff292c31;
+                titleBarBorder = 0xff1c1e22;
+                titleBarShadowStart = 0x44000000;
+                cardBg = 0xff34373c;
+                appsCardBg = 0xff34373c;
+                cardBorder = 0xff23262b;
+                cardShadow = 0x40000000;
+                divider = 0xff404348;
+                textPrimary = 0xfff2f2f3;
+                textSecondary = 0xffc8cacd;
+                textMuted = 0xff85878a;
+                textSection = 0xff9fa1a4;
+                textDisabled = 0xff717377;
+                chipBg = 0xff2a2d32;
+                chipBorder = 0xff42464d;
+                accentRedTop = 0xffe45c53;
+                accentRedBottom = 0xffcb433b;
+                accentRedBorder = 0xff962c26;
+                accentRedPressedTop = 0xffb3362f;
+                accentRedPressedBottom = 0xffc44038;
+                accentRedPressedBorder = 0xff82241f;
+                softRedTop = 0xff463235;
+                softRedBottom = 0xff3d2b2e;
+                softRedBorder = 0xff6b4247;
+                softRedPressedTop = 0xff352427;
+                softRedPressedBottom = 0xff3a282b;
+                softRedText = 0xfff4908a;
+                accentBlue = 0xff5c83dc;
+                accentBlueSoftBg = 0xff2e3748;
+                accentBlueSoftBorder = 0xff465875;
+                accentBlueText = 0xff96b5f8;
+                amberSoftBg = 0xff3f3526;
+                amberSoftBorder = 0xff675334;
+                amberText = 0xfff5bc63;
+                btnTop = 0xff454a52;
+                btnBottom = 0xff3b4048;
+                btnBorder = 0xff25282e;
+                btnPressedTop = 0xff31353c;
+                btnPressedBottom = 0xff373c43;
+                btnPressedBorder = 0xff1e2025;
+                btnShadow = 0x42000000;
+                btnDisabledBg = 0xff303338;
+                btnDisabledBorder = 0xff292c31;
+                searchBgTop = 0xff292c32;
+                searchBgBottom = 0xff2f3339;
+                searchBorder = 0xff1e2126;
+                tilePressedBg = 0xff41464e;
+                tileFavEditBg = 0xff453235;
+                tileFavEditBorder = 0xff7e484d;
+                sliderTrackTop = 0xff1e2126;
+                sliderTrackBottom = 0xff282c32;
+                sliderTrackBorder = 0xff15171b;
+                sliderThumbTop = 0xff555b65;
+                sliderThumbBottom = 0xff41464f;
+                sliderThumbBorder = 0xff202328;
+                sliderThumbGrip = 0xff7a818c;
+                switchOffTrack = 0xff292c32;
+                switchOffBorder = 0xff1c1e22;
+                switchOnTrack = 0xff5378ce;
+                switchOnBorder = 0xff3c5ca6;
+                webBg = 0xff25282d;
+            } else {
+                pageBg = 0xffeff0f2;
+                titleBarTop = 0xffffffff;
+                titleBarBottom = 0xfff8f8f8;
+                titleBarBorder = 0xffdcdcdc;
+                titleBarShadowStart = 0x1c000000;
+                cardBg = 0xffffffff;
+                appsCardBg = 0xfff6f7f9;
+                cardBorder = 0xffdcdcdc;
+                cardShadow = 0x14000000;
+                divider = 0xffebebeb;
+                textPrimary = 0xff262626;
+                textSecondary = 0xff6d7075;
+                textMuted = 0xff909398;
+                textSection = 0xff787b80;
+                textDisabled = 0xffb3b5ba;
+                chipBg = 0xfff5f6f7;
+                chipBorder = 0xffdedfe2;
+                accentRedTop = 0xffe85e55;
+                accentRedBottom = 0xffd2463d;
+                accentRedBorder = 0xffb43830;
+                accentRedPressedTop = 0xffc33d34;
+                accentRedPressedBottom = 0xffd1473e;
+                accentRedPressedBorder = 0xff9e2e27;
+                softRedTop = 0xfffef4f3;
+                softRedBottom = 0xfffbe9e7;
+                softRedBorder = 0xffecc5c2;
+                softRedPressedTop = 0xfff2d7d4;
+                softRedPressedBottom = 0xfff7e2e0;
+                softRedText = 0xffce453d;
+                accentBlue = 0xff4f73c7;
+                accentBlueSoftBg = 0xffedf3fc;
+                accentBlueSoftBorder = 0xffc7d7f4;
+                accentBlueText = 0xff3e60b0;
+                amberSoftBg = 0xfffef6e8;
+                amberSoftBorder = 0xffedd4a7;
+                amberText = 0xffb46b14;
+                btnTop = 0xffffffff;
+                btnBottom = 0xfff3f4f6;
+                btnBorder = 0xffd2d4d8;
+                btnPressedTop = 0xffe4e6ea;
+                btnPressedBottom = 0xffededf0;
+                btnPressedBorder = 0xffc2c5ca;
+                btnShadow = 0x16000000;
+                btnDisabledBg = 0xfff4f4f5;
+                btnDisabledBorder = 0xffe3e4e6;
+                searchBgTop = 0xffe8eaed;
+                searchBgBottom = 0xfff2f3f5;
+                searchBorder = 0xffd4d6dc;
+                tilePressedBg = 0xffeaecef;
+                tileFavEditBg = 0xfffdf2f1;
+                tileFavEditBorder = 0xffe6a9a4;
+                sliderTrackTop = 0xffd2d5dc;
+                sliderTrackBottom = 0xffe7e9ed;
+                sliderTrackBorder = 0xffbec2ca;
+                sliderThumbTop = 0xffffffff;
+                sliderThumbBottom = 0xffeaedf0;
+                sliderThumbBorder = 0xffbcbfc6;
+                sliderThumbGrip = 0xffcfd2d8;
+                switchOffTrack = 0xffd7dade;
+                switchOffBorder = 0xffc1c4ca;
+                switchOnTrack = 0xff5378ce;
+                switchOnBorder = 0xff3e61b5;
+                webBg = 0xfff2f5f4;
+            }
+        }
+
+        static SmartisanPalette of(boolean dark) {
+            return new SmartisanPalette(dark);
+        }
+    }
+
+    private static final int THEME_MODE_SYSTEM = 0;
+    private static final int THEME_MODE_LIGHT = 1;
+    private static final int THEME_MODE_DARK = 2;
+    private static final String PREF_THEME_MODE = "theme_mode";
+    private int themeMode = THEME_MODE_SYSTEM;
+    private boolean systemNightMode;
+    private boolean darkMode;
+    private SmartisanPalette theme = SmartisanPalette.of(false);
     private final Handler densityResizeHandler = new Handler();
     private final Runnable applyPendingDensity = this::resizeVirtualDisplayForDensity;
     private final Handler displayRecoveryHandler = new Handler();
@@ -131,14 +362,55 @@ public final class MainActivity extends Activity {
 
     private LinearLayout content;
     private FrameLayout rootLayout;
+    private LinearLayout rootShell;
+    private LinearLayout topBarContainer;
+    private TextView topBarTitle;
+    private TextView versionChipView;
+    private View topBarDivider;
+    private View topBarShadow;
+    private ScrollView mainScroll;
+    private Button guideButton;
     private View blackScreenOverlay;
     private TextView statusView;
+    private TextView sectionControlTitle;
+    private LinearLayout controlCard;
+    private View cardDivider1;
+    private View cardDivider2;
+    private View monitorStatusDot;
     private TextView monitorView;
+    private TextView monitorMetaView;
+    private TextView shizukuBadge;
+    private Button blackoutButton;
+    private Button stopButton;
+    private TextView densityTitleView;
+    private TextView densityRangeView;
     private TextView densityView;
-    private SeekBar densitySlider;
+    private SmartisanSliderView densitySlider;
+    private View cardDivider3;
+    private TextView themeTitleView;
+    private LinearLayout themeSegmentTray;
+    private TextView themeModeSystemBtn;
+    private TextView themeModeLightBtn;
+    private TextView themeModeDarkBtn;
+    private TextView appsSectionTitle;
+    private TextView systemAppsLabel;
+    private LinearLayout searchContainer;
+    private ImageView searchIconView;
+    private LinearLayout appsCard;
     private GridLayout appGrid;
     private EditText appSearch;
+    private TextView searchClearButton;
+    private TextView appsCountView;
+    private TextView appsEmptyView;
     private Switch systemAppsSwitch;
+    private android.app.Dialog guideDialog;
+    private WebView guideWebView;
+    private LinearLayout guideContainer;
+    private LinearLayout guideTopBar;
+    private TextView guideTitleView;
+    private Button guideCloseButton;
+    private View guideTopDivider;
+    private View guideTopShadow;
     /**
      * Large outputs (above roughly 1200p) hold each frame for one vsync before presenting:
      * at those sizes the direct path loses ~1 frame in 8. Smaller outputs compose fast
@@ -156,6 +428,7 @@ public final class MainActivity extends Activity {
     private final java.util.HashMap<String, ResolveInfo> launcherByPackage = new java.util.HashMap<>();
     private final java.util.HashMap<String, String> launcherLabelCache = new java.util.HashMap<>();
     private final java.util.HashMap<String, android.graphics.drawable.Drawable> launcherIconCache = new java.util.HashMap<>();
+    private final java.util.HashMap<String, android.graphics.drawable.Drawable> panelLauncherIconCache = new java.util.HashMap<>();
     private final java.util.HashMap<String, android.graphics.drawable.Drawable> recentIconCache = new java.util.HashMap<>();
     private final java.util.HashMap<String, String> panelDisplayLabelCache = new java.util.HashMap<>();
     private boolean showSystemApps;
@@ -224,6 +497,7 @@ public final class MainActivity extends Activity {
         @Override public void onServiceConnected(ComponentName name, IBinder binder) {
             displayService = IDisplayService.Stub.asInterface(binder);
             if (virtualDisplayId < 0) restorePrimaryDensity();
+            updateShizukuBadge();
             status("Shizuku 主机服务已连接");
             if (startPending) {
                 startPending = false;
@@ -239,17 +513,25 @@ public final class MainActivity extends Activity {
             if (mousePointerView != null) mousePointerView.setForwarding(false);
             restorePhoneScreen();
             updateMouseRouteButton();
+            updateShizukuBadge();
             status("Shizuku 服务已断开");
         }
     };
 
     private final Shizuku.OnRequestPermissionResultListener permissionListener = (requestCode, grantResult) -> {
+        updateShizukuBadge();
         if (requestCode == SHIZUKU_REQUEST && grantResult == PackageManager.PERMISSION_GRANTED) {
             bindShizukuService();
         } else if (requestCode == SHIZUKU_REQUEST) {
             status("未授予 Shizuku 权限");
         }
     };
+
+    private final Shizuku.OnBinderReceivedListener binderReceivedListener =
+            () -> runOnUiThread(this::updateShizukuBadge);
+
+    private final Shizuku.OnBinderDeadListener binderDeadListener =
+            () -> runOnUiThread(this::updateShizukuBadge);
 
     private final InputManager.InputDeviceListener inputDeviceListener = new InputManager.InputDeviceListener() {
         @Override public void onInputDeviceAdded(int deviceId) {
@@ -311,7 +593,16 @@ public final class MainActivity extends Activity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         controlActivities.add(this);
+        android.content.SharedPreferences preferences = getPreferences(MODE_PRIVATE);
+        themeMode = preferences.getInt(PREF_THEME_MODE, THEME_MODE_SYSTEM);
+        if (themeMode < THEME_MODE_SYSTEM || themeMode > THEME_MODE_DARK) {
+            themeMode = THEME_MODE_SYSTEM;
+        }
+        systemNightMode = isNightConfig(currentSystemConfiguration());
+        darkMode = resolveDarkMode();
+        theme = SmartisanPalette.of(darkMode);
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+        applySystemBarTheme(getWindow(), theme);
         displayManager = (DisplayManager) getSystemService(DISPLAY_SERVICE);
         displayManager.registerDisplayListener(displayListener, new Handler());
         inputManager = (InputManager) getSystemService(INPUT_SERVICE);
@@ -319,10 +610,11 @@ public final class MainActivity extends Activity {
             inputManager.registerInputDeviceListener(inputDeviceListener, new Handler());
         }
         Shizuku.addRequestPermissionResultListener(permissionListener);
+        Shizuku.addBinderReceivedListenerSticky(binderReceivedListener);
+        Shizuku.addBinderDeadListener(binderDeadListener);
         externalDisplay = findExternalDisplay();
-        showSystemApps = getPreferences(MODE_PRIVATE).getBoolean("show_system_apps", false);
-        favoritePackages = new HashSet<>(getPreferences(MODE_PRIVATE).getStringSet("favorite_apps", Collections.emptySet()));
-        android.content.SharedPreferences preferences = getPreferences(MODE_PRIVATE);
+        showSystemApps = preferences.getBoolean("show_system_apps", false);
+        favoritePackages = new HashSet<>(preferences.getStringSet("favorite_apps", Collections.emptySet()));
         mouseModePackages = new HashSet<>(preferences.getStringSet("mouse_mode_apps", Collections.emptySet()));
         densityCompatPackages = new HashSet<>(preferences.getStringSet("density_compat_apps", Collections.emptySet()));
         String savedRecentApps = preferences.getString("recent_apps", "");
@@ -355,15 +647,26 @@ public final class MainActivity extends Activity {
 
     @Override protected void onResume() {
         super.onResume();
+        systemNightMode = isNightConfig(currentSystemConfiguration());
+        int savedMode = getPreferences(MODE_PRIVATE).getInt(PREF_THEME_MODE, THEME_MODE_SYSTEM);
+        if (savedMode < THEME_MODE_SYSTEM || savedMode > THEME_MODE_DARK) savedMode = THEME_MODE_SYSTEM;
+        int prevMode = themeMode;
+        themeMode = savedMode;
+        boolean savedDark = resolveDarkMode();
+        if (savedMode != prevMode || savedDark != darkMode) {
+            applyThemeModeState(savedMode);
+        }
         applyPendingPrimaryBlackout();
         externalDisplay = findExternalDisplay();
         if (monitorView != null) updateMonitorLabel();
+        updateShizukuBadge();
         if (appGrid != null) refreshLaunchableApps();
         syncSplitState();
     }
 
     @Override public void onConfigurationChanged(Configuration newConfig) {
         super.onConfigurationChanged(newConfig);
+        syncSystemNightAcrossInstances(isNightConfig(newConfig));
         applyPendingPrimaryBlackout();
         externalDisplay = findExternalDisplay();
         if (monitorView != null) updateMonitorLabel();
@@ -378,7 +681,7 @@ public final class MainActivity extends Activity {
             });
         }
         Log.i(TAG, "phone configuration changed orientation=" + newConfig.orientation
-                + " virtualDisplay=" + virtualDisplayId);
+                + " dark=" + darkMode + " virtualDisplay=" + virtualDisplayId);
     }
 
     @Override protected void onDestroy() {
@@ -397,8 +700,11 @@ public final class MainActivity extends Activity {
             }
             virtualDisplayId = -1;
         }
+        dismissGuideDialog();
         restorePhoneScreen();
         Shizuku.removeRequestPermissionResultListener(permissionListener);
+        Shizuku.removeBinderReceivedListener(binderReceivedListener);
+        Shizuku.removeBinderDeadListener(binderDeadListener);
         if (presentation != null) presentation.dismiss();
         if (displayManager != null) displayManager.unregisterDisplayListener(displayListener);
         if (shizukuServiceArgs != null) {
@@ -409,108 +715,284 @@ public final class MainActivity extends Activity {
     }
 
     private void showRoleScreen() {
-        content = new LinearLayout(this);
-        content.setOrientation(LinearLayout.VERTICAL);
-        content.setPadding(dp(18), dp(12), dp(18), dp(14));
-        content.setBackgroundColor(0xff111318);
         rootLayout = new FrameLayout(this);
-        ScrollView scroll = new ScrollView(this);
-        scroll.setClipToPadding(false);
-        scroll.addView(content);
-        scroll.setOnApplyWindowInsetsListener((view, insets) -> {
+        rootShell = new LinearLayout(this);
+        rootShell.setOrientation(LinearLayout.VERTICAL);
+
+        topBarContainer = new LinearLayout(this);
+        topBarContainer.setOrientation(LinearLayout.VERTICAL);
+        topBarContainer.setOnApplyWindowInsetsListener((view, insets) -> {
             int topInset;
-            int bottomInset;
             if (Build.VERSION.SDK_INT >= 30) {
-                android.graphics.Insets bars = insets.getInsets(WindowInsets.Type.systemBars());
-                topInset = bars.top;
-                bottomInset = bars.bottom;
+                topInset = insets.getInsets(WindowInsets.Type.statusBars()).top;
             } else {
                 topInset = insets.getSystemWindowInsetTop();
-                bottomInset = insets.getSystemWindowInsetBottom();
             }
-            content.setPadding(dp(18), dp(12) + topInset, dp(18), dp(14) + bottomInset);
+            view.setPadding(0, topInset, 0, 0);
             return insets;
         });
-        rootLayout.addView(scroll, new FrameLayout.LayoutParams(-1, -1));
+
+        FrameLayout barInner = new FrameLayout(this);
+        barInner.setPadding(dp(14), 0, dp(14), 0);
+        topBarContainer.addView(barInner, new LinearLayout.LayoutParams(-1, dp(52)));
+
+        LinearLayout leftBrand = new LinearLayout(this);
+        leftBrand.setOrientation(LinearLayout.HORIZONTAL);
+        leftBrand.setGravity(Gravity.CENTER_VERTICAL);
+        ImageView brandIcon = new ImageView(this);
+        brandIcon.setImageResource(R.drawable.ic_launcher);
+        LinearLayout.LayoutParams brandIconParams = new LinearLayout.LayoutParams(dp(24), dp(24));
+        brandIconParams.setMargins(0, 0, dp(6), 0);
+        leftBrand.addView(brandIcon, brandIconParams);
+
+        String verName = "1.0";
+        try {
+            verName = getPackageManager().getPackageInfo(getPackageName(), 0).versionName;
+        } catch (PackageManager.NameNotFoundException ignored) { }
+        versionChipView = text("v" + verName, 10, true, theme.textSecondary);
+        versionChipView.setPadding(dp(6), dp(2), dp(6), dp(2));
+        leftBrand.addView(versionChipView, new LinearLayout.LayoutParams(-2, -2));
+        barInner.addView(leftBrand, new FrameLayout.LayoutParams(-2, -2, Gravity.START | Gravity.CENTER_VERTICAL));
+
+        topBarTitle = text("BoxScreen", 18, true, theme.textPrimary);
+        topBarTitle.setLetterSpacing(0.02f);
+        barInner.addView(topBarTitle, new FrameLayout.LayoutParams(-2, -2, Gravity.CENTER));
+
+        guideButton = new Button(this);
+        guideButton.setText("操作图解");
+        guideButton.setAllCaps(false);
+        guideButton.setTextSize(11.5f);
+        guideButton.setTypeface(null, android.graphics.Typeface.BOLD);
+        guideButton.setStateListAnimator(null);
+        guideButton.setElevation(0f);
+        guideButton.setMinHeight(dp(32));
+        guideButton.setMinimumHeight(dp(32));
+        guideButton.setMinWidth(0);
+        guideButton.setMinimumWidth(0);
+        guideButton.setPadding(dp(10), 0, dp(11), 0);
+        barInner.addView(guideButton, new FrameLayout.LayoutParams(-2, dp(32), Gravity.END | Gravity.CENTER_VERTICAL));
+        guideButton.setOnClickListener(v -> showOperationGuideDialog());
+
+        topBarDivider = new View(this);
+        topBarContainer.addView(topBarDivider, new LinearLayout.LayoutParams(-1, Math.max(1, dp(1))));
+        rootShell.addView(topBarContainer, new LinearLayout.LayoutParams(-1, -2));
+
+        FrameLayout bodyFrame = new FrameLayout(this);
+        mainScroll = new ScrollView(this);
+        mainScroll.setClipToPadding(false);
+        content = new LinearLayout(this);
+        content.setOrientation(LinearLayout.VERTICAL);
+        content.setPadding(dp(14), dp(12), dp(14), dp(18));
+        mainScroll.addView(content, new FrameLayout.LayoutParams(-1, -2));
+        mainScroll.setOnApplyWindowInsetsListener((view, insets) -> {
+            int bottomInset;
+            if (Build.VERSION.SDK_INT >= 30) {
+                bottomInset = insets.getInsets(WindowInsets.Type.systemBars()).bottom;
+            } else {
+                bottomInset = insets.getSystemWindowInsetBottom();
+            }
+            content.setPadding(dp(14), dp(12), dp(14), dp(20) + bottomInset);
+            return insets;
+        });
+        bodyFrame.addView(mainScroll, new FrameLayout.LayoutParams(-1, -1));
+
+        topBarShadow = new View(this);
+        bodyFrame.addView(topBarShadow, new FrameLayout.LayoutParams(-1, dp(4), Gravity.TOP));
+
+        rootShell.addView(bodyFrame, new LinearLayout.LayoutParams(-1, 0, 1f));
+        rootLayout.addView(rootShell, new FrameLayout.LayoutParams(-1, -1));
         setContentView(rootLayout);
-        content.addView(text("BoxScreen", 24, true), fullWidth());
-        content.addView(text("手机屏幕与外接屏幕独立显示", 12, false), margins(0, 1, 0, 8));
-        statusView = text("", 12, false);
-        content.addView(statusView, margins(0, 0, 0, 8));
+
+        statusView = text("", 12, false, theme.accentBlueText);
+        statusView.setPadding(dp(12), dp(8), dp(12), dp(8));
+        statusView.setVisibility(View.GONE);
+        content.addView(statusView, margins(0, 0, 0, 10));
+
         showHostControls();
+        applySmartisanTheme();
     }
 
     private void showHostControls() {
-        monitorView = text("", 13, true);
-        content.addView(monitorView, margins(0, 2, 0, 8));
-        updateMonitorLabel();
+        sectionControlTitle = text("外接显示器与控制", 12, true, theme.textSection);
+        content.addView(sectionControlTitle, margins(6, 0, 6, 6));
+
+        controlCard = new LinearLayout(this);
+        controlCard.setOrientation(LinearLayout.VERTICAL);
+        controlCard.setPadding(dp(14), dp(13), dp(14), dp(12));
+        content.addView(controlCard, margins(0, 0, 0, 14));
+
+        LinearLayout monitorHeader = new LinearLayout(this);
+        monitorHeader.setOrientation(LinearLayout.HORIZONTAL);
+        monitorHeader.setGravity(Gravity.CENTER_VERTICAL);
+        controlCard.addView(monitorHeader, fullWidth());
+
+        monitorStatusDot = new View(this);
+        LinearLayout.LayoutParams dotParams = new LinearLayout.LayoutParams(dp(9), dp(9));
+        dotParams.setMargins(0, 0, dp(10), 0);
+        monitorHeader.addView(monitorStatusDot, dotParams);
+
+        LinearLayout monitorCol = new LinearLayout(this);
+        monitorCol.setOrientation(LinearLayout.VERTICAL);
+        monitorHeader.addView(monitorCol, new LinearLayout.LayoutParams(0, -2, 1f));
+
+        monitorView = text("", 14, true, theme.textPrimary);
+        monitorCol.addView(monitorView, fullWidth());
+
+        monitorMetaView = text("", 11.5f, false, theme.textSecondary);
+        monitorCol.addView(monitorMetaView, margins(0, 2, 0, 0));
+
+        shizukuBadge = text("", 11, true, theme.textSecondary);
+        shizukuBadge.setPadding(dp(9), dp(4), dp(9), dp(4));
+        LinearLayout.LayoutParams badgeParams = new LinearLayout.LayoutParams(-2, -2);
+        badgeParams.setMargins(dp(8), 0, 0, 0);
+        monitorHeader.addView(shizukuBadge, badgeParams);
+
+        cardDivider1 = new View(this);
+        LinearLayout.LayoutParams div1Params = new LinearLayout.LayoutParams(-1, Math.max(1, dp(1)));
+        div1Params.setMargins(0, dp(11), 0, dp(11));
+        controlCard.addView(cardDivider1, div1Params);
 
         LinearLayout primaryActions = new LinearLayout(this);
         primaryActions.setOrientation(LinearLayout.HORIZONTAL);
-        content.addView(primaryActions, margins(0, 0, 0, 4));
+        controlCard.addView(primaryActions, margins(0, 0, 0, 8));
         mouseRouteButton = button("开启鼠标");
-        mouseRouteButton.setEnabled(false);
         LinearLayout.LayoutParams actionCell = weighted();
-        actionCell.setMargins(0, 0, dp(5), 0);
+        actionCell.setMargins(0, 0, dp(4), 0);
         primaryActions.addView(mouseRouteButton, actionCell);
         mouseRouteButton.setOnClickListener(v -> toggleMouseRoute());
 
         modeButton = button(portraitMode ? "竖屏 · 切换横屏" : "横屏 · 切换竖屏");
         LinearLayout.LayoutParams modeCell = weighted();
-        modeCell.setMargins(dp(5), 0, 0, 0);
+        modeCell.setMargins(dp(4), 0, 0, 0);
         primaryActions.addView(modeButton, modeCell);
         modeButton.setOnClickListener(v -> setPortraitMode(!portraitMode));
+
+        LinearLayout secondaryActions = new LinearLayout(this);
+        secondaryActions.setOrientation(LinearLayout.HORIZONTAL);
+        controlCard.addView(secondaryActions, margins(0, 0, 0, 0));
+
+        blackoutButton = button("手机黑屏");
+        LinearLayout.LayoutParams blackoutCell = weighted();
+        blackoutCell.setMargins(0, 0, dp(4), 0);
+        secondaryActions.addView(blackoutButton, blackoutCell);
+        blackoutButton.setOnClickListener(v -> dimAndBlackoutPhoneScreen());
+
+        stopButton = button("停止输出");
+        LinearLayout.LayoutParams stopCell = weighted();
+        stopCell.setMargins(dp(4), 0, 0, 0);
+        secondaryActions.addView(stopButton, stopCell);
+        stopButton.setOnClickListener(v -> stopOutput());
+
+        cardDivider2 = new View(this);
+        LinearLayout.LayoutParams div2Params = new LinearLayout.LayoutParams(-1, Math.max(1, dp(1)));
+        div2Params.setMargins(0, dp(11), 0, dp(10));
+        controlCard.addView(cardDivider2, div2Params);
 
         LinearLayout densityRow = new LinearLayout(this);
         densityRow.setOrientation(LinearLayout.HORIZONTAL);
         densityRow.setGravity(Gravity.CENTER_VERTICAL);
-        content.addView(densityRow, margins(0, 4, 0, 0));
-        densityView = text("虚拟屏 DPI：" + densityDpi, 13, true);
-        densityRow.addView(densityView, new LinearLayout.LayoutParams(0, -2, 1f));
-        Button stop = button("停止输出");
-        densityRow.addView(stop, new LinearLayout.LayoutParams(-2, -2));
-        stop.setOnClickListener(v -> stopOutput());
-        Button blackout = button("手机黑屏");
-        LinearLayout.LayoutParams blackoutParams = new LinearLayout.LayoutParams(-2, -2);
-        blackoutParams.setMargins(dp(4), 0, 0, 0);
-        densityRow.addView(blackout, blackoutParams);
-        blackout.setOnClickListener(v -> dimAndBlackoutPhoneScreen());
-        densitySlider = new SeekBar(this);
+        controlCard.addView(densityRow, margins(0, 0, 0, 4));
+
+        densityTitleView = text("虚拟屏 DPI", 13, true, theme.textPrimary);
+        densityRow.addView(densityTitleView, new LinearLayout.LayoutParams(-2, -2));
+
+        densityView = text(densityDpi + " DPI", 11, true, theme.accentBlueText);
+        densityView.setPadding(dp(7), dp(2), dp(7), dp(2));
+        LinearLayout.LayoutParams densityChipParams = new LinearLayout.LayoutParams(-2, -2);
+        densityChipParams.setMargins(dp(8), 0, 0, 0);
+        densityRow.addView(densityView, densityChipParams);
+
+        View densitySpacer = new View(this);
+        densityRow.addView(densitySpacer, new LinearLayout.LayoutParams(0, dp(1), 1f));
+
+        densityRangeView = text("140 — 600", 11, false, theme.textMuted);
+        densityRow.addView(densityRangeView, new LinearLayout.LayoutParams(-2, -2));
+
+        densitySlider = new SmartisanSliderView(this);
         densitySlider.setMax(46);
         densitySlider.setProgress(Math.max(0, Math.min(46, (densityDpi - 140) / 10)));
-        content.addView(densitySlider, margins(-6, -2, -6, 4));
-        densitySlider.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
-            @Override public void onProgressChanged(SeekBar bar, int progress, boolean fromUser) {
+        controlCard.addView(densitySlider, margins(0, 4, 0, 0));
+        densitySlider.setListener(new SmartisanSliderView.OnSliderChangeListener() {
+            @Override public void onProgressChanged(int progress, boolean fromUser) {
                 updateDensitySetting(140 + progress * 10, fromUser);
             }
-            @Override public void onStartTrackingTouch(SeekBar bar) { }
-            @Override public void onStopTrackingTouch(SeekBar bar) {
+            @Override public void onStopTrackingTouch() {
                 densityResizeHandler.removeCallbacks(applyPendingDensity);
                 if (mousePointerView != null) mousePointerView.applyPanelDensity();
                 resizeVirtualDisplay();
             }
         });
 
-        TextView shizukuHint = text("需在本机启动 Shizuku", 11, false);
-        content.addView(shizukuHint, margins(0, 0, 0, 4));
+        cardDivider3 = new View(this);
+        LinearLayout.LayoutParams div3Params = new LinearLayout.LayoutParams(-1, Math.max(1, dp(1)));
+        div3Params.setMargins(0, dp(12), 0, dp(10));
+        controlCard.addView(cardDivider3, div3Params);
+
+        LinearLayout themeRow = new LinearLayout(this);
+        themeRow.setOrientation(LinearLayout.HORIZONTAL);
+        themeRow.setGravity(Gravity.CENTER_VERTICAL);
+        controlCard.addView(themeRow, fullWidth());
+
+        themeTitleView = text("外观主题", 13, true, theme.textPrimary);
+        themeRow.addView(themeTitleView, new LinearLayout.LayoutParams(-2, -2));
+
+        View themeSpacer = new View(this);
+        themeRow.addView(themeSpacer, new LinearLayout.LayoutParams(0, dp(1), 1f));
+
+        themeSegmentTray = new LinearLayout(this);
+        themeSegmentTray.setOrientation(LinearLayout.HORIZONTAL);
+        themeSegmentTray.setGravity(Gravity.CENTER_VERTICAL);
+        themeSegmentTray.setPadding(dp(2), dp(2), dp(2), dp(2));
+        themeModeSystemBtn = buildThemeSegment("跟随系统", THEME_MODE_SYSTEM);
+        themeModeLightBtn = buildThemeSegment("浅色", THEME_MODE_LIGHT);
+        themeModeDarkBtn = buildThemeSegment("暗色", THEME_MODE_DARK);
+        themeSegmentTray.addView(themeModeSystemBtn, new LinearLayout.LayoutParams(-2, -1));
+        themeSegmentTray.addView(themeModeLightBtn, new LinearLayout.LayoutParams(-2, -1));
+        themeSegmentTray.addView(themeModeDarkBtn, new LinearLayout.LayoutParams(-2, -1));
+        themeRow.addView(themeSegmentTray, new LinearLayout.LayoutParams(-2, dp(32)));
 
         LinearLayout appsHeader = new LinearLayout(this);
         appsHeader.setOrientation(LinearLayout.HORIZONTAL);
         appsHeader.setGravity(Gravity.CENTER_VERTICAL);
-        content.addView(appsHeader, margins(0, 8, 0, 2));
-        TextView appsTitle = text("可启动的应用", 17, true);
-        appsHeader.addView(appsTitle, new LinearLayout.LayoutParams(0, -2, 1f));
+        content.addView(appsHeader, margins(6, 0, 2, 8));
+
+        appsSectionTitle = text("可启动的应用", 12.5f, true, theme.textSection);
+        appsHeader.addView(appsSectionTitle, new LinearLayout.LayoutParams(-2, -2));
+
+        appsCountView = text("0", 10.5f, true, theme.textSecondary);
+        appsCountView.setPadding(dp(7), dp(2), dp(7), dp(2));
+        LinearLayout.LayoutParams countParams = new LinearLayout.LayoutParams(-2, -2);
+        countParams.setMargins(dp(7), 0, 0, 0);
+        appsHeader.addView(appsCountView, countParams);
+
+        View appsSpacer = new View(this);
+        appsHeader.addView(appsSpacer, new LinearLayout.LayoutParams(0, dp(1), 1f));
+
+        systemAppsLabel = text("系统应用", 12, false, theme.textSecondary);
+        LinearLayout.LayoutParams sysLabelParams = new LinearLayout.LayoutParams(-2, -2);
+        sysLabelParams.setMargins(0, 0, dp(6), 0);
+        appsHeader.addView(systemAppsLabel, sysLabelParams);
+
         systemAppsSwitch = new Switch(this);
-        systemAppsSwitch.setText("系统应用");
-        systemAppsSwitch.setTextSize(12);
-        systemAppsSwitch.setTextColor(0xfff2f2f2);
+        systemAppsSwitch.setShowText(false);
         systemAppsSwitch.setChecked(showSystemApps);
-        appsHeader.addView(systemAppsSwitch, new LinearLayout.LayoutParams(-2, -2));
+        LinearLayout.LayoutParams switchParams = new LinearLayout.LayoutParams(-2, -2);
+        switchParams.setMargins(0, 0, dp(10), 0);
+        appsHeader.addView(systemAppsSwitch, switchParams);
+        systemAppsLabel.setOnClickListener(v -> systemAppsSwitch.toggle());
+
         editFavoritesButton = button("编辑收藏");
-        appsHeader.addView(editFavoritesButton, new LinearLayout.LayoutParams(-2, -2));
+        editFavoritesButton.setTextSize(11.5f);
+        editFavoritesButton.setMinHeight(dp(30));
+        editFavoritesButton.setMinimumHeight(dp(30));
+        editFavoritesButton.setMinWidth(0);
+        editFavoritesButton.setMinimumWidth(0);
+        editFavoritesButton.setPadding(dp(10), 0, dp(10), 0);
+        appsHeader.addView(editFavoritesButton, new LinearLayout.LayoutParams(-2, dp(30)));
         editFavoritesButton.setOnClickListener(v -> {
             editFavorites = !editFavorites;
             editFavoritesButton.setText(editFavorites ? "完成" : "编辑收藏");
+            updateEditFavoritesButtonStyle();
             rebuildAppsGrid();
         });
         systemAppsSwitch.setOnCheckedChangeListener((button, checked) -> {
@@ -520,17 +1002,56 @@ public final class MainActivity extends Activity {
             if (mousePointerView != null) mousePointerView.invalidate();
             rebuildAppsGrid();
         });
+
+        searchContainer = new LinearLayout(this);
+        searchContainer.setOrientation(LinearLayout.HORIZONTAL);
+        searchContainer.setGravity(Gravity.CENTER_VERTICAL);
+        searchContainer.setMinimumHeight(dp(40));
+        searchContainer.setPadding(dp(11), 0, dp(4), 0);
+        content.addView(searchContainer, margins(0, 0, 0, 10));
+
+        searchIconView = new ImageView(this);
+        LinearLayout.LayoutParams searchIconParams = new LinearLayout.LayoutParams(dp(15), dp(15));
+        searchIconParams.setMargins(0, 0, dp(8), 0);
+        searchContainer.addView(searchIconView, searchIconParams);
+
         appSearch = new EditText(this);
         appSearch.setSingleLine(true);
-        appSearch.setTextColor(0xfff2f2f2);
-        appSearch.setHintTextColor(0xff9b9b9b);
-        appSearch.setHint("搜索应用");
-        content.addView(appSearch, margins(0, 0, 0, 4));
+        appSearch.setBackground(null);
+        appSearch.setTextSize(13.5f);
+        appSearch.setHint("搜索应用名称或包名…");
+        appSearch.setPadding(0, dp(8), 0, dp(8));
+        appSearch.setImeOptions(android.view.inputmethod.EditorInfo.IME_ACTION_SEARCH);
+        searchContainer.addView(appSearch, new LinearLayout.LayoutParams(0, -2, 1f));
+
+        searchClearButton = text("×", 16, true, theme.textSecondary);
+        searchClearButton.setGravity(Gravity.CENTER);
+        searchClearButton.setVisibility(View.GONE);
+        searchContainer.addView(searchClearButton, new LinearLayout.LayoutParams(dp(30), dp(30)));
+        searchClearButton.setOnClickListener(v -> appSearch.setText(""));
+
         appSearch.addTextChangedListener(new TextWatcher() {
             @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) { }
-            @Override public void onTextChanged(CharSequence s, int start, int before, int count) { rebuildAppsGrid(); }
+            @Override public void onTextChanged(CharSequence s, int start, int before, int count) {
+                if (searchClearButton != null) {
+                    searchClearButton.setVisibility(s != null && s.length() > 0 ? View.VISIBLE : View.GONE);
+                }
+                rebuildAppsGrid();
+            }
             @Override public void afterTextChanged(Editable s) { }
         });
+
+        appsCard = new LinearLayout(this);
+        appsCard.setOrientation(LinearLayout.VERTICAL);
+        appsCard.setPadding(dp(6), dp(8), dp(6), dp(10));
+        content.addView(appsCard, margins(0, 0, 0, 4));
+
+        appsEmptyView = text("没有找到匹配的应用，换个关键词试试", 13, false, theme.textMuted);
+        appsEmptyView.setGravity(Gravity.CENTER);
+        appsEmptyView.setPadding(0, dp(24), 0, dp(24));
+        appsEmptyView.setVisibility(View.GONE);
+        appsCard.addView(appsEmptyView, fullWidth());
+
         addLaunchableApps();
     }
 
@@ -543,7 +1064,8 @@ public final class MainActivity extends Activity {
             return;
         }
         if (!Shizuku.pingBinder()) {
-            status("请先在 PYB110 启动 Shizuku");
+            updateShizukuBadge();
+            status("请先在本机启动 Shizuku");
             return;
         }
         if (Shizuku.checkSelfPermission() != PackageManager.PERMISSION_GRANTED) {
@@ -607,7 +1129,7 @@ public final class MainActivity extends Activity {
                     .putInt("virtual_density_landscape", landscapeDensityDpi)
                     .putInt("virtual_density_portrait", portraitDensityDpi)
                     .apply();
-            if (densityView != null) densityView.setText("虚拟屏 DPI：" + densityDpi);
+            updateDensityLabel();
             if (densitySlider != null) densitySlider.setProgress((densityDpi - 140) / 10);
         }
         if (baseWidth < baseHeight) {
@@ -1260,7 +1782,7 @@ public final class MainActivity extends Activity {
     }
 
     private void updateDensityStatus() {
-        if (statusView == null) return;
+        if (statusView == null || baseWidth <= 0 || baseHeight <= 0) return;
         int width = portraitMode ? baseHeight : baseWidth;
         int height = portraitMode ? baseWidth : baseHeight;
         int dpWidth = Math.round(width * 160f / densityDpi);
@@ -1290,7 +1812,7 @@ public final class MainActivity extends Activity {
                 .putInt("virtual_density", densityDpi)
                 .putInt(portraitMode ? "virtual_density_portrait" : "virtual_density_landscape", densityDpi)
                 .apply();
-        if (densityView != null) densityView.setText("虚拟屏 DPI：" + densityDpi);
+        updateDensityLabel();
         if (densitySlider != null && densitySlider.getProgress() != progress) {
             densitySlider.setProgress(progress);
         }
@@ -1317,8 +1839,10 @@ public final class MainActivity extends Activity {
             mousePointerView.setLayoutParams(pointerParams);
             mousePointerView.setRotation(portraitMode ? 90f : 0f);
         }
-        if (modeButton != null) modeButton.setText(portraitMode
-                ? "竖屏 · 切换横屏" : "横屏 · 切换竖屏");
+        if (modeButton != null) {
+            modeButton.setText(portraitMode ? "竖屏 · 切换横屏" : "横屏 · 切换竖屏");
+            updateModeButtonStyle();
+        }
     }
 
     private void setPortraitMode(boolean portrait) {
@@ -1336,7 +1860,7 @@ public final class MainActivity extends Activity {
         densityDpi = portraitMode ? portraitDensityDpi : landscapeDensityDpi;
         if (mousePointerView != null) mousePointerView.applyPanelDensity();
         syncPrimaryDensityForPackage(currentVirtualPackage);
-        if (densityView != null) densityView.setText("虚拟屏 DPI：" + densityDpi);
+        updateDensityLabel();
         if (densitySlider != null) densitySlider.setProgress((densityDpi - 140) / 10);
         updateDensityStatus();
         Log.i(TAG, "orientation=" + (portrait ? "portrait" : "landscape"));
@@ -1361,8 +1885,10 @@ public final class MainActivity extends Activity {
         }
         if (virtualDisplayId >= 0) resizeVirtualDisplay();
         else updateOutputLayout();
-        if (modeButton != null) modeButton.setText(portraitMode
-                ? "竖屏 · 切换横屏" : "横屏 · 切换竖屏");
+        if (modeButton != null) {
+            modeButton.setText(portraitMode ? "竖屏 · 切换横屏" : "横屏 · 切换竖屏");
+            updateModeButtonStyle();
+        }
     }
 
     private void stopOutput() {
@@ -1473,6 +1999,7 @@ public final class MainActivity extends Activity {
     }
 
     private void dimAndBlackoutPhoneScreen() {
+        dismissGuideDialog();
         if (!onPrimaryDisplay()) {
             blackoutWhenOnPrimary = true;
             return;
@@ -1521,6 +2048,7 @@ public final class MainActivity extends Activity {
             getWindow().getDecorView().setSystemUiVisibility(previousSystemUiVisibility);
             systemBarsHiddenForBlackout = false;
         }
+        applySystemBarTheme(getWindow(), theme);
         Log.i(TAG, "phone screen restored");
     }
 
@@ -1535,9 +2063,248 @@ public final class MainActivity extends Activity {
     }
 
     private void updateMouseRouteButton() {
-        if (mouseRouteButton == null) return;
-        mouseRouteButton.setEnabled(displayService != null && virtualDisplayId >= 0);
+        if (mouseRouteButton == null || theme == null) return;
+        boolean available = displayService != null && virtualDisplayId >= 0;
+        mouseRouteButton.setEnabled(available);
         mouseRouteButton.setText(mouseBound ? "鼠标已开 · 点击关闭" : "开启鼠标");
+        if (!available) {
+            styleFlatDisabledButton(mouseRouteButton, theme, 9);
+        } else if (mouseBound) {
+            styleAccentRedButton(mouseRouteButton, theme, 9);
+        } else {
+            styleNeutralBevelButton(mouseRouteButton, theme, 9);
+        }
+    }
+
+    private final class SmartisanSliderView extends View {
+        interface OnSliderChangeListener {
+            void onProgressChanged(int progress, boolean fromUser);
+            void onStopTrackingTouch();
+        }
+
+        private int max = 46;
+        private int progress = 11;
+        private boolean dragging;
+        private OnSliderChangeListener listener;
+        private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        private final RectF rect = new RectF();
+
+        SmartisanSliderView(Context context) {
+            super(context);
+            setClickable(true);
+        }
+
+        void setMax(int max) {
+            this.max = Math.max(1, max);
+            if (progress > this.max) progress = this.max;
+            invalidate();
+        }
+
+        int getProgress() {
+            return progress;
+        }
+
+        void setProgress(int value) {
+            int clamped = Math.max(0, Math.min(max, value));
+            if (clamped != progress) {
+                progress = clamped;
+                invalidate();
+            }
+        }
+
+        void setListener(OnSliderChangeListener listener) {
+            this.listener = listener;
+        }
+
+        void applyTheme() {
+            invalidate();
+        }
+
+        @Override
+        protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
+            int desiredH = dp(44);
+            int w = MeasureSpec.getSize(widthMeasureSpec);
+            int h = resolveSize(desiredH, heightMeasureSpec);
+            setMeasuredDimension(w, h);
+        }
+
+        private float grooveLeft() {
+            return dp(12);
+        }
+
+        private float grooveRight() {
+            return Math.max(grooveLeft() + dp(20), getWidth() - dp(12));
+        }
+
+        private float thumbTravelLeft() {
+            return grooveLeft() + dp(10);
+        }
+
+        private float thumbTravelRight() {
+            return Math.max(thumbTravelLeft() + 1f, grooveRight() - dp(10));
+        }
+
+        @Override
+        protected void onDraw(Canvas canvas) {
+            super.onDraw(canvas);
+            SmartisanPalette t = theme != null ? theme : SmartisanPalette.of(false);
+            float w = getWidth();
+            float cy = getHeight() / 2f;
+            if (w <= dp(32)) return;
+
+            // 1. Sculpted recessed outer housing tray (Smartisan Music bottom fader bezel)
+            float trayHalfH = dp(14);
+            rect.set(dp(1), cy - trayHalfH, w - dp(1), cy + trayHalfH);
+            paint.setStyle(Paint.Style.FILL);
+            paint.setColor(0xffffffff);
+            paint.setShader(new LinearGradient(0, rect.top, 0, rect.bottom,
+                    t.isDark ? 0xff272a30 : 0xfffafafb,
+                    t.isDark ? 0xff2e3238 : 0xffffffff,
+                    Shader.TileMode.CLAMP));
+            canvas.drawRoundRect(rect, dp(6), dp(6), paint);
+            paint.setShader(null);
+            paint.setStyle(Paint.Style.STROKE);
+            paint.setStrokeWidth(Math.max(1f, dp(1)));
+            paint.setColor(t.isDark ? 0xff1c1f24 : 0xffe4e6ea);
+            canvas.drawRoundRect(rect, dp(6), dp(6), paint);
+
+            // 2. Inner recessed groove
+            float gLeft = grooveLeft();
+            float gRight = grooveRight();
+            float gHalfH = dp(3.5f);
+            rect.set(gLeft, cy - gHalfH, gRight, cy + gHalfH);
+            paint.setStyle(Paint.Style.FILL);
+            paint.setColor(0xffffffff);
+            paint.setShader(new LinearGradient(0, rect.top, 0, rect.bottom,
+                    t.isDark ? 0xff1b1e23 : 0xffeaedf0,
+                    t.isDark ? 0xff24282e : 0xfff3f5f7,
+                    Shader.TileMode.CLAMP));
+            canvas.drawRoundRect(rect, dp(4), dp(4), paint);
+            paint.setShader(null);
+            paint.setStyle(Paint.Style.STROKE);
+            paint.setStrokeWidth(Math.max(1f, dp(1) * 0.8f));
+            paint.setColor(t.isDark ? 0xff14161a : 0xffd9dce1);
+            canvas.drawRoundRect(rect, dp(4), dp(4), paint);
+
+            // 3. Neutral architectural brushed-grey filled track
+            float ratio = max <= 0 ? 0f : progress / (float) max;
+            float minX = thumbTravelLeft();
+            float maxX = thumbTravelRight();
+            float thumbCx = minX + (maxX - minX) * ratio;
+            if (thumbCx > gLeft + dp(2)) {
+                rect.set(gLeft, cy - gHalfH, Math.min(gRight, thumbCx), cy + gHalfH);
+                paint.setStyle(Paint.Style.FILL);
+                paint.setColor(0xffffffff);
+                paint.setShader(new LinearGradient(0, rect.top, 0, rect.bottom,
+                        t.isDark ? 0xff868c97 : 0xff93969b,
+                        t.isDark ? 0xff6d737e : 0xffa4a7ac,
+                        Shader.TileMode.CLAMP));
+                canvas.drawRoundRect(rect, dp(4), dp(4), paint);
+                paint.setShader(null);
+                paint.setStyle(Paint.Style.STROKE);
+                paint.setStrokeWidth(Math.max(1f, dp(1) * 0.8f));
+                paint.setColor(t.isDark ? 0xff555a63 : 0xff808389);
+                canvas.drawRoundRect(rect, dp(4), dp(4), paint);
+            }
+
+            // 4. Sculpted raised rectangular fader knob overhanging the housing tray
+            float kHalfW = dp(12);
+            float kHalfH = dp(18);
+            float kRadius = dp(6);
+            paint.setStyle(Paint.Style.FILL);
+            // Multi-pass soft drop shadow under knob
+            int[] shadowAlphas = t.isDark ? new int[]{0x22000000, 0x34000000, 0x48000000}
+                    : new int[]{0x0c000000, 0x13000000, 0x1b000000};
+            for (int i = 0; i < 3; i++) {
+                float expand = (2 - i) * dp(1) * 0.6f;
+                float dy = (3 - i) * dp(1);
+                rect.set(thumbCx - kHalfW - expand, cy - kHalfH + dy,
+                        thumbCx + kHalfW + expand, cy + kHalfH + dy);
+                paint.setColor(shadowAlphas[i]);
+                canvas.drawRoundRect(rect, kRadius, kRadius, paint);
+            }
+
+            // 100% solid opaque beveled knob body (reset Paint alpha before LinearGradient)
+            rect.set(thumbCx - kHalfW, cy - kHalfH, thumbCx + kHalfW, cy + kHalfH);
+            paint.setColor(0xffffffff);
+            int kTop = t.isDark
+                    ? (dragging ? 0xff4d535d : 0xff5b616c)
+                    : (dragging ? 0xfff4f5f7 : 0xffffffff);
+            int kBot = t.isDark
+                    ? (dragging ? 0xff3d424b : 0xff474d57)
+                    : (dragging ? 0xffeceef0 : 0xfffafafb);
+            paint.setShader(new LinearGradient(0, rect.top, 0, rect.bottom, kTop, kBot, Shader.TileMode.CLAMP));
+            canvas.drawRoundRect(rect, kRadius, kRadius, paint);
+            paint.setShader(null);
+            paint.setStyle(Paint.Style.STROKE);
+            paint.setStrokeWidth(Math.max(1f, dp(1)));
+            paint.setColor(t.isDark ? 0xff21242a : (dragging ? 0xffc7cbd1 : 0xffdfe1e6));
+            canvas.drawRoundRect(rect, kRadius, kRadius, paint);
+
+            if (t.isDark) {
+                paint.setStrokeWidth(Math.max(1f, dp(1) * 0.8f));
+                paint.setColor(0x20ffffff);
+                canvas.drawLine(rect.left + dp(3), rect.top + dp(1), rect.right - dp(3), rect.top + dp(1), paint);
+            }
+
+            // Machined concave finger-indent well inside knob
+            float wellHalfW = dp(5);
+            float wellHalfH = dp(10);
+            rect.set(thumbCx - wellHalfW, cy - wellHalfH, thumbCx + wellHalfW, cy + wellHalfH);
+            paint.setStyle(Paint.Style.FILL);
+            paint.setColor(0xffffffff);
+            paint.setShader(new LinearGradient(0, rect.top, 0, rect.bottom,
+                    t.isDark ? 0xff3b4049 : 0xfff1f2f4,
+                    t.isDark ? 0xff434952 : 0xfff7f8f9,
+                    Shader.TileMode.CLAMP));
+            canvas.drawRoundRect(rect, dp(3), dp(3), paint);
+            paint.setShader(null);
+            paint.setStyle(Paint.Style.STROKE);
+            paint.setStrokeWidth(Math.max(1f, dp(1) * 0.8f));
+            paint.setColor(t.isDark ? 0xff31353d : 0xffe9ebee);
+            canvas.drawRoundRect(rect, dp(3), dp(3), paint);
+            paint.setStyle(Paint.Style.FILL);
+        }
+
+        private void updateFromTouchX(float x) {
+            float minX = thumbTravelLeft();
+            float maxX = thumbTravelRight();
+            float ratio = Math.max(0f, Math.min(1f, (x - minX) / Math.max(1f, maxX - minX)));
+            int next = Math.max(0, Math.min(max, Math.round(ratio * max)));
+            if (next != progress) {
+                progress = next;
+                invalidate();
+                if (listener != null) listener.onProgressChanged(progress, true);
+            }
+        }
+
+        @Override
+        public boolean onTouchEvent(MotionEvent event) {
+            if (!isEnabled()) return false;
+            int action = event.getActionMasked();
+            if (action == MotionEvent.ACTION_DOWN) {
+                dragging = true;
+                if (getParent() != null) getParent().requestDisallowInterceptTouchEvent(true);
+                updateFromTouchX(event.getX());
+                invalidate();
+                return true;
+            }
+            if (action == MotionEvent.ACTION_MOVE) {
+                if (dragging) updateFromTouchX(event.getX());
+                return true;
+            }
+            if (action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_CANCEL) {
+                if (dragging) {
+                    dragging = false;
+                    if (getParent() != null) getParent().requestDisallowInterceptTouchEvent(false);
+                    if (action == MotionEvent.ACTION_UP) updateFromTouchX(event.getX());
+                    invalidate();
+                    if (listener != null) listener.onStopTrackingTouch();
+                }
+                return true;
+            }
+            return super.onTouchEvent(event);
+        }
     }
 
     private final class MousePointerView extends View {
@@ -1583,6 +2350,9 @@ public final class MainActivity extends Activity {
         private long statusBarLabelUpdatedAt;
         private final Path statusClipPath = new Path();
         private final RectF statusIconRect = new RectF();
+        private final Rect savedIconBounds = new Rect();
+        private final RectF panelRect = new RectF();
+        private final RectF thumbRect = new RectF();
 
         private final Runnable revealStatusBar = () -> {
             if (forwarding && pointerY <= statusBarRevealZone()) {
@@ -2016,6 +2786,10 @@ public final class MainActivity extends Activity {
 
         private int panelDp(int value) {
             return Math.round(value * panelDensityDpi / 160f);
+        }
+
+        private float panelDp(float value) {
+            return value * panelDensityDpi / 160f;
         }
 
         void applyPanelDensity() {
@@ -3031,7 +3805,54 @@ public final class MainActivity extends Activity {
         }
 
         private android.graphics.drawable.Drawable launcherIcon(ResolveInfo app) {
-            return getLauncherIcon(app);
+            if (app == null || app.activityInfo == null) return null;
+            String packageName = app.activityInfo.packageName;
+            Drawable icon = panelLauncherIconCache.get(packageName);
+            if (icon == null) {
+                Drawable base = getLauncherIcon(app);
+                Drawable.ConstantState state = base != null ? base.getConstantState() : null;
+                icon = state != null ? state.newDrawable(getResources()).mutate()
+                        : app.loadIcon(getPackageManager());
+                if (icon != null) panelLauncherIconCache.put(packageName, icon);
+            }
+            return icon;
+        }
+
+        private void drawClippedPanelIcon(Canvas canvas, Drawable icon,
+                float left, float top, float right, float bottom, float rx) {
+            if (icon == null) return;
+            SmartisanPalette t = activePanelTheme();
+            if (!t.isDark) {
+                panelPaint.setShader(null);
+                panelPaint.setStyle(Paint.Style.FILL);
+                panelPaint.setColor(0x14000000);
+                panelRect.set(left, top + Math.max(1f, panelDp(1)), right, bottom + Math.max(1f, panelDp(1)));
+                canvas.drawRoundRect(panelRect, rx, rx, panelPaint);
+                panelPaint.setColor(0xffffffff);
+                panelRect.set(left, top, right, bottom);
+                canvas.drawRoundRect(panelRect, rx, rx, panelPaint);
+            }
+            icon.copyBounds(savedIconBounds);
+            canvas.save();
+            try {
+                statusIconRect.set(left, top, right, bottom);
+                statusClipPath.reset();
+                statusClipPath.addRoundRect(statusIconRect, rx, rx, Path.Direction.CW);
+                canvas.clipPath(statusClipPath);
+                icon.setBounds(Math.round(left), Math.round(top),
+                        Math.round(right), Math.round(bottom));
+                icon.draw(canvas);
+            } finally {
+                canvas.restore();
+                icon.setBounds(savedIconBounds);
+            }
+            panelPaint.setShader(null);
+            panelPaint.setStyle(Paint.Style.STROKE);
+            panelPaint.setStrokeWidth(Math.max(1f, panelDp(0.75f)));
+            panelPaint.setColor(t.isDark ? 0x1cffffff : 0x22000000);
+            panelRect.set(left, top, right, bottom);
+            canvas.drawRoundRect(panelRect, rx, rx, panelPaint);
+            panelPaint.setStyle(Paint.Style.FILL);
         }
 
         private String panelDisplayLabel(ResolveInfo app, float width) {
@@ -3055,90 +3876,245 @@ public final class MainActivity extends Activity {
             launchPackage(app.activityInfo.packageName, app.activityInfo.name);
         }
 
+        private SmartisanPalette activePanelTheme() {
+            return theme != null ? theme : SmartisanPalette.of(false);
+        }
+
+        private void drawSmartisanRect(Canvas canvas, float left, float top, float right, float bottom,
+                float rx, int topColor, int bottomColor, int borderColor, int shadowColor) {
+            if ((shadowColor >>> 24) != 0) {
+                panelPaint.setShader(null);
+                panelPaint.setStyle(Paint.Style.FILL);
+                panelPaint.setColor(shadowColor);
+                float lip = Math.max(1f, panelDp(1));
+                panelRect.set(left, top + lip, right, bottom + lip);
+                canvas.drawRoundRect(panelRect, rx, rx, panelPaint);
+            }
+            panelRect.set(left, top, right, bottom);
+            panelPaint.setStyle(Paint.Style.FILL);
+            if (topColor == bottomColor) {
+                panelPaint.setShader(null);
+                panelPaint.setColor(topColor);
+            } else {
+                panelPaint.setColor(0xffffffff);
+                panelPaint.setShader(new LinearGradient(0, top, 0, bottom,
+                        topColor, bottomColor, Shader.TileMode.CLAMP));
+            }
+            canvas.drawRoundRect(panelRect, rx, rx, panelPaint);
+            panelPaint.setShader(null);
+            if ((borderColor >>> 24) != 0) {
+                panelPaint.setStyle(Paint.Style.STROKE);
+                panelPaint.setStrokeWidth(Math.max(1f, panelDp(1)));
+                panelPaint.setColor(borderColor);
+                canvas.drawRoundRect(panelRect, rx, rx, panelPaint);
+                panelPaint.setStyle(Paint.Style.FILL);
+            }
+        }
+
+        private void drawSmartisanCanvasSlider(Canvas canvas, SmartisanPalette t,
+                float left, float right, float centerY, float ratio, boolean compact) {
+            float clampedRatio = Math.max(0f, Math.min(1f, ratio));
+            float trayHalfH = compact ? panelDp(10) : panelDp(13);
+            float trayRx = panelDp(5);
+            drawSmartisanRect(canvas, left, centerY - trayHalfH, right, centerY + trayHalfH, trayRx,
+                    t.isDark ? 0xff272a30 : 0xfffafafb,
+                    t.isDark ? 0xff2e3238 : 0xffffffff,
+                    t.isDark ? 0xff1c1f24 : 0xffe4e6ea, 0);
+
+            float inset = compact ? panelDp(7) : panelDp(9);
+            float gLeft = left + inset;
+            float gRight = Math.max(gLeft + panelDp(10), right - inset);
+            float gHalfH = compact ? panelDp(2.5f) : panelDp(3f);
+            float gRx = panelDp(3);
+            drawSmartisanRect(canvas, gLeft, centerY - gHalfH, gRight, centerY + gHalfH, gRx,
+                    t.isDark ? 0xff1b1e23 : 0xffeaedf0,
+                    t.isDark ? 0xff24282e : 0xfff3f5f7,
+                    t.isDark ? 0xff14161a : 0xffd9dce1, 0);
+
+            float kHalfW = compact ? panelDp(7) : panelDp(9);
+            float kHalfH = compact ? panelDp(12) : panelDp(16);
+            float kRadius = panelDp(5);
+            float travelLeft = gLeft + kHalfW * 0.7f;
+            float travelRight = Math.max(travelLeft + 1f, gRight - kHalfW * 0.7f);
+            float thumbCx = travelLeft + (travelRight - travelLeft) * clampedRatio;
+
+            if (thumbCx > gLeft + panelDp(2)) {
+                drawSmartisanRect(canvas, gLeft, centerY - gHalfH,
+                        Math.min(gRight, thumbCx), centerY + gHalfH, gRx,
+                        t.isDark ? 0xff868c97 : 0xff93969b,
+                        t.isDark ? 0xff6d737e : 0xffa4a7ac,
+                        t.isDark ? 0xff555a63 : 0xff808389, 0);
+            }
+
+            panelPaint.setShader(null);
+            panelPaint.setStyle(Paint.Style.FILL);
+            float shadowDy = Math.max(1f, panelDp(2));
+            thumbRect.set(thumbCx - kHalfW - panelDp(1) * 0.5f, centerY - kHalfH + shadowDy,
+                    thumbCx + kHalfW + panelDp(1) * 0.5f, centerY + kHalfH + shadowDy);
+            panelPaint.setColor(t.isDark ? 0x44000000 : 0x1b000000);
+            canvas.drawRoundRect(thumbRect, kRadius, kRadius, panelPaint);
+
+            drawSmartisanRect(canvas, thumbCx - kHalfW, centerY - kHalfH,
+                    thumbCx + kHalfW, centerY + kHalfH, kRadius,
+                    t.isDark ? 0xff5b616c : 0xffffffff,
+                    t.isDark ? 0xff474d57 : 0xfffafafb,
+                    t.isDark ? 0xff21242a : 0xffdfe1e6, 0);
+
+            float wellHalfW = compact ? panelDp(2.5f) : panelDp(3.5f);
+            float wellHalfH = compact ? panelDp(6) : panelDp(8.5f);
+            drawSmartisanRect(canvas, thumbCx - wellHalfW, centerY - wellHalfH,
+                    thumbCx + wellHalfW, centerY + wellHalfH, panelDp(2),
+                    t.isDark ? 0xff3b4049 : 0xfff1f2f4,
+                    t.isDark ? 0xff434952 : 0xfff7f8f9,
+                    t.isDark ? 0xff31353d : 0xffe9ebee, 0);
+        }
+
+        private void drawSmartisanCanvasSwitch(Canvas canvas, SmartisanPalette t,
+                float left, float right, float centerY, boolean checked) {
+            float halfH = panelDp(11);
+            drawSmartisanRect(canvas, left, centerY - halfH, right, centerY + halfH, halfH,
+                    checked ? t.switchOnTrack : t.switchOffTrack,
+                    checked ? t.switchOnTrack : t.switchOffTrack,
+                    checked ? t.switchOnBorder : t.switchOffBorder, 0);
+            float knobR = panelDp(8.5f);
+            float cx = checked ? right - panelDp(11) : left + panelDp(11);
+            panelPaint.setShader(null);
+            panelPaint.setStyle(Paint.Style.FILL);
+            panelPaint.setColor(t.isDark ? 0x44000000 : 0x22000000);
+            canvas.drawCircle(cx, centerY + Math.max(1f, panelDp(1)), knobR, panelPaint);
+            panelPaint.setColor(0xffffffff);
+            panelPaint.setShader(new LinearGradient(0, centerY - knobR, 0, centerY + knobR,
+                    t.sliderThumbTop, t.sliderThumbBottom, Shader.TileMode.CLAMP));
+            canvas.drawCircle(cx, centerY, knobR, panelPaint);
+            panelPaint.setShader(null);
+            panelPaint.setStyle(Paint.Style.STROKE);
+            panelPaint.setStrokeWidth(Math.max(1f, panelDp(1)));
+            panelPaint.setColor(t.sliderThumbBorder);
+            canvas.drawCircle(cx, centerY, knobR, panelPaint);
+            panelPaint.setStyle(Paint.Style.FILL);
+        }
+
         private void drawQuickUi(Canvas canvas) {
+            SmartisanPalette t = activePanelTheme();
             float width = getWidth();
             float barHeight = statusBarHeight();
-            panelPaint.setColor(0xb8171a20);
-            panelPaint.setStyle(Paint.Style.FILL);
-            panelTextPaint.setColor(0xe6ffffff);
+            float oneDp = Math.max(1f, panelDp(1));
+
             if (quickPanelVisible) {
                 float bottom = barHeight + quickPanelHeight();
-                canvas.drawRect(0, 0, width, bottom, panelPaint);
+                float radius = panelDp(14);
+                panelPaint.setShader(null);
+                panelPaint.setStyle(Paint.Style.FILL);
+                panelPaint.setColor(t.isDark ? 0x55000000 : 0x1c000000);
+                panelRect.set(0, -radius, width, bottom + panelDp(5));
+                canvas.drawRoundRect(panelRect, radius, radius, panelPaint);
+
+                int panelFill = t.isDark ? 0xf525282d : 0xf7eff0f2;
+                drawSmartisanRect(canvas, 0, -radius, width, bottom, radius,
+                        panelFill, panelFill, t.cardBorder, 0);
 
                 ArrayList<ResolveInfo> apps = quickPanelApps();
                 float controlsTop = barHeight + panelDp(8);
                 float controlsBottom = barHeight + panelDp(64);
                 float controlsCenterY = barHeight + panelDp(36);
-                panelPaint.setColor(0x6630343d);
-                canvas.drawRect(width - panelDp(152), controlsTop + panelDp(4), width - panelDp(8),
-                        controlsBottom - panelDp(4), panelPaint);
-                panelPaint.setColor(inputSettingsPackage() == null || isTouchMode(inputSettingsPackage())
-                        ? 0x997a5b32 : 0x664b6470);
-                canvas.drawRect(width - panelDp(152), controlsTop + panelDp(8), width - panelDp(106),
-                        controlsBottom - panelDp(8), panelPaint);
-                panelPaint.setColor(0x664b6470);
-                canvas.drawRect(width - panelDp(94), controlsTop + panelDp(8), width - panelDp(58),
-                        controlsBottom - panelDp(8), panelPaint);
-                panelPaint.setColor(0x664b6470);
-                canvas.drawRect(width - panelDp(48), controlsTop + panelDp(8), width - panelDp(12),
-                        controlsBottom - panelDp(8), panelPaint);
-                panelTextPaint.setColor(0xe6ffffff);
-                panelTextPaint.setTextSize(panelDp(14));
+                float btnTop = controlsTop + panelDp(8);
+                float btnBottom = controlsBottom - panelDp(8);
+                float btnRx = panelDp(9);
+                boolean touchMode = inputSettingsPackage() == null || isTouchMode(inputSettingsPackage());
+                boolean pressInput = panelPointerDown && panelPressedControl == PANEL_INPUT_MODE;
+                boolean pressOrient = panelPointerDown && panelPressedControl == PANEL_ORIENTATION;
+                boolean pressShot = panelPointerDown && panelPressedControl == PANEL_SCREENSHOT;
+
+                // Left DPI label + embossed blue badge
+                panelTextPaint.setColor(t.textSecondary);
+                panelTextPaint.setTextSize(panelDp(13));
                 panelTextPaint.setTextAlign(Paint.Align.LEFT);
-                canvas.drawText("DPI " + densityDpi, panelDp(16), controlsCenterY + panelDp(5), panelTextPaint);
+                canvas.drawText("DPI", panelDp(16), controlsCenterY + panelDp(5), panelTextPaint);
+
+                drawSmartisanRect(canvas, panelDp(46), controlsCenterY - panelDp(12),
+                        panelDp(104), controlsCenterY + panelDp(12), panelDp(7),
+                        t.accentBlueSoftBg, t.accentBlueSoftBg, t.accentBlueSoftBorder, 0);
+                panelTextPaint.setColor(t.accentBlueText);
+                panelTextPaint.setTextSize(panelDp(12));
+                panelTextPaint.setTextAlign(Paint.Align.CENTER);
+                canvas.drawText(String.valueOf(densityDpi), panelDp(75),
+                        controlsCenterY + panelDp(4.5f), panelTextPaint);
+
+                // Mechanical DPI fader slider
                 float sliderLeft = dpiSliderLeft();
                 float sliderRight = dpiSliderRight();
                 float densityRatio = (densityDpi - 140) / 460f;
-                panelPaint.setColor(0x9977808d);
-                canvas.drawRoundRect(sliderLeft, controlsCenterY - panelDp(3), sliderRight,
-                        controlsCenterY + panelDp(3), panelDp(4), panelDp(4), panelPaint);
-                panelPaint.setColor(0xdd80cbc4);
-                canvas.drawRoundRect(sliderLeft, controlsCenterY - panelDp(3),
-                        sliderLeft + (sliderRight - sliderLeft) * densityRatio,
-                        controlsCenterY + panelDp(3), panelDp(4), panelDp(4), panelPaint);
-                canvas.drawCircle(sliderLeft + (sliderRight - sliderLeft) * densityRatio,
-                        controlsCenterY, panelDp(8), panelPaint);
-                drawInputModeIcon(canvas, width - panelDp(129), controlsCenterY,
-                        inputSettingsPackage() == null || isTouchMode(inputSettingsPackage()));
-                drawOrientationIcon(canvas, width - panelDp(76), controlsCenterY);
+                drawSmartisanCanvasSlider(canvas, t, sliderLeft, sliderRight,
+                        controlsCenterY, densityRatio, false);
+
+                // Input mode beveled button [w-152 .. w-106]
+                if (touchMode) {
+                    drawSmartisanRect(canvas, width - panelDp(152), btnTop, width - panelDp(106), btnBottom, btnRx,
+                            pressInput ? t.btnPressedTop : t.accentBlueSoftBg,
+                            pressInput ? t.btnPressedBottom : t.accentBlueSoftBg,
+                            t.accentBlueSoftBorder, t.btnShadow);
+                    drawInputModeIcon(canvas, width - panelDp(129), controlsCenterY, true, t.accentBlueText);
+                } else {
+                    drawSmartisanRect(canvas, width - panelDp(152), btnTop, width - panelDp(106), btnBottom, btnRx,
+                            pressInput ? t.softRedPressedTop : t.softRedTop,
+                            pressInput ? t.softRedPressedBottom : t.softRedBottom,
+                            t.softRedBorder, t.btnShadow);
+                    drawInputModeIcon(canvas, width - panelDp(129), controlsCenterY, false, t.softRedText);
+                }
+
+                // Rotate beveled button [w-94 .. w-58]
+                drawSmartisanRect(canvas, width - panelDp(94), btnTop, width - panelDp(58), btnBottom, btnRx,
+                        pressOrient ? t.btnPressedTop : t.btnTop,
+                        pressOrient ? t.btnPressedBottom : t.btnBottom,
+                        pressOrient ? t.btnPressedBorder : t.btnBorder, t.btnShadow);
+                drawOrientationIcon(canvas, width - panelDp(76), controlsCenterY, t.textPrimary);
+
+                // Screenshot beveled button [w-48 .. w-12]
+                drawSmartisanRect(canvas, width - panelDp(48), btnTop, width - panelDp(12), btnBottom, btnRx,
+                        pressShot ? t.btnPressedTop : t.btnTop,
+                        pressShot ? t.btnPressedBottom : t.btnBottom,
+                        pressShot ? t.btnPressedBorder : t.btnBorder, t.btnShadow);
                 drawPanelVectorIcon(canvas, R.drawable.ic_screenshot,
-                        width - panelDp(30), controlsCenterY, panelDp(26));
+                        width - panelDp(30), controlsCenterY, panelDp(22), t.textPrimary);
+
+                // Hairline divider separating row 1 and row 2
+                panelPaint.setShader(null);
+                panelPaint.setColor(t.divider);
+                canvas.drawRect(panelDp(16), barHeight + panelDp(68),
+                        width - panelDp(16), barHeight + panelDp(68) + oneDp, panelPaint);
 
                 float compatY = barHeight + panelDp(91);
-                // Split/fullscreen action sits at the far right edge so it never separates the
-                // "主屏 DPI 同步" label from its switch.
-                // Maximising a pane is handled by the divider menu, so the panel only offers the
-                // one action that the menu cannot: entering split mode.
+                // Split button: authentic Smartisan Crimson Red beveled CTA
                 if (!splitActive && currentVirtualPackage != null && !captureBlockedDisplay) {
-                    panelPaint.setColor(0x99607888);
-                    canvas.drawRoundRect(width - panelDp(68), compatY - panelDp(17),
-                            width - panelDp(10), compatY + panelDp(17), panelDp(6), panelDp(6), panelPaint);
-                    panelTextPaint.setColor(0xe6ffffff);
+                    boolean pressSplit = panelPointerDown && panelPressedControl == PANEL_SPLIT;
+                    drawSmartisanRect(canvas, width - panelDp(68), compatY - panelDp(16),
+                            width - panelDp(12), compatY + panelDp(16), panelDp(8),
+                            pressSplit ? t.accentRedPressedTop : t.accentRedTop,
+                            pressSplit ? t.accentRedPressedBottom : t.accentRedBottom,
+                            pressSplit ? t.accentRedPressedBorder : t.accentRedBorder, t.btnShadow);
+                    panelTextPaint.setColor(0xffffffff);
                     panelTextPaint.setTextSize(panelDp(13));
                     panelTextPaint.setTextAlign(Paint.Align.CENTER);
-                    canvas.drawText("分屏", width - panelDp(39), compatY + panelDp(5), panelTextPaint);
+                    canvas.drawText("分屏", width - panelDp(40), compatY + panelDp(4.5f), panelTextPaint);
                 }
+
                 boolean compat = currentVirtualPackage != null && densityCompatPackages.contains(currentVirtualPackage);
                 panelTextPaint.setTextSize(panelDp(13));
                 panelTextPaint.setTextAlign(Paint.Align.LEFT);
-                panelTextPaint.setColor(0xe6ffffff);
+                panelTextPaint.setColor(t.textPrimary);
                 String compatLabel = "主屏 DPI 同步 · 当前应用";
                 canvas.drawText(compatLabel, panelDp(16), compatY - panelDp(2), panelTextPaint);
                 panelTextPaint.setTextSize(panelDp(10));
-                panelTextPaint.setColor(0xaaffffff);
+                panelTextPaint.setColor(t.textMuted);
                 canvas.drawText("手机主屏显示大小会变化", panelDp(16), compatY + panelDp(12), panelTextPaint);
-                // Switch hugs the label instead of floating at the panel edge.
+
                 panelTextPaint.setTextSize(panelDp(13));
                 float compatLabelRight = panelDp(16) + panelTextPaint.measureText(compatLabel);
                 float compatSwitchLeft = compatLabelRight + panelDp(12);
                 float compatSwitchRight = compatSwitchLeft + panelDp(40);
-                panelPaint.setColor(compat ? 0xcc80cbc4 : 0x9977808d);
-                canvas.drawRoundRect(compatSwitchLeft, compatY - panelDp(10),
-                        compatSwitchRight, compatY + panelDp(10), panelDp(10), panelDp(10), panelPaint);
-                panelPaint.setColor(0xffeeeeee);
-                canvas.drawCircle(compat ? compatSwitchRight - panelDp(10)
-                        : compatSwitchLeft + panelDp(10), compatY, panelDp(7), panelPaint);
+                drawSmartisanCanvasSwitch(canvas, t, compatSwitchLeft, compatSwitchRight, compatY, compat);
 
+                // Shortcut app grid cards with real app icons
                 float tileTop = quickPanelAppsTop();
                 float tileHeight = panelDp(58);
                 float gap = panelDp(8);
@@ -3146,44 +4122,74 @@ public final class MainActivity extends Activity {
                 float tileGap = panelDp(8);
                 int columns = quickPanelColumnCount(apps.size());
                 float tileWidth = (width - horizontalPadding * 2f - tileGap * (columns - 1)) / columns;
-                panelPaint.setColor(0x9930343d);
-                panelTextPaint.setTextSize(panelDp(14));
-                panelTextPaint.setTextAlign(Paint.Align.CENTER);
+                float iconSize = panelDp(30);
+                float iconRx = panelDp(7);
                 for (int i = 0; i < apps.size(); i++) {
                     int row = i / columns;
                     int column = i % columns;
                     float left = horizontalPadding + column * (tileWidth + tileGap);
                     float top = tileTop + row * (tileHeight + gap);
-                    canvas.drawRect(left, top, left + tileWidth, top + tileHeight, panelPaint);
-                    canvas.drawText(panelDisplayLabel(apps.get(i), tileWidth),
-                            left + tileWidth / 2f, top + tileHeight / 2f + panelDp(5), panelTextPaint);
+                    boolean pressedTile = panelPointerDown && panelPressedControl == PANEL_APP_BASE + i;
+                    drawSmartisanRect(canvas, left, top, left + tileWidth, top + tileHeight, panelDp(10),
+                            pressedTile ? t.btnPressedTop : (t.isDark ? t.cardBg : 0xfff8f9fb),
+                            pressedTile ? t.btnPressedBottom : (t.isDark ? 0xff2f3237 : 0xfff1f3f6),
+                            t.cardBorder, t.cardShadow);
+
+                    ResolveInfo app = apps.get(i);
+                    float iLeft = left + panelDp(10);
+                    float iTop = top + (tileHeight - iconSize) / 2f;
+                    try {
+                        drawClippedPanelIcon(canvas, launcherIcon(app),
+                                iLeft, iTop, iLeft + iconSize, iTop + iconSize, iconRx);
+                    } catch (RuntimeException ignored) { }
+
+                    panelTextPaint.setColor(t.textPrimary);
+                    panelTextPaint.setTextSize(panelDp(13));
+                    panelTextPaint.setTextAlign(Paint.Align.LEFT);
+                    String label = panelDisplayLabel(app, tileWidth - panelDp(42));
+                    canvas.drawText(label, left + panelDp(48),
+                            top + tileHeight / 2f + panelDp(4.5f), panelTextPaint);
+
+                    if (favoritePackages.contains(app.activityInfo.packageName)) {
+                        panelPaint.setShader(null);
+                        panelPaint.setColor(t.accentRedTop);
+                        canvas.drawCircle(left + tileWidth - panelDp(9), top + panelDp(9),
+                                panelDp(3), panelPaint);
+                    }
                 }
             }
 
-            if (statusBarVisible && !quickPanelVisible) {
-                panelPaint.setColor(0xb8171a20);
-                canvas.drawRect(0, 0, width, barHeight, panelPaint);
-            }
             if (statusBarVisible) {
+                if (!quickPanelVisible) {
+                    panelPaint.setStyle(Paint.Style.FILL);
+                    panelPaint.setColor(0xffffffff);
+                    panelPaint.setShader(new LinearGradient(0, barHeight, 0, barHeight + panelDp(4),
+                            t.titleBarShadowStart, 0x00000000, Shader.TileMode.CLAMP));
+                    canvas.drawRect(0, barHeight, width, barHeight + panelDp(4), panelPaint);
+                    panelPaint.setShader(null);
+                }
+                int barTop = t.isDark ? 0xf52e3137 : 0xf7ffffff;
+                int barBot = t.isDark ? 0xf5282b30 : 0xf7f7f8fa;
+                drawSmartisanRect(canvas, 0, 0, width, barHeight, 0f, barTop, barBot, 0, 0);
+                panelPaint.setShader(null);
+                panelPaint.setColor(t.titleBarBorder);
+                canvas.drawRect(0, barHeight - oneDp, width, barHeight, panelPaint);
+
                 StatusBarLayout layout = statusBarLayout();
+                panelTextPaint.setColor(t.textPrimary);
                 panelTextPaint.setTextAlign(Paint.Align.LEFT);
-                panelTextPaint.setTextSize(panelDp(15));
-                canvas.drawText(layout.label, panelDp(16), barHeight * 0.66f, panelTextPaint);
+                panelTextPaint.setTextSize(panelDp(14.5f));
+                canvas.drawText(layout.label, panelDp(16), barHeight * 0.65f, panelTextPaint);
+
                 AudioManager audio = (AudioManager) getSystemService(AUDIO_SERVICE);
                 if (audio != null && layout.sliderRight > layout.sliderLeft) {
                     float center = barHeight / 2f;
                     float ratio = audio.getStreamVolume(AudioManager.STREAM_MUSIC)
                             / (float) Math.max(1, audio.getStreamMaxVolume(AudioManager.STREAM_MUSIC));
-                    panelPaint.setColor(0xb877808d);
-                    canvas.drawRoundRect(layout.sliderLeft, center - panelDp(3), layout.sliderRight,
-                            center + panelDp(3), panelDp(4), panelDp(4), panelPaint);
-                    panelPaint.setColor(0xdd80cbc4);
-                    canvas.drawRoundRect(layout.sliderLeft, center - panelDp(3),
-                            layout.sliderLeft + (layout.sliderRight - layout.sliderLeft) * ratio,
-                            center + panelDp(3), panelDp(4), panelDp(4), panelPaint);
-                    canvas.drawCircle(layout.sliderLeft + (layout.sliderRight - layout.sliderLeft) * ratio,
-                            center, panelDp(8), panelPaint);
+                    drawSmartisanCanvasSlider(canvas, t, layout.sliderLeft, layout.sliderRight,
+                            center, ratio, true);
                 }
+
                 for (int i = 0; i < layout.apps.size(); i++) {
                     RecentVirtualTask task = layout.apps.get(i);
                     float left = layout.appsLeft + i * panelDp(42);
@@ -3191,9 +4197,9 @@ public final class MainActivity extends Activity {
                     float pillLeft = left + panelDp(5);
                     float pillRight = left + panelDp(37);
                     float pillBottom = top + panelDp(32);
-                    panelPaint.setColor(0x665f6875);
-                    canvas.drawRoundRect(pillLeft, top, pillRight, pillBottom,
-                            panelDp(7), panelDp(7), panelPaint);
+                    drawSmartisanRect(canvas, pillLeft, top, pillRight, pillBottom, panelDp(8),
+                            t.cardBg, t.isDark ? 0xff2d3035 : 0xfff5f6f8,
+                            task.isSplitPair() ? t.accentBlue : t.cardBorder, t.cardShadow);
                     float iconLeft = left + panelDp(7);
                     float iconTop = top + panelDp(2);
                     float iconRight = left + panelDp(35);
@@ -3203,30 +4209,38 @@ public final class MainActivity extends Activity {
                                 iconLeft, iconTop, iconRight, iconBottom);
                     } else {
                         try {
-                            android.graphics.drawable.Drawable icon = recentTaskIcon(task.packageName);
-                            if (icon == null) continue;
-                            canvas.save();
-                            canvas.clipRect(iconLeft, iconTop, iconRight, iconBottom);
-                            icon.setBounds(Math.round(iconLeft), Math.round(iconTop),
-                                    Math.round(iconRight), Math.round(iconBottom));
-                            icon.draw(canvas);
-                            canvas.restore();
+                            drawClippedPanelIcon(canvas, recentTaskIcon(task.packageName),
+                                    iconLeft, iconTop, iconRight, iconBottom, panelDp(6));
                         } catch (RuntimeException ignored) { }
                     }
                 }
+
                 float closeCenterX = layout.closeLeft + panelDp(22);
                 float closeCenterY = barHeight / 2f;
-                panelPaint.setColor(0x885f6875);
-                canvas.drawCircle(closeCenterX, closeCenterY, panelDp(15), panelPaint);
-                panelTextPaint.setTextAlign(Paint.Align.CENTER);
-                panelTextPaint.setTextSize(panelDp(22));
-                canvas.drawText("×", closeCenterX, closeCenterY + panelDp(8), panelTextPaint);
+                float closeR = panelDp(14.5f);
+                boolean pressClose = panelPointerDown && panelPressedControl == PANEL_CLOSE_APP;
+                drawSmartisanRect(canvas, closeCenterX - closeR, closeCenterY - closeR,
+                        closeCenterX + closeR, closeCenterY + closeR, closeR,
+                        pressClose ? t.softRedPressedTop : t.softRedTop,
+                        pressClose ? t.softRedPressedBottom : t.softRedBottom,
+                        t.softRedBorder, t.btnShadow);
+                float arm = panelDp(5.5f);
+                panelPaint.setStyle(Paint.Style.STROKE);
+                panelPaint.setStrokeCap(Paint.Cap.ROUND);
+                panelPaint.setStrokeWidth(Math.max(1.5f, panelDp(2)));
+                panelPaint.setColor(t.softRedText);
+                canvas.drawLine(closeCenterX - arm, closeCenterY - arm,
+                        closeCenterX + arm, closeCenterY + arm, panelPaint);
+                canvas.drawLine(closeCenterX + arm, closeCenterY - arm,
+                        closeCenterX - arm, closeCenterY + arm, panelPaint);
+                panelPaint.setStyle(Paint.Style.FILL);
             }
         }
 
         private void drawSplitPairStatusIcon(Canvas canvas, RecentVirtualTask task,
                 float pillLeft, float pillTop, float pillRight, float pillBottom,
                 float iconLeft, float iconTop, float iconRight, float iconBottom) {
+            SmartisanPalette t = activePanelTheme();
             float subSize = panelDp(18);
             float subRadius = panelDp(4);
             try {
@@ -3248,9 +4262,10 @@ public final class MainActivity extends Activity {
             canvas.save();
             statusIconRect.set(pillLeft, pillTop, pillRight, pillBottom);
             statusClipPath.reset();
-            statusClipPath.addRoundRect(statusIconRect, panelDp(7), panelDp(7), Path.Direction.CW);
+            statusClipPath.addRoundRect(statusIconRect, panelDp(8), panelDp(8), Path.Direction.CW);
             canvas.clipPath(statusClipPath);
-            panelPaint.setColor(0xd9252a33);
+            panelPaint.setShader(null);
+            panelPaint.setColor(t.cardBg);
             canvas.drawRoundRect(iconRight - subSize - gap, iconBottom - subSize - gap,
                     iconRight + gap, iconBottom + gap, panelDp(5), panelDp(5), panelPaint);
             canvas.restore();
@@ -3271,36 +4286,38 @@ public final class MainActivity extends Activity {
             } catch (RuntimeException ignored) { }
         }
 
-        private void drawInputModeIcon(Canvas canvas, float cx, float cy, boolean touchMode) {
+        private void drawInputModeIcon(Canvas canvas, float cx, float cy, boolean touchMode, int tintColor) {
             if (touchMode) {
-                drawPanelVectorIcon(canvas, R.drawable.ic_touch_app, cx, cy, panelDp(27));
+                drawPanelVectorIcon(canvas, R.drawable.ic_touch_app, cx, cy, panelDp(22), tintColor);
             } else {
-                panelPaint.setColor(0xe6ffffff);
+                panelPaint.setShader(null);
+                panelPaint.setColor(tintColor);
                 panelPaint.setStyle(Paint.Style.STROKE);
-                panelPaint.setStrokeWidth(panelDp(2));
+                panelPaint.setStrokeWidth(Math.max(1.5f, panelDp(2)));
                 panelPaint.setStrokeCap(Paint.Cap.ROUND);
                 panelPaint.setStrokeJoin(Paint.Join.ROUND);
-                canvas.drawRoundRect(cx - panelDp(8), cy - panelDp(12), cx + panelDp(8), cy + panelDp(12),
-                        panelDp(7), panelDp(7), panelPaint);
-                canvas.drawLine(cx, cy - panelDp(11), cx, cy - panelDp(4), panelPaint);
-                canvas.drawLine(cx, cy - panelDp(9), cx, cy - panelDp(6), panelPaint);
+                canvas.drawRoundRect(cx - panelDp(7), cy - panelDp(10), cx + panelDp(7), cy + panelDp(10),
+                        panelDp(6), panelDp(6), panelPaint);
+                canvas.drawLine(cx, cy - panelDp(9), cx, cy - panelDp(3), panelPaint);
             }
             panelPaint.setStyle(Paint.Style.FILL);
         }
 
-        private void drawOrientationIcon(Canvas canvas, float cx, float cy) {
-            drawPanelVectorIcon(canvas, R.drawable.ic_screen_orientation, cx, cy, panelDp(28));
+        private void drawOrientationIcon(Canvas canvas, float cx, float cy, int tintColor) {
+            drawPanelVectorIcon(canvas, R.drawable.ic_screen_orientation, cx, cy, panelDp(23), tintColor);
         }
 
-        private void drawPanelVectorIcon(Canvas canvas, int resourceId, float cx, float cy, float size) {
+        private void drawPanelVectorIcon(Canvas canvas, int resourceId, float cx, float cy,
+                float size, int tintColor) {
             android.graphics.drawable.Drawable icon = getContext().getDrawable(resourceId);
             if (icon == null) return;
+            Drawable tinted = icon.mutate();
             int save = canvas.save();
             int left = Math.round(cx - size / 2f);
             int top = Math.round(cy - size / 2f);
-            icon.setBounds(left, top, Math.round(cx + size / 2f), Math.round(cy + size / 2f));
-            icon.setTint(0xe6ffffff);
-            icon.draw(canvas);
+            tinted.setBounds(left, top, Math.round(cx + size / 2f), Math.round(cy + size / 2f));
+            tinted.setTint(tintColor);
+            tinted.draw(canvas);
             canvas.restoreToCount(save);
         }
 
@@ -3433,32 +4450,48 @@ public final class MainActivity extends Activity {
         private void drawScreenshotPreview(Canvas canvas) {
             Bitmap bitmap = screenshotPreviewBitmap;
             if (bitmap == null || bitmap.isRecycled()) return;
-            panelPaint.setColor(0xe6202329);
-            panelTextPaint.setColor(0xffffffff);
+            SmartisanPalette t = activePanelTheme();
+            panelTextPaint.setColor(t.textPrimary);
             panelTextPaint.setTextAlign(Paint.Align.CENTER);
             if (screenshotPreviewExpanded) {
                 RectF bounds = screenshotExpandedBounds();
+                panelPaint.setShader(null);
+                panelPaint.setStyle(Paint.Style.FILL);
+                panelPaint.setColor(t.isDark ? 0xee1c1f24 : 0xebedeeef);
                 canvas.drawRect(0, 0, getWidth(), getHeight(), panelPaint);
-                RectF imageBounds = fitBitmap(new RectF(bounds.left + panelDp(12), bounds.top + panelDp(12),
-                        bounds.right - panelDp(12), bounds.bottom - panelDp(84)), bitmap);
+                drawSmartisanRect(canvas, bounds.left, bounds.top, bounds.right, bounds.bottom, panelDp(14),
+                        t.cardBg, t.cardBg, t.cardBorder, t.cardShadow);
+                RectF imageBounds = fitBitmap(new RectF(bounds.left + panelDp(14), bounds.top + panelDp(14),
+                        bounds.right - panelDp(14), bounds.bottom - panelDp(84)), bitmap);
+                canvas.save();
+                statusClipPath.reset();
+                statusClipPath.addRoundRect(imageBounds, panelDp(8), panelDp(8), Path.Direction.CW);
+                canvas.clipPath(statusClipPath);
                 canvas.drawBitmap(bitmap, null, imageBounds, screenshotImagePaint);
-                float buttonY = getHeight() - panelDp(70);
-                panelPaint.setColor(0xff39434b);
-                canvas.drawRoundRect(panelDp(24), buttonY, getWidth() * 0.36f,
-                        buttonY + panelDp(48), panelDp(8), panelDp(8), panelPaint);
-                canvas.drawRoundRect(getWidth() * 0.64f, buttonY, getWidth() - panelDp(24),
-                        buttonY + panelDp(48), panelDp(8), panelDp(8), panelPaint);
-                panelTextPaint.setTextSize(panelDp(16));
+                canvas.restore();
+
+                float buttonY = getHeight() - panelDp(72);
+                drawSmartisanRect(canvas, panelDp(24), buttonY, getWidth() * 0.36f,
+                        buttonY + panelDp(44), panelDp(9),
+                        t.softRedTop, t.softRedBottom, t.softRedBorder, t.btnShadow);
+                drawSmartisanRect(canvas, getWidth() * 0.64f, buttonY, getWidth() - panelDp(24),
+                        buttonY + panelDp(44), panelDp(9),
+                        t.btnTop, t.btnBottom, t.btnBorder, t.btnShadow);
+                panelTextPaint.setTextSize(panelDp(15));
+                panelTextPaint.setColor(t.softRedText);
                 canvas.drawText("删除", (panelDp(24) + getWidth() * 0.36f) / 2f,
-                        buttonY + panelDp(31), panelTextPaint);
+                        buttonY + panelDp(28), panelTextPaint);
+                panelTextPaint.setColor(t.textPrimary);
                 canvas.drawText("图库打开", (getWidth() * 0.64f + getWidth() - panelDp(24)) / 2f,
-                        buttonY + panelDp(31), panelTextPaint);
+                        buttonY + panelDp(28), panelTextPaint);
                 float closeX = getWidth() / 2f;
-                float closeY = buttonY + panelDp(24);
-                panelPaint.setColor(0xff39434b);
-                canvas.drawCircle(closeX, closeY, panelDp(20), panelPaint);
-                panelPaint.setColor(0xffffffff);
+                float closeY = buttonY + panelDp(22);
+                float cr = panelDp(19);
+                drawSmartisanRect(canvas, closeX - cr, closeY - cr, closeX + cr, closeY + cr, cr,
+                        t.btnTop, t.btnBottom, t.btnBorder, t.btnShadow);
+                panelPaint.setColor(t.textPrimary);
                 panelPaint.setStyle(Paint.Style.STROKE);
+                panelPaint.setStrokeCap(Paint.Cap.ROUND);
                 panelPaint.setStrokeWidth(panelDp(2));
                 canvas.drawLine(closeX - panelDp(6), closeY - panelDp(6),
                         closeX + panelDp(6), closeY + panelDp(6), panelPaint);
@@ -3467,19 +4500,27 @@ public final class MainActivity extends Activity {
                 panelPaint.setStyle(Paint.Style.FILL);
             } else {
                 RectF card = screenshotThumbnailBounds();
-                canvas.drawRoundRect(card, panelDp(10), panelDp(10), panelPaint);
+                drawSmartisanRect(canvas, card.left, card.top, card.right, card.bottom, panelDp(12),
+                        t.cardBg, t.cardBg, t.cardBorder, t.cardShadow);
                 RectF imageBounds = fitBitmap(new RectF(card.left + panelDp(8), card.top + panelDp(8),
-                        card.right - panelDp(8), card.bottom - panelDp(36)), bitmap);
+                        card.right - panelDp(8), card.bottom - panelDp(34)), bitmap);
+                canvas.save();
+                statusClipPath.reset();
+                statusClipPath.addRoundRect(imageBounds, panelDp(6), panelDp(6), Path.Direction.CW);
+                canvas.clipPath(statusClipPath);
                 canvas.drawBitmap(bitmap, null, imageBounds, screenshotImagePaint);
+                canvas.restore();
+                panelTextPaint.setColor(t.textSecondary);
                 panelTextPaint.setTextSize(panelDp(12));
                 canvas.drawText("截图已保存 · 点击预览", card.centerX(),
-                        card.bottom - panelDp(12), panelTextPaint);
+                        card.bottom - panelDp(11), panelTextPaint);
             }
             if (screenshotPreviewMessage != null) {
-                panelPaint.setColor(0xee20252b);
                 RectF message = new RectF(panelDp(24), getHeight() - panelDp(116),
                         getWidth() - panelDp(24), getHeight() - panelDp(24));
-                canvas.drawRoundRect(message, panelDp(12), panelDp(12), panelPaint);
+                drawSmartisanRect(canvas, message.left, message.top, message.right, message.bottom, panelDp(12),
+                        t.cardBg, t.cardBg, t.cardBorder, t.cardShadow);
+                panelTextPaint.setColor(t.textPrimary);
                 panelTextPaint.setTextSize(panelDp(14));
                 panelTextPaint.setTextAlign(Paint.Align.CENTER);
                 canvas.drawText(screenshotPreviewMessage, message.centerX(), message.centerY(), panelTextPaint);
@@ -3739,42 +4780,57 @@ public final class MainActivity extends Activity {
         private static final String[] SPLIT_KILL_ACTIONS = {"最小化", "最大化", "关闭"};
 
         private void drawSplitKillMenu(Canvas canvas) {
+            SmartisanPalette t = activePanelTheme();
             RectF[] clusters = splitKillClusters();
             panelTextPaint.setTextAlign(Paint.Align.CENTER);
+            float oneDp = Math.max(1f, panelDp(1));
             for (int side = 0; side < 2; side++) {
                 RectF cluster = clusters[side];
                 // getSplitPackages() already returns visual order: 0 = left/top pane.
                 String packageName = side == 0 ? splitFirstPackage : splitSecondPackage;
-                panelPaint.setColor(0xf01b2028);
-                canvas.drawRoundRect(cluster, panelDp(10), panelDp(10), panelPaint);
+                panelPaint.setShader(null);
+                panelPaint.setStyle(Paint.Style.FILL);
+                panelPaint.setColor(t.isDark ? 0x55000000 : 0x22000000);
+                panelRect.set(cluster.left, cluster.top + panelDp(2),
+                        cluster.right, cluster.bottom + panelDp(3));
+                canvas.drawRoundRect(panelRect, panelDp(11), panelDp(11), panelPaint);
+
+                drawSmartisanRect(canvas, cluster.left, cluster.top, cluster.right, cluster.bottom,
+                        panelDp(11), t.btnTop, t.btnBottom, t.btnBorder, 0);
                 float cellWidth = cluster.width() / 3f;
+                for (int col = 1; col < 3; col++) {
+                    float sepX = cluster.left + col * cellWidth;
+                    panelPaint.setColor(t.divider);
+                    canvas.drawRect(sepX, cluster.top + panelDp(8),
+                            sepX + oneDp, cluster.bottom - panelDp(8), panelPaint);
+                }
                 for (int col = 0; col < 3; col++) {
                     int index = side * 3 + col;
                     boolean enabled = packageName != null;
                     float cellLeft = cluster.left + col * cellWidth;
                     if (splitKillMenuPressed == index && enabled) {
-                        panelPaint.setColor(0x55304a56);
-                        canvas.drawRoundRect(cellLeft + panelDp(3), cluster.top + panelDp(4),
-                                cellLeft + cellWidth - panelDp(3), cluster.bottom - panelDp(4),
-                                panelDp(8), panelDp(8), panelPaint);
+                        drawSmartisanRect(canvas, cellLeft + panelDp(3), cluster.top + panelDp(3),
+                                cellLeft + cellWidth - panelDp(3), cluster.bottom - panelDp(3),
+                                panelDp(8), t.btnPressedTop, t.btnPressedBottom, t.btnPressedBorder, 0);
                     }
-                    // Symbols instead of words: a bar (minimise), a square (maximise) and a cross
-                    // (close), matching the familiar window-control trio.
                     float cx = cellLeft + cellWidth / 2f;
                     float cy = cluster.centerY();
-                    float half = panelDp(8);
+                    float half = panelDp(7.5f);
                     panelPaint.setStyle(Paint.Style.STROKE);
+                    panelPaint.setStrokeCap(Paint.Cap.ROUND);
                     panelPaint.setStrokeWidth(panelDp(2));
-                    panelPaint.setColor(enabled ? 0xe6ffffff : 0x55ffffff);
+                    int symColor = !enabled ? t.textDisabled
+                            : (col == 2 ? t.softRedText : t.textPrimary);
+                    panelPaint.setColor(symColor);
                     if (col == 0) {
-                        canvas.drawLine(cx - half, cy + panelDp(2), cx + half, cy + panelDp(2), panelPaint);
+                        canvas.drawLine(cx - half, cy, cx + half, cy, panelPaint);
                     } else if (col == 1) {
-                        canvas.drawRect(cx - half, cy - half + panelDp(2), cx + half,
-                                cy + half + panelDp(2), panelPaint);
+                        canvas.drawRoundRect(cx - half, cy - half, cx + half, cy + half,
+                                panelDp(2), panelDp(2), panelPaint);
                     } else {
                         float d = half * 0.85f;
-                        canvas.drawLine(cx - d, cy + panelDp(2) - d, cx + d, cy + panelDp(2) + d, panelPaint);
-                        canvas.drawLine(cx + d, cy + panelDp(2) - d, cx - d, cy + panelDp(2) + d, panelPaint);
+                        canvas.drawLine(cx - d, cy - d, cx + d, cy + d, panelPaint);
+                        canvas.drawLine(cx + d, cy - d, cx - d, cy + d, panelPaint);
                     }
                     panelPaint.setStyle(Paint.Style.FILL);
                 }
@@ -3891,16 +4947,28 @@ public final class MainActivity extends Activity {
             // black band here only covered system windows (share sheet, floating IME) that span
             // the split. Keep the gap as-is and draw just the handle below.
             if (splitChoosing) {
+                SmartisanPalette t = activePanelTheme();
                 RectF area = splitPickerBounds();
-                panelPaint.setColor(0xff1b2028);
+                panelPaint.setShader(null);
+                panelPaint.setStyle(Paint.Style.FILL);
+                panelPaint.setColor(t.pageBg);
                 canvas.drawRect(area, panelPaint);
-                panelTextPaint.setColor(0xe6ffffff);
+
+                float headerHeight = panelDp(46);
+                drawSmartisanRect(canvas, area.left, area.top, area.right, area.top + headerHeight, 0f,
+                        t.titleBarTop, t.titleBarBottom, 0, 0);
+                panelPaint.setColor(t.titleBarBorder);
+                canvas.drawRect(area.left, area.top + headerHeight - Math.max(1f, panelDp(1)),
+                        area.right, area.top + headerHeight, panelPaint);
+
+                panelTextPaint.setColor(t.textPrimary);
                 panelTextPaint.setTextAlign(Paint.Align.CENTER);
                 panelTextPaint.setTextSize(panelDp(15));
                 String side = portraitMode ? (splitPickerFirst ? "上方" : "下方")
                         : (splitPickerFirst ? "左侧" : "右侧");
                 canvas.drawText("选择" + side + "应用", area.centerX(),
-                        area.top + panelDp(32), panelTextPaint);
+                        area.top + panelDp(29), panelTextPaint);
+
                 ArrayList<ResolveInfo> apps = splitPickerApps();
                 int columns = splitPickerColumns();
                 float cellWidth = area.width() / columns;
@@ -3908,18 +4976,27 @@ public final class MainActivity extends Activity {
                 float top = area.top + panelDp(52);
                 canvas.save();
                 canvas.clipRect(area);
+                float iconHalf = Math.round(panelDp(17));
+                float iconRx = panelDp(7);
                 for (int i = splitPickerOffset; i < apps.size(); i++) {
                     int slot = i - splitPickerOffset;
+                    float cellLeft = area.left + (slot % columns) * cellWidth;
                     float y = top + slot / columns * rowHeight;
                     if (y >= area.bottom) break;
-                    float x = area.left + (slot % columns + 0.5f) * cellWidth;
+                    drawSmartisanRect(canvas, cellLeft + panelDp(4), y - panelDp(2),
+                            cellLeft + cellWidth - panelDp(4), y + rowHeight - panelDp(6), panelDp(10),
+                            t.cardBg, t.isDark ? 0xff2f3237 : 0xfff8f9fa, t.cardBorder, t.cardShadow);
+                    float x = cellLeft + cellWidth * 0.5f;
                     ResolveInfo app = apps.get(i);
-                    android.graphics.drawable.Drawable icon = launcherIcon(app);
-                    int half = Math.round(panelDp(16));
-                    icon.setBounds((int) x - half, (int) y, (int) x + half, (int) y + 2 * half);
-                    icon.draw(canvas);
-                    panelTextPaint.setTextSize(panelDp(12));
-                    canvas.drawText(panelDisplayLabel(app, cellWidth), x, y + panelDp(52), panelTextPaint);
+                    try {
+                        drawClippedPanelIcon(canvas, launcherIcon(app),
+                                x - iconHalf, y + panelDp(4),
+                                x + iconHalf, y + panelDp(4) + 2 * iconHalf, iconRx);
+                    } catch (RuntimeException ignored) { }
+                    panelTextPaint.setColor(t.textPrimary);
+                    panelTextPaint.setTextSize(panelDp(11.5f));
+                    canvas.drawText(panelDisplayLabel(app, cellWidth - panelDp(8)),
+                            x, y + panelDp(56), panelTextPaint);
                 }
                 canvas.restore();
                 return;
@@ -4014,7 +5091,7 @@ public final class MainActivity extends Activity {
         appGrid.setMinimumHeight(dp(1));
         appGrid.setUseDefaultMargins(false);
         appGrid.setAlignmentMode(GridLayout.ALIGN_BOUNDS);
-        content.addView(appGrid, fullWidth());
+        appsCard.addView(appGrid, fullWidth());
         appGrid.addOnLayoutChangeListener((view, left, top, right, bottom, oldLeft, oldTop, oldRight, oldBottom) -> {
             scheduleAppGridUpdate(right - left);
         });
@@ -4038,6 +5115,7 @@ public final class MainActivity extends Activity {
         launcherByPackage.clear();
         launcherLabelCache.clear();
         launcherIconCache.clear();
+        panelLauncherIconCache.clear();
         recentIconCache.clear();
         panelDisplayLabelCache.clear();
         quickPanelAppCache = null;
@@ -4130,50 +5208,101 @@ public final class MainActivity extends Activity {
             boolean af = favoritePackages.contains(a.activityInfo.packageName);
             boolean bf = favoritePackages.contains(b.activityInfo.packageName);
             if (!editFavorites && af != bf) return af ? -1 : 1;
-            return String.valueOf(a.loadLabel(getPackageManager()))
-                    .compareToIgnoreCase(String.valueOf(b.loadLabel(getPackageManager())));
+            return getLauncherLabel(a).compareToIgnoreCase(getLauncherLabel(b));
         });
+        if (appsCountView != null) appsCountView.setText(String.valueOf(visible.size()));
+        if (appsEmptyView != null) appsEmptyView.setVisibility(visible.isEmpty() ? View.VISIBLE : View.GONE);
         int cellWidth = appGrid.getWidth() > 0 && appColumns > 0
                 ? appGrid.getWidth() / appColumns : 0;
+        appGrid.setClipChildren(false);
+        appGrid.setClipToPadding(false);
+        final int plateRadius = dp(11);
+        final android.view.ViewOutlineProvider iconOutlineProvider = new android.view.ViewOutlineProvider() {
+            @Override public void getOutline(View v, android.graphics.Outline outline) {
+                outline.setRoundRect(0, 0, v.getWidth(), v.getHeight(), plateRadius);
+            }
+        };
         for (ResolveInfo app : visible) {
             String packageName = app.activityInfo.packageName;
+            String appLabel = getLauncherLabel(app);
+            boolean isFavorite = favoritePackages.contains(packageName);
+
             LinearLayout tile = new LinearLayout(this);
             tile.setOrientation(LinearLayout.VERTICAL);
-            tile.setGravity(Gravity.CENTER);
-            tile.setMinimumHeight(dp(98));
-            tile.setPadding(dp(3), dp(6), dp(3), dp(6));
-            tile.setBackgroundResource(android.R.drawable.list_selector_background);
+            tile.setGravity(Gravity.CENTER_HORIZONTAL | Gravity.TOP);
+            tile.setMinimumHeight(dp(90));
+            tile.setPadding(dp(4), dp(8), dp(4), dp(8));
+            tile.setClipChildren(false);
+            tile.setClipToPadding(false);
+            tile.setBackground(buildTileBackground(theme, editFavorites && isFavorite));
 
             FrameLayout iconBox = new FrameLayout(this);
-            android.widget.ImageView icon = new android.widget.ImageView(this);
-            icon.setImageDrawable(app.loadIcon(getPackageManager()));
-            FrameLayout.LayoutParams iconParams = new FrameLayout.LayoutParams(dp(48), dp(48), Gravity.CENTER);
-            iconBox.addView(icon, iconParams);
-            CheckBox favorite = new CheckBox(this);
-            favorite.setButtonTintList(android.content.res.ColorStateList.valueOf(0xfff2f2f2));
-            favorite.setChecked(favoritePackages.contains(packageName));
-            favorite.setContentDescription("收藏 " + app.loadLabel(getPackageManager()));
-            favorite.setVisibility(editFavorites ? View.VISIBLE : View.GONE);
-            tile.addView(favorite, new LinearLayout.LayoutParams(-2, dp(30)));
-            tile.addView(iconBox, new LinearLayout.LayoutParams(-1, dp(54)));
+            iconBox.setClipChildren(false);
+            iconBox.setClipToPadding(false);
 
-            TextView label = text(String.valueOf(app.loadLabel(getPackageManager())), 12, false);
+            FrameLayout iconPlate = new FrameLayout(this);
+            iconPlate.setBackground(theme.isDark ? null : roundedCard(0xffffffff, 0, 11));
+            iconPlate.setOutlineProvider(iconOutlineProvider);
+            iconPlate.setClipToOutline(true);
+            iconPlate.setForeground(buildIconHairlineOutline(theme.isDark));
+            iconPlate.setElevation(theme.isDark ? dp(1.5f) : dp(2.2f));
+            if (Build.VERSION.SDK_INT >= 28) {
+                iconPlate.setOutlineAmbientShadowColor(theme.isDark ? 0x55000000 : 0x26000000);
+                iconPlate.setOutlineSpotShadowColor(theme.isDark ? 0x66000000 : 0x36000000);
+            }
+
+            ImageView icon = new ImageView(this);
+            icon.setScaleType(ImageView.ScaleType.FIT_CENTER);
+            icon.setImageDrawable(getLauncherIcon(app));
+            iconPlate.addView(icon, new FrameLayout.LayoutParams(-1, -1));
+            iconBox.addView(iconPlate, new FrameLayout.LayoutParams(dp(46), dp(46), Gravity.CENTER));
+
+            TextView badgeView = null;
+            if (editFavorites) {
+                badgeView = createFavoriteBadgeView(true, isFavorite);
+                badgeView.setElevation(dp(4));
+                FrameLayout.LayoutParams badgeParams = new FrameLayout.LayoutParams(dp(18), dp(18), Gravity.TOP | Gravity.END);
+                badgeParams.setMargins(0, 0, 0, 0);
+                iconBox.addView(badgeView, badgeParams);
+            } else if (isFavorite) {
+                badgeView = createFavoriteBadgeView(false, true);
+                badgeView.setElevation(dp(4));
+                FrameLayout.LayoutParams badgeParams = new FrameLayout.LayoutParams(dp(16), dp(16), Gravity.TOP | Gravity.END);
+                badgeParams.setMargins(0, 0, dp(1), 0);
+                iconBox.addView(badgeView, badgeParams);
+            }
+            tile.addView(iconBox, new LinearLayout.LayoutParams(dp(58), dp(54)));
+
+            TextView label = text(appLabel, 11.5f, false, theme.textPrimary);
             label.setGravity(Gravity.CENTER);
             label.setMaxLines(2);
-            tile.addView(label, new LinearLayout.LayoutParams(-1, -2));
+            label.setEllipsize(TextUtils.TruncateAt.END);
+            LinearLayout.LayoutParams labelParams = new LinearLayout.LayoutParams(-1, -2);
+            labelParams.setMargins(0, dp(4), 0, 0);
+            tile.addView(label, labelParams);
 
             GridLayout.LayoutParams cell = new GridLayout.LayoutParams();
             if (cellWidth > 0) cell.width = cellWidth;
             cell.height = -2;
             cell.columnSpec = GridLayout.spec(GridLayout.UNDEFINED, 1f);
             appGrid.addView(tile, cell);
-            tile.setOnClickListener(v -> launchPackage(packageName, app.activityInfo.name));
-            favorite.setOnCheckedChangeListener((button, checked) -> {
-                if (checked) favoritePackages.add(packageName); else favoritePackages.remove(packageName);
-                getPreferences(MODE_PRIVATE).edit().putStringSet("favorite_apps", new HashSet<>(favoritePackages)).apply();
-                quickPanelAppCache = null;
-                if (mousePointerView != null) mousePointerView.invalidate();
-            });
+
+            if (editFavorites) {
+                TextView editBadge = badgeView;
+                tile.setOnClickListener(v -> {
+                    boolean nowChecked = !favoritePackages.contains(packageName);
+                    if (nowChecked) favoritePackages.add(packageName);
+                    else favoritePackages.remove(packageName);
+                    getPreferences(MODE_PRIVATE).edit()
+                            .putStringSet("favorite_apps", new HashSet<>(favoritePackages)).apply();
+                    quickPanelAppCache = null;
+                    if (mousePointerView != null) mousePointerView.invalidate();
+                    tile.setBackground(buildTileBackground(theme, nowChecked));
+                    if (editBadge != null) updateFavoriteBadgeView(editBadge, true, nowChecked);
+                });
+            } else {
+                tile.setOnClickListener(v -> launchPackage(packageName, app.activityInfo.name));
+            }
         }
     }
 
@@ -4663,11 +5792,285 @@ public final class MainActivity extends Activity {
         return true;
     }
 
+    private Configuration currentSystemConfiguration() {
+        android.content.Context app = getApplicationContext();
+        return app != null ? app.getResources().getConfiguration() : getResources().getConfiguration();
+    }
+
+    private boolean isNightConfig(Configuration config) {
+        return config != null
+                && (config.uiMode & Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES;
+    }
+
+    private boolean resolveDarkMode() {
+        if (themeMode == THEME_MODE_LIGHT) return false;
+        if (themeMode == THEME_MODE_DARK) return true;
+        return systemNightMode;
+    }
+
+    private ArrayList<MainActivity> activeThemeTargets() {
+        ArrayList<MainActivity> targets = new ArrayList<>(controlActivities);
+        if (outputOwner != null && !targets.contains(outputOwner)) targets.add(outputOwner);
+        return targets;
+    }
+
+    private void syncSystemNightAcrossInstances(boolean nextSysNight) {
+        for (MainActivity activity : activeThemeTargets()) {
+            if (!activity.isFinishing() && !activity.isDestroyed()) {
+                activity.syncSystemNightState(nextSysNight);
+            }
+        }
+    }
+
+    private void syncSystemNightState(boolean nextSysNight) {
+        if (systemNightMode == nextSysNight) return;
+        systemNightMode = nextSysNight;
+        boolean nextDark = resolveDarkMode();
+        if (nextDark != darkMode) {
+            darkMode = nextDark;
+            theme = SmartisanPalette.of(darkMode);
+            applySmartisanTheme();
+        }
+    }
+
+    private void setThemeMode(int mode) {
+        int normalized = (mode >= THEME_MODE_SYSTEM && mode <= THEME_MODE_DARK) ? mode : THEME_MODE_SYSTEM;
+        getPreferences(MODE_PRIVATE).edit().putInt(PREF_THEME_MODE, normalized).apply();
+        for (MainActivity activity : activeThemeTargets()) {
+            if (!activity.isFinishing() && !activity.isDestroyed()) {
+                activity.applyThemeModeState(normalized);
+            }
+        }
+    }
+
+    private void applyThemeModeState(int mode) {
+        this.themeMode = (mode >= THEME_MODE_SYSTEM && mode <= THEME_MODE_DARK) ? mode : THEME_MODE_SYSTEM;
+        darkMode = resolveDarkMode();
+        theme = SmartisanPalette.of(darkMode);
+        applySmartisanTheme();
+    }
+
+    private TextView buildThemeSegment(String label, int mode) {
+        TextView btn = text(label, 11.5f, false, theme.textSecondary);
+        btn.setGravity(Gravity.CENTER);
+        btn.setMinHeight(dp(28));
+        btn.setPadding(dp(10), 0, dp(10), 0);
+        btn.setClickable(true);
+        btn.setFocusable(true);
+        btn.setOnClickListener(v -> setThemeMode(mode));
+        return btn;
+    }
+
+    private void styleThemeSegmentButton(TextView btn, boolean selected, SmartisanPalette t) {
+        if (btn == null) return;
+        int pl = btn.getPaddingLeft();
+        int pt = btn.getPaddingTop();
+        int pr = btn.getPaddingRight();
+        int pb = btn.getPaddingBottom();
+        if (selected) {
+            int top = t.isDark ? 0xff4c525c : t.btnTop;
+            int bot = t.isDark ? 0xff3f444d : t.btnBottom;
+            int border = t.isDark ? 0xff262930 : t.btnBorder;
+            btn.setBackground(buildBeveledFace(top, bot, border, t.btnShadow, 7, false));
+            btn.setTextColor(t.textPrimary);
+            btn.setTypeface(null, android.graphics.Typeface.BOLD);
+        } else {
+            btn.setBackground(null);
+            btn.setTextColor(t.textSecondary);
+            btn.setTypeface(null, android.graphics.Typeface.NORMAL);
+        }
+        btn.setPadding(pl, pt, pr, pb);
+    }
+
+    private void updateThemeSegmentStyles(SmartisanPalette t) {
+        if (themeSegmentTray != null) {
+            GradientDrawable trayBg = new GradientDrawable(
+                    GradientDrawable.Orientation.TOP_BOTTOM,
+                    new int[]{t.searchBgTop, t.searchBgBottom});
+            trayBg.setCornerRadius(dp(9));
+            trayBg.setStroke(Math.max(1, dp(1)), t.searchBorder);
+            themeSegmentTray.setBackground(trayBg);
+        }
+        styleThemeSegmentButton(themeModeSystemBtn, themeMode == THEME_MODE_SYSTEM, t);
+        styleThemeSegmentButton(themeModeLightBtn, themeMode == THEME_MODE_LIGHT, t);
+        styleThemeSegmentButton(themeModeDarkBtn, themeMode == THEME_MODE_DARK, t);
+    }
+
+    @SuppressWarnings("deprecation")
+    private void applySystemBarTheme(Window window, SmartisanPalette t) {
+        if (window == null || t == null) return;
+        window.setStatusBarColor(t.titleBarBottom);
+        window.setNavigationBarColor(t.pageBg);
+        View decor = window.getDecorView();
+        if (Build.VERSION.SDK_INT >= 30) {
+            WindowInsetsController controller = decor.getWindowInsetsController();
+            if (controller != null) {
+                int mask = WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS
+                        | WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS;
+                controller.setSystemBarsAppearance(t.isDark ? 0 : mask, mask);
+            }
+        } else {
+            int flags = decor.getSystemUiVisibility();
+            int lightMask = View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR
+                    | (Build.VERSION.SDK_INT >= 26 ? View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR : 0);
+            decor.setSystemUiVisibility(t.isDark ? (flags & ~lightMask) : (flags | lightMask));
+        }
+    }
+
+    private void applySmartisanTheme() {
+        SmartisanPalette t = theme;
+        if (t == null) return;
+        applySystemBarTheme(getWindow(), t);
+        if (rootLayout != null) rootLayout.setBackgroundColor(t.pageBg);
+        if (rootShell != null) rootShell.setBackgroundColor(t.pageBg);
+        if (mainScroll != null) mainScroll.setBackgroundColor(t.pageBg);
+        if (content != null) content.setBackgroundColor(t.pageBg);
+        if (topBarContainer != null) {
+            GradientDrawable barBg = new GradientDrawable(
+                    GradientDrawable.Orientation.TOP_BOTTOM,
+                    new int[]{t.titleBarTop, t.titleBarBottom});
+            topBarContainer.setBackground(barBg);
+        }
+        if (topBarTitle != null) topBarTitle.setTextColor(t.textPrimary);
+        if (versionChipView != null) {
+            versionChipView.setTextColor(t.textSecondary);
+            versionChipView.setBackground(roundedCard(t.chipBg, t.chipBorder, 6));
+        }
+        if (topBarDivider != null) topBarDivider.setBackgroundColor(t.titleBarBorder);
+        if (topBarShadow != null) {
+            topBarShadow.setBackground(new GradientDrawable(
+                    GradientDrawable.Orientation.TOP_BOTTOM,
+                    new int[]{t.titleBarShadowStart, 0x00000000}));
+        }
+        if (guideButton != null) {
+            Drawable helpDrawable = getDrawable(R.drawable.ic_help_guide);
+            if (helpDrawable != null) {
+                Drawable tintedHelp = helpDrawable.mutate();
+                tintedHelp.setTint(t.textPrimary);
+                tintedHelp.setBounds(0, 0, dp(15), dp(15));
+                guideButton.setCompoundDrawables(tintedHelp, null, null, null);
+                guideButton.setCompoundDrawablePadding(dp(5));
+            }
+            styleNeutralBevelButton(guideButton, t, 8);
+        }
+        if (statusView != null) {
+            statusView.setTextColor(t.accentBlueText);
+            statusView.setBackground(roundedCard(t.accentBlueSoftBg, t.accentBlueSoftBorder, 9));
+        }
+        if (sectionControlTitle != null) sectionControlTitle.setTextColor(t.textSection);
+        if (controlCard != null) controlCard.setBackground(buildSmartisanCard(t, 12));
+        if (cardDivider1 != null) cardDivider1.setBackgroundColor(t.divider);
+        if (cardDivider2 != null) cardDivider2.setBackgroundColor(t.divider);
+        if (monitorView != null) monitorView.setTextColor(t.textPrimary);
+        if (monitorMetaView != null) monitorMetaView.setTextColor(t.textSecondary);
+        updateMonitorLabel();
+        updateShizukuBadge();
+        updateMouseRouteButton();
+        updateModeButtonStyle();
+        if (blackoutButton != null) styleNeutralBevelButton(blackoutButton, t, 9);
+        if (stopButton != null) styleSoftRedButton(stopButton, t, 9);
+        if (densityTitleView != null) densityTitleView.setTextColor(t.textPrimary);
+        if (densityView != null) {
+            densityView.setTextColor(t.accentBlueText);
+            densityView.setBackground(roundedCard(t.accentBlueSoftBg, t.accentBlueSoftBorder, 7));
+        }
+        if (densityRangeView != null) densityRangeView.setTextColor(t.textMuted);
+        if (densitySlider != null) densitySlider.applyTheme();
+        if (cardDivider3 != null) cardDivider3.setBackgroundColor(t.divider);
+        if (themeTitleView != null) themeTitleView.setTextColor(t.textPrimary);
+        updateThemeSegmentStyles(t);
+        if (appsSectionTitle != null) appsSectionTitle.setTextColor(t.textSection);
+        if (appsCountView != null) {
+            appsCountView.setTextColor(t.textSecondary);
+            appsCountView.setBackground(roundedCard(t.chipBg, t.chipBorder, 7));
+        }
+        if (systemAppsLabel != null) systemAppsLabel.setTextColor(t.textSecondary);
+        if (systemAppsSwitch != null) {
+            systemAppsSwitch.setTrackTintList(null);
+            systemAppsSwitch.setThumbTintList(null);
+            systemAppsSwitch.setTrackDrawable(buildSmartisanSwitchTrack(t));
+            systemAppsSwitch.setThumbDrawable(buildSmartisanSwitchThumb(t));
+        }
+        updateEditFavoritesButtonStyle();
+        if (searchContainer != null) {
+            GradientDrawable searchBg = new GradientDrawable(
+                    GradientDrawable.Orientation.TOP_BOTTOM,
+                    new int[]{t.searchBgTop, t.searchBgBottom});
+            searchBg.setCornerRadius(dp(10));
+            searchBg.setStroke(Math.max(1, dp(1)), t.searchBorder);
+            searchContainer.setBackground(searchBg);
+        }
+        if (searchIconView != null) {
+            Drawable searchDrawable = getDrawable(R.drawable.ic_search);
+            if (searchDrawable != null) {
+                Drawable tintedSearch = searchDrawable.mutate();
+                tintedSearch.setTint(t.textMuted);
+                searchIconView.setImageDrawable(tintedSearch);
+            }
+        }
+        if (appSearch != null) {
+            appSearch.setTextColor(t.textPrimary);
+            appSearch.setHintTextColor(t.textMuted);
+        }
+        if (searchClearButton != null) {
+            searchClearButton.setTextColor(t.textSecondary);
+            searchClearButton.setBackground(buildTileBackground(t, false));
+        }
+        if (appsCard != null) {
+            appsCard.setBackground(buildSmartisanCard(t.appsCardBg, t.cardBorder, t.cardShadow, 12));
+        }
+        if (appsEmptyView != null) appsEmptyView.setTextColor(t.textMuted);
+        if (appGrid != null && appGrid.getWidth() > 0 && appColumns > 0) rebuildAppsGrid();
+        if (mousePointerView != null) mousePointerView.invalidate();
+        applyGuideDialogTheme();
+    }
+
+    private void applyGuideDialogTheme() {
+        SmartisanPalette t = theme;
+        if (guideDialog == null || t == null) return;
+        applySystemBarTheme(guideDialog.getWindow(), t);
+        if (guideContainer != null) guideContainer.setBackgroundColor(t.pageBg);
+        if (guideTopBar != null) {
+            guideTopBar.setBackground(new GradientDrawable(
+                    GradientDrawable.Orientation.TOP_BOTTOM,
+                    new int[]{t.titleBarTop, t.titleBarBottom}));
+        }
+        if (guideTitleView != null) guideTitleView.setTextColor(t.textPrimary);
+        if (guideCloseButton != null) styleNeutralBevelButton(guideCloseButton, t, 8);
+        if (guideTopDivider != null) guideTopDivider.setBackgroundColor(t.titleBarBorder);
+        if (guideTopShadow != null) {
+            guideTopShadow.setBackground(new GradientDrawable(
+                    GradientDrawable.Orientation.TOP_BOTTOM,
+                    new int[]{t.titleBarShadowStart, 0x00000000}));
+        }
+        if (guideWebView != null) {
+            guideWebView.setBackgroundColor(t.webBg);
+            guideWebView.evaluateJavascript(
+                    "document.documentElement.classList.toggle('dark'," + t.isDark
+                            + ");document.documentElement.classList.toggle('light'," + (!t.isDark) + ");", null);
+        }
+    }
+
     private void updateMonitorLabel() {
-        if (monitorView == null) return;
+        if (monitorView == null || theme == null) return;
         externalDisplay = findExternalDisplay();
+        if (monitorStatusDot != null) {
+            GradientDrawable dot = new GradientDrawable();
+            dot.setShape(GradientDrawable.OVAL);
+            if (externalDisplay != null) {
+                dot.setColor(0xff38b26f);
+                dot.setStroke(Math.max(1, dp(1)), 0xff227a48);
+            } else {
+                dot.setColor(0xffe0922b);
+                dot.setStroke(Math.max(1, dp(1)), 0xffa86716);
+            }
+            monitorStatusDot.setBackground(dot);
+        }
         if (externalDisplay == null) {
-            monitorView.setText("未检测到外接显示器\n连接显示器后会自动读取 EDID 提供的当前模式。");
+            monitorView.setText("未检测到外接显示器");
+            if (monitorMetaView != null) {
+                monitorMetaView.setText("连接支持视频输出的外接显示器后自动识别");
+            }
             return;
         }
         Display.Mode mode = externalDisplay.getMode();
@@ -4675,8 +6078,208 @@ public final class MainActivity extends Activity {
         externalDisplay.getRealMetrics(metrics);
         monitorView.setText("外接屏 " + externalDisplay.getName() + " · "
                 + mode.getPhysicalWidth() + "×" + mode.getPhysicalHeight()
-                + " @ " + Math.round(mode.getRefreshRate()) + " Hz\n"
-                + "系统 ID " + externalDisplay.getDisplayId() + " · " + metrics.densityDpi + " dpi");
+                + " @ " + Math.round(mode.getRefreshRate()) + " Hz");
+        if (monitorMetaView != null) {
+            monitorMetaView.setText("系统 ID " + externalDisplay.getDisplayId() + " · 物理密度 " + metrics.densityDpi + " dpi");
+        }
+    }
+
+    private void updateShizukuBadge() {
+        if (shizukuBadge == null || theme == null) return;
+        if (displayService != null) {
+            shizukuBadge.setText("Shizuku 已连接");
+            shizukuBadge.setTextColor(theme.accentBlueText);
+            shizukuBadge.setBackground(roundedCard(theme.accentBlueSoftBg, theme.accentBlueSoftBorder, 8));
+        } else {
+            boolean binderReady = false;
+            boolean granted = false;
+            try {
+                binderReady = Shizuku.pingBinder();
+                if (binderReady) granted = Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED;
+            } catch (RuntimeException ignored) { }
+            if (binderReady && granted) {
+                shizukuBadge.setText("Shizuku 就绪");
+                shizukuBadge.setTextColor(theme.accentBlueText);
+                shizukuBadge.setBackground(roundedCard(theme.accentBlueSoftBg, theme.accentBlueSoftBorder, 8));
+            } else if (binderReady) {
+                shizukuBadge.setText("待授权 Shizuku");
+                shizukuBadge.setTextColor(theme.amberText);
+                shizukuBadge.setBackground(roundedCard(theme.amberSoftBg, theme.amberSoftBorder, 8));
+            } else {
+                shizukuBadge.setText("需启动 Shizuku");
+                shizukuBadge.setTextColor(theme.amberText);
+                shizukuBadge.setBackground(roundedCard(theme.amberSoftBg, theme.amberSoftBorder, 8));
+            }
+        }
+    }
+
+    private void updateDensityLabel() {
+        if (densityView != null) densityView.setText(densityDpi + " DPI");
+    }
+
+    private void updateModeButtonStyle() {
+        if (modeButton == null || theme == null) return;
+        if (portraitMode) {
+            styleBevelButton(modeButton,
+                    theme.accentBlueSoftBg, theme.accentBlueSoftBg, theme.accentBlueSoftBorder,
+                    theme.btnPressedTop, theme.btnPressedBottom, theme.accentBlueSoftBorder,
+                    theme.btnDisabledBg, theme.btnDisabledBorder, theme.btnShadow,
+                    theme.accentBlueText, 9);
+        } else {
+            styleNeutralBevelButton(modeButton, theme, 9);
+        }
+    }
+
+    private void updateEditFavoritesButtonStyle() {
+        if (editFavoritesButton == null || theme == null) return;
+        if (editFavorites) {
+            styleAccentRedButton(editFavoritesButton, theme, 8);
+        } else {
+            styleNeutralBevelButton(editFavoritesButton, theme, 8);
+        }
+    }
+
+    private void showOperationGuideDialog() {
+        if (isFinishing() || isDestroyed()) return;
+        if (guideDialog != null && guideDialog.isShowing()) return;
+        String html = readGuideAssetHtml();
+        if (html == null) {
+            Toast.makeText(this, "无法读取内置操作图解", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        int dialogTheme = theme != null && theme.isDark
+                ? android.R.style.Theme_Material_NoActionBar
+                : android.R.style.Theme_Material_Light_NoActionBar;
+        android.app.Dialog dialog = new android.app.Dialog(this, dialogTheme);
+        Window dialogWindow = dialog.getWindow();
+        if (dialogWindow != null) {
+            dialogWindow.setLayout(WindowManager.LayoutParams.MATCH_PARENT, WindowManager.LayoutParams.MATCH_PARENT);
+        }
+
+        guideContainer = new LinearLayout(this);
+        guideContainer.setOrientation(LinearLayout.VERTICAL);
+
+        guideTopBar = new LinearLayout(this);
+        guideTopBar.setOrientation(LinearLayout.VERTICAL);
+        guideTopBar.setOnApplyWindowInsetsListener((view, insets) -> {
+            int topInset;
+            if (Build.VERSION.SDK_INT >= 30) {
+                topInset = insets.getInsets(WindowInsets.Type.statusBars()).top;
+            } else {
+                topInset = insets.getSystemWindowInsetTop();
+            }
+            view.setPadding(0, topInset, 0, 0);
+            return insets;
+        });
+
+        FrameLayout topBarInner = new FrameLayout(this);
+        topBarInner.setPadding(dp(14), 0, dp(14), 0);
+        guideTopBar.addView(topBarInner, new LinearLayout.LayoutParams(-1, dp(52)));
+
+        guideTitleView = text("BoxScreen 操作图解", 17, true, theme.textPrimary);
+        guideTitleView.setLetterSpacing(0.02f);
+        topBarInner.addView(guideTitleView, new FrameLayout.LayoutParams(-2, -2, Gravity.CENTER));
+
+        guideCloseButton = button("关闭");
+        guideCloseButton.setTextSize(12);
+        guideCloseButton.setMinHeight(dp(32));
+        guideCloseButton.setMinimumHeight(dp(32));
+        guideCloseButton.setMinWidth(0);
+        guideCloseButton.setMinimumWidth(0);
+        guideCloseButton.setPadding(dp(13), 0, dp(13), 0);
+        guideCloseButton.setOnClickListener(v -> dialog.dismiss());
+        topBarInner.addView(guideCloseButton, new FrameLayout.LayoutParams(-2, dp(32), Gravity.END | Gravity.CENTER_VERTICAL));
+
+        guideTopDivider = new View(this);
+        guideTopBar.addView(guideTopDivider, new LinearLayout.LayoutParams(-1, Math.max(1, dp(1))));
+        guideContainer.addView(guideTopBar, new LinearLayout.LayoutParams(-1, -2));
+
+        FrameLayout webFrame = new FrameLayout(this);
+        webFrame.setOnApplyWindowInsetsListener((view, insets) -> {
+            int bottomInset;
+            if (Build.VERSION.SDK_INT >= 30) {
+                bottomInset = insets.getInsets(WindowInsets.Type.systemBars()).bottom;
+            } else {
+                bottomInset = insets.getSystemWindowInsetBottom();
+            }
+            view.setPadding(0, 0, 0, bottomInset);
+            return insets;
+        });
+
+        WebView webView = new WebView(this);
+        WebSettings settings = webView.getSettings();
+        settings.setJavaScriptEnabled(true);
+        settings.setDomStorageEnabled(false);
+        settings.setAllowFileAccess(false);
+        settings.setAllowContentAccess(false);
+        settings.setBlockNetworkLoads(true);
+        settings.setBuiltInZoomControls(true);
+        settings.setDisplayZoomControls(false);
+        settings.setUseWideViewPort(true);
+        settings.setLoadWithOverviewMode(true);
+        webView.setWebViewClient(new WebViewClient() {
+            @Override public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
+                Uri url = request == null ? null : request.getUrl();
+                return url == null || !url.toString().startsWith(GUIDE_BASE_URL);
+            }
+        });
+        boolean useDark = theme != null && theme.isDark;
+        html = html.replaceFirst("<html lang=\"zh-CN\">",
+                useDark ? "<html lang=\"zh-CN\" class=\"dark\">" : "<html lang=\"zh-CN\" class=\"light\">");
+        webView.loadDataWithBaseURL(GUIDE_BASE_URL, html, "text/html", "utf-8", null);
+        webFrame.addView(webView, new FrameLayout.LayoutParams(-1, -1));
+
+        guideTopShadow = new View(this);
+        webFrame.addView(guideTopShadow, new FrameLayout.LayoutParams(-1, dp(4), Gravity.TOP));
+        guideContainer.addView(webFrame, new LinearLayout.LayoutParams(-1, 0, 1f));
+
+        dialog.setContentView(guideContainer);
+        dialog.setCancelable(true);
+        dialog.setOnDismissListener(d -> {
+            if (guideWebView != null) {
+                if (guideWebView.getParent() instanceof android.view.ViewGroup parent) {
+                    parent.removeView(guideWebView);
+                }
+                guideWebView.stopLoading();
+                guideWebView.loadUrl("about:blank");
+                guideWebView.destroy();
+                guideWebView = null;
+            }
+            if (guideDialog == d) {
+                guideDialog = null;
+                guideContainer = null;
+                guideTopBar = null;
+                guideTitleView = null;
+                guideCloseButton = null;
+                guideTopDivider = null;
+                guideTopShadow = null;
+            }
+        });
+        guideDialog = dialog;
+        guideWebView = webView;
+        applyGuideDialogTheme();
+        dialog.show();
+    }
+
+    private void dismissGuideDialog() {
+        if (guideDialog != null) {
+            try { guideDialog.dismiss(); }
+            catch (RuntimeException ignored) { }
+            guideDialog = null;
+        }
+    }
+
+    private String readGuideAssetHtml() {
+        try (InputStream in = getAssets().open(GUIDE_ASSET_NAME);
+                ByteArrayOutputStream out = new ByteArrayOutputStream()) {
+            byte[] buf = new byte[8192];
+            int len;
+            while ((len = in.read(buf)) != -1) out.write(buf, 0, len);
+            return out.toString(StandardCharsets.UTF_8.name());
+        } catch (IOException e) {
+            Log.e(TAG, "failed to load guide asset " + GUIDE_ASSET_NAME, e);
+            return null;
+        }
     }
 
     private boolean hasShizukuPackage() {
@@ -4685,16 +6288,204 @@ public final class MainActivity extends Activity {
     }
 
     private void status(String text) {
-        if (statusView != null) statusView.setText(text);
+        if (statusView == null) return;
+        if (text == null || text.isEmpty()) {
+            statusView.setText("");
+            statusView.setVisibility(View.GONE);
+        } else {
+            statusView.setText(text);
+            statusView.setVisibility(View.VISIBLE);
+        }
     }
 
     private TextView text(String value, int size, boolean bold) {
+        return text(value, (float) size, bold, theme.textPrimary);
+    }
+
+    private TextView text(String value, float size, boolean bold, int color) {
         TextView view = new TextView(this);
         view.setText(value);
         view.setTextSize(size);
-        view.setTextColor(0xfff2f2f2);
+        view.setTextColor(color);
         if (bold) view.setTypeface(null, android.graphics.Typeface.BOLD);
         return view;
+    }
+
+    private GradientDrawable roundedCard(int fill, int stroke, int radiusDp) {
+        GradientDrawable d = new GradientDrawable();
+        d.setColor(fill);
+        d.setCornerRadius(dp(radiusDp));
+        if ((stroke >>> 24) != 0) d.setStroke(Math.max(1, dp(1)), stroke);
+        return d;
+    }
+
+    private Drawable buildSmartisanCard(SmartisanPalette t, int radiusDp) {
+        return buildSmartisanCard(t.cardBg, t.cardBorder, t.cardShadow, radiusDp);
+    }
+
+    private Drawable buildSmartisanCard(int bgColor, int borderColor, int shadowColor, int radiusDp) {
+        GradientDrawable shadow = new GradientDrawable();
+        shadow.setColor(shadowColor);
+        shadow.setCornerRadius(dp(radiusDp));
+        GradientDrawable body = roundedCard(bgColor, borderColor, radiusDp);
+        LayerDrawable layer = new LayerDrawable(new Drawable[]{shadow, body});
+        int lip = Math.max(1, dp(1));
+        layer.setLayerInset(0, 0, lip, 0, 0);
+        layer.setLayerInset(1, 0, 0, 0, lip);
+        return layer;
+    }
+
+    private Drawable buildIconHairlineOutline(boolean dark) {
+        GradientDrawable d = new GradientDrawable();
+        d.setColor(0x00000000);
+        d.setCornerRadius(dp(11));
+        d.setStroke(Math.max(1, Math.round(dp(0.75f))), dark ? 0x18ffffff : 0x1b000000);
+        return d;
+    }
+
+    private Drawable buildBeveledFace(int top, int bottom, int border, int shadowColor, int radiusDp, boolean pressed) {
+        GradientDrawable face = new GradientDrawable(
+                GradientDrawable.Orientation.TOP_BOTTOM, new int[]{top, bottom});
+        face.setCornerRadius(dp(radiusDp));
+        face.setStroke(Math.max(1, dp(1)), border);
+        if (pressed || (shadowColor >>> 24) == 0) {
+            return new InsetDrawable(face, 0, dp(1), 0, Math.max(1, dp(1)));
+        }
+        GradientDrawable shadow = new GradientDrawable();
+        shadow.setColor(shadowColor);
+        shadow.setCornerRadius(dp(radiusDp));
+        LayerDrawable layer = new LayerDrawable(new Drawable[]{shadow, face});
+        int lip = Math.max(1, dp(1));
+        layer.setLayerInset(0, 0, lip, 0, 0);
+        layer.setLayerInset(1, 0, 0, 0, lip);
+        return layer;
+    }
+
+    private void styleBevelButton(Button b,
+            int normalTop, int normalBottom, int normalBorder,
+            int pressedTop, int pressedBottom, int pressedBorder,
+            int disabledBg, int disabledBorder, int shadowColor,
+            int textColor, int radiusDp) {
+        int pl = b.getPaddingLeft();
+        int pt = b.getPaddingTop();
+        int pr = b.getPaddingRight();
+        int pb = b.getPaddingBottom();
+        StateListDrawable states = new StateListDrawable();
+        states.addState(new int[]{-android.R.attr.state_enabled},
+                roundedCard(disabledBg, disabledBorder, radiusDp));
+        states.addState(new int[]{android.R.attr.state_pressed},
+                buildBeveledFace(pressedTop, pressedBottom, pressedBorder, shadowColor, radiusDp, true));
+        states.addState(new int[0],
+                buildBeveledFace(normalTop, normalBottom, normalBorder, shadowColor, radiusDp, false));
+        b.setBackground(states);
+        b.setPadding(pl, pt, pr, pb);
+        b.setTextColor(textColor);
+        b.setStateListAnimator(null);
+        b.setElevation(0f);
+    }
+
+    private void styleNeutralBevelButton(Button b, SmartisanPalette t, int radiusDp) {
+        styleBevelButton(b, t.btnTop, t.btnBottom, t.btnBorder,
+                t.btnPressedTop, t.btnPressedBottom, t.btnPressedBorder,
+                t.btnDisabledBg, t.btnDisabledBorder, t.btnShadow,
+                t.textPrimary, radiusDp);
+    }
+
+    private void styleFlatDisabledButton(Button b, SmartisanPalette t, int radiusDp) {
+        int pl = b.getPaddingLeft();
+        int pt = b.getPaddingTop();
+        int pr = b.getPaddingRight();
+        int pb = b.getPaddingBottom();
+        b.setBackground(roundedCard(t.btnDisabledBg, t.btnDisabledBorder, radiusDp));
+        b.setPadding(pl, pt, pr, pb);
+        b.setTextColor(t.textDisabled);
+        b.setStateListAnimator(null);
+        b.setElevation(0f);
+    }
+
+    private void styleAccentRedButton(Button b, SmartisanPalette t, int radiusDp) {
+        styleBevelButton(b, t.accentRedTop, t.accentRedBottom, t.accentRedBorder,
+                t.accentRedPressedTop, t.accentRedPressedBottom, t.accentRedPressedBorder,
+                t.btnDisabledBg, t.btnDisabledBorder, t.btnShadow,
+                0xffffffff, radiusDp);
+    }
+
+    private void styleSoftRedButton(Button b, SmartisanPalette t, int radiusDp) {
+        styleBevelButton(b, t.softRedTop, t.softRedBottom, t.softRedBorder,
+                t.softRedPressedTop, t.softRedPressedBottom, t.softRedBorder,
+                t.btnDisabledBg, t.btnDisabledBorder, t.btnShadow,
+                t.softRedText, radiusDp);
+    }
+
+    private Drawable buildSmartisanSwitchTrack(SmartisanPalette t) {
+        GradientDrawable on = new GradientDrawable();
+        on.setSize(dp(42), dp(24));
+        on.setColor(t.switchOnTrack);
+        on.setCornerRadius(dp(12));
+        on.setStroke(Math.max(1, dp(1)), t.switchOnBorder);
+
+        GradientDrawable off = new GradientDrawable();
+        off.setSize(dp(42), dp(24));
+        off.setColor(t.switchOffTrack);
+        off.setCornerRadius(dp(12));
+        off.setStroke(Math.max(1, dp(1)), t.switchOffBorder);
+
+        StateListDrawable track = new StateListDrawable();
+        track.addState(new int[]{android.R.attr.state_checked}, on);
+        track.addState(new int[0], off);
+        return track;
+    }
+
+    private Drawable buildSmartisanSwitchThumb(SmartisanPalette t) {
+        GradientDrawable knob = new GradientDrawable(
+                GradientDrawable.Orientation.TOP_BOTTOM,
+                new int[]{t.sliderThumbTop, t.sliderThumbBottom});
+        knob.setSize(dp(18), dp(18));
+        knob.setShape(GradientDrawable.OVAL);
+        knob.setStroke(Math.max(1, dp(1)), t.sliderThumbBorder);
+        return new InsetDrawable(knob, dp(3), dp(3), dp(3), dp(3));
+    }
+
+    private Drawable buildTileBackground(SmartisanPalette t, boolean selectedInEdit) {
+        StateListDrawable states = new StateListDrawable();
+        states.addState(new int[]{android.R.attr.state_pressed},
+                roundedCard(t.tilePressedBg, 0x00000000, 10));
+        if (selectedInEdit) {
+            states.addState(new int[0], roundedCard(t.tileFavEditBg, t.tileFavEditBorder, 10));
+        } else {
+            states.addState(new int[0], roundedCard(0x00000000, 0x00000000, 10));
+        }
+        return states;
+    }
+
+    private TextView createFavoriteBadgeView(boolean editMode, boolean checked) {
+        TextView badge = new TextView(this);
+        badge.setGravity(Gravity.CENTER);
+        badge.setTextSize(editMode ? 10 : 9);
+        badge.setTypeface(null, android.graphics.Typeface.BOLD);
+        updateFavoriteBadgeView(badge, editMode, checked);
+        return badge;
+    }
+
+    private void updateFavoriteBadgeView(TextView badge, boolean editMode, boolean checked) {
+        if (badge == null || theme == null) return;
+        if (checked) {
+            GradientDrawable red = new GradientDrawable(
+                    GradientDrawable.Orientation.TOP_BOTTOM,
+                    new int[]{theme.accentRedTop, theme.accentRedBottom});
+            red.setShape(GradientDrawable.OVAL);
+            red.setStroke(Math.max(1, dp(1)), theme.cardBg);
+            badge.setBackground(red);
+            badge.setTextColor(0xffffffff);
+            badge.setText(editMode ? "✓" : "★");
+        } else {
+            GradientDrawable empty = new GradientDrawable();
+            empty.setShape(GradientDrawable.OVAL);
+            empty.setColor(theme.isDark ? 0x661e2025 : 0xd0ffffff);
+            empty.setStroke(Math.max(1, dp(1)), theme.textMuted);
+            badge.setBackground(empty);
+            badge.setText("");
+        }
     }
 
     private Button button(String label) {
@@ -4702,9 +6493,11 @@ public final class MainActivity extends Activity {
         b.setText(label);
         b.setAllCaps(false);
         b.setTextSize(13);
-        b.setMinHeight(dp(40));
-        b.setMinimumHeight(dp(40));
-        b.setPadding(dp(6), 0, dp(6), 0);
+        b.setTypeface(null, android.graphics.Typeface.BOLD);
+        b.setMinHeight(dp(42));
+        b.setMinimumHeight(dp(42));
+        b.setPadding(dp(10), 0, dp(10), 0);
+        if (theme != null) styleNeutralBevelButton(b, theme, 9);
         return b;
     }
 
@@ -4725,5 +6518,7 @@ public final class MainActivity extends Activity {
     }
 
     private int dp(int value) { return (int) (value * getResources().getDisplayMetrics().density + 0.5f); }
+
+    private float dp(float value) { return value * getResources().getDisplayMetrics().density; }
 
 }

@@ -1,0 +1,9 @@
+<resources>
+    <style name="Theme.BoxScreen" parent="@android:style/Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">#FFEFF0F2</item>
+        <item name="android:statusBarColor">#FFFFFFFF</item>
+        <item name="android:navigationBarColor">#FFEFF0F2</item>
+        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:windowLightNavigationBar">true</item>
+    </style>
+</resources>

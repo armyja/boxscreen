@@ -1,0 +1,1423 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>BoxScreen 操作图解 · v1.0.19</title>
+<style>
+:root{
+  --bg:#f2f5f4;
+  --card:#ffffff;
+  --ink:#1a2120;
+  --muted:#586562;
+  --line:#dce4e1;
+  --soft:#e8f3ef;
+  --brand:#0d7a64;
+  --brand-dark:#075848;
+  --blue:#2563eb;
+  --blue-soft:#eff6ff;
+  --amber:#d97706;
+  --amber-soft:#fffbeb;
+  --rose:#e11d48;
+  --rose-soft:#fff1f2;
+  --violet:#7c3aed;
+  --violet-soft:#f5f3ff;
+  --shadow:0 6px 24px rgba(18,34,30,.06),0 1px 3px rgba(18,34,30,.05);
+  --radius:18px;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth;overflow-x:clip}
+body{
+  margin:0;
+  background:var(--bg);
+  color:var(--ink);
+  font:15px/1.6 -apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei","Noto Sans SC",sans-serif;
+  -webkit-font-smoothing:antialiased;
+  overflow-x:clip;
+}
+.wrap{max-width:1120px;width:100%;margin:0 auto;padding:16px 16px 72px}
+/* Top Banner */
+.hero{
+  background:linear-gradient(135deg,#ffffff 0%,#f0f8f5 100%);
+  border:1px solid var(--line);
+  border-radius:22px;
+  padding:22px;
+  box-shadow:var(--shadow);
+  min-width:0;
+}
+.hero-top{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px}
+.brand-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.logo-badge{
+  display:inline-flex;align-items:center;gap:8px;
+  background:var(--brand);color:#fff;font-weight:700;font-size:14px;
+  padding:5px 12px;border-radius:999px;letter-spacing:.3px;
+}
+.ver-pill{font-size:12px;font-weight:600;color:var(--brand-dark);background:var(--soft);padding:4px 10px;border-radius:999px}
+.hero h1{margin:0 0 6px;font-size:clamp(20px,3.6vw,30px);line-height:1.25;letter-spacing:-.2px;overflow-wrap:anywhere}
+.hero-sub{margin:0;color:var(--muted);font-size:14.5px;max-width:78ch}
+.hero-diagram{
+  margin:16px 0 14px;
+  background:#fff;
+  border:1px solid var(--line);
+  border-radius:16px;
+  padding:10px;
+  overflow:hidden;
+}
+.hero-diagram svg{display:block;width:100%;height:auto}
+.quick-facts{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.fact{
+  background:#ffffffcc;border:1px solid var(--line);border-radius:13px;padding:11px 13px;
+  display:flex;gap:10px;align-items:flex-start;font-size:13.5px;min-width:0;
+}
+.fact-num{
+  flex:none;width:24px;height:24px;border-radius:8px;
+  background:var(--brand);color:#fff;font-weight:700;font-size:13px;line-height:1;
+  display:grid;place-items:center;margin-top:1px;
+}
+.fact-body{min-width:0}
+.fact-body strong{display:block;margin-bottom:2px;font-size:14px}
+.fact-body span{color:var(--muted);font-size:12.5px;line-height:1.45;display:block}
+
+/* Sticky Toolbar */
+.toolbar{
+  position:sticky;top:8px;z-index:20;
+  margin:16px 0 18px;
+  background:rgba(255,255,255,.95);
+  backdrop-filter:blur(10px);
+  border:1px solid var(--line);
+  border-radius:16px;
+  padding:10px 12px;
+  box-shadow:0 8px 24px rgba(15,30,25,.08);
+  display:flex;flex-direction:column;gap:9px;
+  max-width:100%;min-width:0;
+}
+.toolbar-row{display:flex;flex-direction:column;gap:8px;min-width:0;width:100%}
+.tabs{display:flex;gap:6px;overflow-x:auto;padding-bottom:2px;scrollbar-width:none;max-width:100%;min-width:0;width:100%}
+.tabs::-webkit-scrollbar{display:none}
+.tab-btn{
+  flex:none;border:1px solid var(--line);background:#fff;color:var(--muted);
+  font:600 13px/1 inherit;padding:9px 13px;border-radius:10px;cursor:pointer;
+  transition:.15s ease;white-space:nowrap;
+}
+.tab-btn:hover{border-color:#a3bdb5;color:var(--ink)}
+.tab-btn[aria-selected="true"]{background:var(--brand);border-color:var(--brand);color:#fff}
+.controls{display:flex;flex-wrap:wrap;gap:8px;align-items:center;min-width:0;width:100%}
+.search-box{
+  position:relative;flex:1 1 220px;min-width:0;
+}
+.search-box input{
+  width:100%;height:38px;border:1px solid var(--line);border-radius:10px;
+  padding:0 30px 0 32px;font:inherit;font-size:13.5px;color:var(--ink);background:#f9fbfa;
+}
+.search-box input:focus{outline:2px solid var(--brand);background:#fff}
+.search-icon{position:absolute;left:10px;top:11px;width:16px;height:16px;color:var(--muted);pointer-events:none}
+.clear-btn{
+  position:absolute;right:6px;top:6px;width:26px;height:26px;border:none;background:transparent;
+  color:var(--muted);font-size:16px;cursor:pointer;border-radius:6px;display:none;
+}
+.clear-btn.show{display:grid;place-items:center}
+.seg{display:inline-flex;background:#edf2f0;border-radius:10px;padding:3px;border:1px solid var(--line)}
+.seg button{
+  border:none;background:transparent;color:var(--muted);font:600 12.5px/1 inherit;
+  padding:7px 11px;border-radius:7px;cursor:pointer;white-space:nowrap;
+}
+.seg button[aria-pressed="true"]{background:#fff;color:var(--brand-dark);box-shadow:0 1px 3px rgba(0,0,0,.08)}
+.anim-btn{
+  border:1px solid var(--line);background:#fff;color:var(--ink);font:600 12.5px/1 inherit;
+  padding:9px 12px;border-radius:10px;cursor:pointer;display:inline-flex;align-items:center;gap:6px;white-space:nowrap;
+}
+.anim-btn[aria-pressed="true"]{background:var(--soft);border-color:#98c7ba;color:var(--brand-dark)}
+.dot-live{width:8px;height:8px;border-radius:99px;background:var(--brand);display:inline-block}
+.anim-btn[aria-pressed="false"] .dot-live{background:#94a3b8}
+
+/* Section Headers */
+.sec-head{margin:24px 0 12px;display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:8px}
+.sec-head h2{margin:0;font-size:19px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.sec-pill{font-size:12px;font-weight:700;padding:3px 9px;border-radius:999px;background:var(--soft);color:var(--brand-dark)}
+.sec-head p{margin:0;font-size:13.5px;color:var(--muted)}
+
+/* Cheat Sheet Grid */
+.cheat-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+.cheat-card{
+  background:var(--card);border:1px solid var(--line);border-radius:var(--radius);
+  padding:16px;box-shadow:var(--shadow);display:flex;flex-direction:column;gap:10px;min-width:0;
+}
+.cheat-card h3{margin:0;font-size:16px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.cheat-tag{font-size:11.5px;font-weight:700;padding:2px 8px;border-radius:6px;background:var(--soft);color:var(--brand-dark)}
+.cheat-card p{margin:0;font-size:13.5px;color:var(--muted)}
+.cheat-svg{background:#fafcfb;border:1px solid #e5ece9;border-radius:12px;padding:6px;overflow:hidden}
+.cheat-svg svg{display:block;width:100%;height:auto}
+.legend-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px 10px;font-size:12.5px}
+.legend-item{display:flex;align-items:flex-start;gap:6px;line-height:1.4;min-width:0}
+.sw{width:10px;height:10px;border-radius:3px;flex:none;margin-top:4px}
+
+/* Step Cards */
+.steps-list{display:grid;gap:14px;min-width:0}
+.step-card{
+  background:var(--card);border:1px solid var(--line);border-radius:var(--radius);
+  padding:16px;box-shadow:var(--shadow);min-width:0;
+}
+.step-top{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px}
+.step-id-wrap{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.step-num{
+  font-variant-numeric:tabular-nums;font-weight:800;font-size:13px;
+  color:#fff;background:var(--brand);padding:3px 9px;border-radius:8px;
+}
+.step-group{font-size:12px;font-weight:600;color:var(--muted)}
+.gesture-badge{
+  font-size:12px;font-weight:700;padding:4px 10px;border-radius:999px;
+  background:var(--blue-soft);color:var(--blue);border:1px solid #bfdbfe;
+}
+.gesture-badge.warn{background:var(--rose-soft);color:var(--rose);border-color:#fecdd3}
+.gesture-badge.amber{background:var(--amber-soft);color:var(--amber);border-color:#fde68a}
+.gesture-badge.green{background:var(--soft);color:var(--brand-dark);border-color:#a7f3d0}
+.step-title{margin:0 0 6px;font-size:18px;line-height:1.3}
+.step-do{
+  margin:0 0 12px;padding:9px 12px;border-radius:11px;
+  background:#f7faf9;border-left:4px solid var(--brand);font-size:14px;font-weight:500;
+}
+.pair{
+  display:grid;grid-template-columns:minmax(0,1fr) 32px minmax(0,1fr);gap:8px;align-items:center;min-width:0;
+}
+.pane{
+  background:#fafcfb;border:1px solid #e4ece9;border-radius:14px;padding:9px;min-width:0;overflow:hidden;
+}
+.pane-label{
+  display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;
+  font-size:12px;font-weight:700;color:var(--muted);margin-bottom:6px;padding:0 2px;
+}
+.pane-label .side-pill{
+  font-size:11px;padding:2px 8px;border-radius:999px;background:#edf2f0;color:var(--ink);
+}
+.pane svg{display:block;width:100%;height:auto}
+.mid-arrow{
+  display:grid;place-items:center;color:var(--brand);font-weight:800;font-size:20px;
+}
+.step-res{
+  margin-top:10px;display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:space-between;
+  padding-top:10px;border-top:1px dashed var(--line);font-size:13.5px;
+}
+.res-main{color:var(--ink);font-weight:500}
+.res-tip{font-size:12.5px;color:var(--muted);background:#f4f7f6;padding:4px 10px;border-radius:8px}
+
+/* Pager Bar */
+.pager-bar{
+  display:none;margin:14px 0 0;background:var(--card);border:1px solid var(--line);
+  border-radius:14px;padding:10px 14px;box-shadow:var(--shadow);
+  align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;
+}
+.pager-bar.show{display:flex}
+.pager-btn{
+  border:1px solid var(--line);background:#fff;color:var(--ink);font:600 13.5px/1 inherit;
+  padding:10px 16px;border-radius:10px;cursor:pointer;min-height:42px;
+}
+.pager-btn.primary{background:var(--soft);border-color:#98c7ba;color:var(--brand-dark)}
+.pager-btn:disabled{opacity:.38;cursor:not-allowed}
+.pager-status{font-size:13px;font-weight:600;color:var(--muted);font-variant-numeric:tabular-nums;text-align:center;flex:1 1 auto}
+.empty-state{
+  text-align:center;padding:36px 16px;background:var(--card);border:1px solid var(--line);
+  border-radius:16px;color:var(--muted);display:none;
+}
+.empty-state.show{display:block}
+.footer-note{
+  margin-top:24px;text-align:center;color:var(--muted);font-size:12.5px;
+}
+
+@media (max-width:860px){
+  .cheat-grid{grid-template-columns:1fr}
+  .quick-facts{grid-template-columns:1fr}
+}
+@media (max-width:740px){
+  .wrap{padding:10px 10px 64px}
+  .hero{padding:14px}
+  .cheat-card,.step-card{padding:13px}
+  .pair{grid-template-columns:1fr;gap:6px}
+  .mid-arrow{transform:rotate(90deg);height:22px;font-size:18px}
+  .legend-list{grid-template-columns:1fr}
+  .toolbar{top:4px;padding:9px}
+  .search-box{flex:1 1 100%}
+}
+@media (prefers-color-scheme:dark){
+  html:not(.light){
+    --bg:#25282d;
+    --card:#34373c;
+    --ink:#f2f2f3;
+    --muted:#b4b6ba;
+    --line:#44484f;
+    --soft:#443133;
+    --brand:#e0564d;
+    --brand-dark:#f38b85;
+    --blue:#7ba4f7;
+    --blue-soft:#2c3648;
+    --amber:#f5bc63;
+    --amber-soft:#3d3325;
+    --rose:#f47286;
+    --rose-soft:#43282f;
+    --violet:#b69df8;
+    --violet-soft:#362f47;
+    --shadow:0 6px 24px rgba(0,0,0,.36),0 1px 3px rgba(0,0,0,.28);
+  }
+  html:not(.light) .hero{background:linear-gradient(135deg,#34373c 0%,#2d3036 100%)}
+  html:not(.light) .fact{background:#2d3035}
+  html:not(.light) .toolbar{background:rgba(41,44,49,.95);box-shadow:0 8px 24px rgba(0,0,0,.38)}
+  html:not(.light) .tab-btn{background:#3a3d43;color:var(--muted)}
+  html:not(.light) .tab-btn:hover{border-color:#656972;color:var(--ink)}
+  html:not(.light) .search-box input{background:#292c32;color:var(--ink)}
+  html:not(.light) .search-box input:focus{background:#24272c}
+  html:not(.light) .seg{background:#292c32}
+  html:not(.light) .seg button[aria-pressed="true"]{background:#41464d;color:#f2f2f3}
+  html:not(.light) .anim-btn{background:#3a3d43;color:var(--ink)}
+  html:not(.light) .anim-btn[aria-pressed="true"]{background:#443133;border-color:#784549;color:#f38b85}
+  html:not(.light) .gesture-badge{border-color:#445572}
+  html:not(.light) .gesture-badge.warn{border-color:#783d4a}
+  html:not(.light) .gesture-badge.amber{border-color:#6e5633}
+  html:not(.light) .gesture-badge.green{border-color:#784549}
+  html:not(.light) .step-do{background:#2b2e33}
+  html:not(.light) .pane{background:#2b2e33;border-color:#42464e}
+  html:not(.light) .pane-label .side-pill{background:#3a3d44;color:var(--ink)}
+  html:not(.light) .res-tip{background:#2b2e33;color:var(--muted)}
+  html:not(.light) .pager-btn{background:#3a3d43;color:var(--ink)}
+  html:not(.light) .pager-btn.primary{background:#443133;border-color:#784549;color:#f38b85}
+  html:not(.light) .hero-diagram,html:not(.light) .cheat-svg,html:not(.light) .pane svg{background:#ffffff;border-color:#464a52;border-radius:10px}
+}
+html.dark{
+  --bg:#25282d;
+  --card:#34373c;
+  --ink:#f2f2f3;
+  --muted:#b4b6ba;
+  --line:#44484f;
+  --soft:#443133;
+  --brand:#e0564d;
+  --brand-dark:#f38b85;
+  --blue:#7ba4f7;
+  --blue-soft:#2c3648;
+  --amber:#f5bc63;
+  --amber-soft:#3d3325;
+  --rose:#f47286;
+  --rose-soft:#43282f;
+  --violet:#b69df8;
+  --violet-soft:#362f47;
+  --shadow:0 6px 24px rgba(0,0,0,.36),0 1px 3px rgba(0,0,0,.28);
+}
+html.dark .hero{background:linear-gradient(135deg,#34373c 0%,#2d3036 100%)}
+html.dark .fact{background:#2d3035}
+html.dark .toolbar{background:rgba(41,44,49,.95);box-shadow:0 8px 24px rgba(0,0,0,.38)}
+html.dark .tab-btn{background:#3a3d43;color:var(--muted)}
+html.dark .tab-btn:hover{border-color:#656972;color:var(--ink)}
+html.dark .search-box input{background:#292c32;color:var(--ink)}
+html.dark .search-box input:focus{background:#24272c}
+html.dark .seg{background:#292c32}
+html.dark .seg button[aria-pressed="true"]{background:#41464d;color:#f2f2f3}
+html.dark .anim-btn{background:#3a3d43;color:var(--ink)}
+html.dark .anim-btn[aria-pressed="true"]{background:#443133;border-color:#784549;color:#f38b85}
+html.dark .gesture-badge{border-color:#445572}
+html.dark .gesture-badge.warn{border-color:#783d4a}
+html.dark .gesture-badge.amber{border-color:#6e5633}
+html.dark .gesture-badge.green{border-color:#784549}
+html.dark .step-do{background:#2b2e33}
+html.dark .pane{background:#2b2e33;border-color:#42464e}
+html.dark .pane-label .side-pill{background:#3a3d44;color:var(--ink)}
+html.dark .res-tip{background:#2b2e33;color:var(--muted)}
+html.dark .pager-btn{background:#3a3d43;color:var(--ink)}
+html.dark .pager-btn.primary{background:#443133;border-color:#784549;color:#f38b85}
+html.dark .hero-diagram,html.dark .cheat-svg,html.dark .pane svg{background:#ffffff;border-color:#464a52;border-radius:10px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <section class="hero" id="heroSection">
+    <div class="hero-top">
+      <div class="brand-row">
+        <span class="logo-badge">BoxScreen</span>
+        <span class="ver-pill">v1.0.19 · 新手到进阶一图通</span>
+      </div>
+      <span style="font-size:12.5px;color:var(--muted)">所有图示支持手机触屏 &amp; 电脑浏览</span>
+    </div>
+    <h1>3 秒看懂 BoxScreen：把手机变成「外接大屏安卓盒子」</h1>
+    <p class="hero-sub">不是把手机画面镜像投屏，而是<strong>让应用独立运行在外接显示器上</strong>；手机退居幕后当控制中心（连接鼠标后自动黑屏省电）。所有日常切换与分屏都靠外接屏顶部的<strong>快捷条</strong>完成。</p>
+    <div class="hero-diagram" id="heroDiagram"></div>
+    <div class="quick-facts">
+      <div class="fact"><span class="fact-num">1</span><div class="fact-body"><strong>授权一次即可开屏</strong><span>先打开 Shizuku 并开启服务，再点 BoxScreen 里的应用图标即可点亮外接屏。</span></div></div>
+      <div class="fact"><span class="fact-num">2</span><div class="fact-body"><strong>连鼠标自动黑屏省电</strong><span>启动应用后鼠标直接控制大屏，手机黑屏；轻触手机屏幕任意处可随时亮屏恢复操作。</span></div></div>
+      <div class="fact"><span class="fact-num">3</span><div class="fact-body"><strong>鼠标推到最上沿唤快捷条</strong><span>鼠标停在画面最顶边约 0.1 秒出现快捷条；点空白处或向下拖展开快捷面板与分屏工具。</span></div></div>
+    </div>
+  </section>
+
+  <nav class="toolbar" aria-label="导航与筛选">
+    <div class="toolbar-row">
+      <div class="tabs" id="tabs" role="tablist"></div>
+      <div class="controls">
+        <div class="search-box">
+          <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+          <input id="searchInput" type="search" placeholder="搜操作：重启 / 拆散 / 右键 / DPI / 竖屏…">
+          <button class="clear-btn" id="clearSearch" aria-label="清空搜索">×</button>
+        </div>
+        <div class="seg" role="group" aria-label="视图模式">
+          <button id="modeGrid" aria-pressed="true">全览卡片</button>
+          <button id="modePager" aria-pressed="false">逐页演示</button>
+        </div>
+        <button class="anim-btn" id="animToggle" aria-pressed="true"><span class="dot-live"></span><span id="animLabel">动态轨迹：开</span></button>
+      </div>
+    </div>
+  </nav>
+
+  <section id="cheatSection">
+    <div class="sec-head">
+      <h2><span class="sec-pill">核心速查</span>一眼记牢 4 组关键手势与判定边界</h2>
+      <p>特别放大展示「图标边缘判定线」——拖出虚线框边界才有不同效果</p>
+    </div>
+    <div class="cheat-grid" id="cheatGrid"></div>
+  </section>
+
+  <section id="stepsSection">
+    <div class="sec-head">
+      <h2><span class="sec-pill" id="stepsCountPill">共 18 步</span><span id="stepsHeading">分步实操图解</span></h2>
+      <p id="stepsHint">每一步左图看「操作轨迹」，右图看「立即结果」</p>
+    </div>
+    <div class="steps-list" id="stepsList"></div>
+    <div class="empty-state" id="emptyState">没有找到包含该关键词的操作步骤，换个词（如“分屏”“重启”“右键”“截图”）试试，或点右上角清空搜索。</div>
+    <div class="pager-bar" id="pagerBar">
+      <button class="pager-btn" id="prevBtn">← 上一步</button>
+      <span class="pager-status" id="pagerStatus">1 / 18</span>
+      <button class="pager-btn primary" id="nextBtn">下一步 →</button>
+    </div>
+  </section>
+
+  <p class="footer-note">适用于 BoxScreen v1.0.19 · 独立离线单页图解，支持保存本地随时查阅。</p>
+</div>
+
+<script>
+const C = {
+  ink: "#1a2120", muted: "#586562", line: "#cfd8d5",
+  brand: "#0d7a64", brandDark: "#075848", brandBg: "#e6f5f0",
+  blue: "#2563eb", blueBg: "#eff6ff",
+  amber: "#d97706", amberBg: "#fffbeb",
+  rose: "#e11d48", roseBg: "#fff1f2",
+  violet: "#7c3aed", violetBg: "#f5f3ff",
+  bar: "#24292e", barBorder: "#3a4148"
+};
+const esc = s => String(s).replace(/[&<>"']/g, m => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m]));
+const R = (x,y,w,h,fill="none",stroke="none",rx=6,sw=1.2) => `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="${rx}" fill="${fill}" stroke="${stroke}" stroke-width="${sw}"/>`;
+const T = (x,y,t,sz=12,fill=C.ink,anc="start",wt=600) => `<text x="${x}" y="${y}" font-size="${sz}" fill="${fill}" text-anchor="${anc}" font-weight="${wt}" font-family="-apple-system,BlinkMacSystemFont,'PingFang SC','Microsoft YaHei',sans-serif">${esc(t)}</text>`;
+const L = (x1,y1,x2,y2,stroke=C.line,sw=1.4,dash="") => `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${stroke}" stroke-width="${sw}"${dash?` stroke-dasharray="${dash}"`:""}/>`;
+const P = (d,fill="none",stroke="none",sw=1.6,dash="") => `<path d="${d}" fill="${fill}" stroke="${stroke}" stroke-width="${sw}" stroke-linecap="round" stroke-linejoin="round"${dash?` stroke-dasharray="${dash}"`:""}/>`;
+
+function icoFinger(cx,cy,col="#fff",s=1){
+  return `<g transform="translate(${cx},${cy}) scale(${s})">
+    <path d="M-2 5V-5a1.8 1.8 0 0 1 3.6 0V-1h1.1a1.5 1.5 0 0 1 1.5 1.5v.3h.9a1.4 1.4 0 0 1 1.4 1.4v2.6a4.5 4.5 0 0 1-4.5 4.5h-1.8A4 4 0 0 1-5 6.8L-6.8 3a1.5 1.5 0 0 1 2.4-1.7z" fill="none" stroke="${col}" stroke-width="1.6" stroke-linejoin="round"/>
+  </g>`;
+}
+function icoMouse(cx,cy,col="#fff",s=1){
+  return `<g transform="translate(${cx},${cy}) scale(${s})">
+    <rect x="-5.5" y="-7.5" width="11" height="15" rx="5.5" fill="none" stroke="${col}" stroke-width="1.6"/>
+    <line x1="0" y1="-7.5" x2="0" y2="-1.5" stroke="${col}" stroke-width="1.5"/>
+    <line x1="-5.5" y1="-1.5" x2="5.5" y2="-1.5" stroke="${col}" stroke-width="1.3"/>
+  </g>`;
+}
+function icoRotate(cx,cy,col="#fff",s=1){
+  return `<g transform="translate(${cx},${cy}) scale(${s})">
+    <rect x="-6.5" y="-4" width="8.5" height="10" rx="1.6" fill="none" stroke="${col}" stroke-width="1.5"/>
+    <path d="M3.5-5.5a5.5 5.5 0 0 1 4 4.5M7.5-1l-2-.5M7.5-1l.5-2" fill="none" stroke="${col}" stroke-width="1.5" stroke-linecap="round"/>
+  </g>`;
+}
+function icoCamera(cx,cy,col="#fff",s=1){
+  return `<g transform="translate(${cx},${cy}) scale(${s})">
+    <rect x="-7" y="-5" width="14" height="10" rx="2" fill="none" stroke="${col}" stroke-width="1.5"/>
+    <circle cx="0" cy="0" r="2.6" fill="none" stroke="${col}" stroke-width="1.5"/>
+    <circle cx="4.3" cy="-2.8" r=".8" fill="${col}"/>
+  </g>`;
+}
+function icoAppTile(cx,cy,kind,size=20){
+  const x = cx - size/2, y = cy - size/2, rx = Math.round(size*0.26);
+  const map = {A:{bg:"#0f766e",label:"A"},B:{bg:"#2563eb",label:"B"},C:{bg:"#d97706",label:"C"},G:{bg:"#7c3aed",label:"G"}};
+  const m = map[kind] || map.A;
+  return R(x,y,size,size,m.bg,"rgba(255,255,255,.35)",rx,1) +
+    T(cx, cy + size*0.21, m.label, Math.round(size*0.56), "#fff", "middle", 800);
+}
+function icoPairTile(cx,cy,size=22){
+  const s = Math.round(size*0.64), r = Math.round(s*0.28);
+  const ax = cx - size*0.48, ay = cy - size*0.46;
+  const bx = cx - size*0.14, by = cy - size*0.14;
+  return R(ax,ay,s,s,"#0f766e","#fff",r,1.2) + T(ax+s/2,ay+s*0.72,"A",Math.round(s*0.62),"#fff","middle",800) +
+         R(bx,by,s,s,"#2563eb","#fff",r,1.2) + T(bx+s/2,by+s*0.72,"B",Math.round(s*0.62),"#fff","middle",800);
+}
+
+// 1. Hero Dual-Screen SVG (clean padding, handle callout inside bezel)
+function renderHeroDiagram(){
+  const svg = `<svg viewBox="0 0 880 248" role="img" aria-label="手机作为控制中心，通过视频线与外接显示器独立运行大屏应用">
+    <defs>
+      <marker id="hArr" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto"><path d="M0 1L6 4L0 7" fill="none" stroke="${C.brand}" stroke-width="1.6"/></marker>
+      <marker id="hBlue" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto"><path d="M0 1L6 4L0 7" fill="none" stroke="${C.blue}" stroke-width="1.6"/></marker>
+    </defs>
+    <!-- Phone Zone -->
+    ${R(18,14,178,218,"#f8faf9",C.line,22,1.5)}
+    ${R(26,22,162,202,"#1f2625","#36413f",16,1.2)}
+    ${R(82,27,50,5,"#36413f","none",3)}
+    ${T(107,54,"手机（控制端）",13,"#ffffff","middle",700)}
+    ${T(107,72,"Shizuku + BoxScreen",10.5,"#99b2ac","middle",500)}
+    ${R(38,86,138,44,"#2a3533","#455854",9,1)}
+    ${T(107,105,"● 点选应用启动",11,"#5eead4","middle",700)}
+    ${T(107,121,"连鼠标后自动黑屏省电",10,"#cbd5e1","middle",500)}
+    ${R(38,140,66,34,"#2a3533","#455854",8,1)}${T(71,161,"影片 A",10.5,"#e2e8f0","middle",600)}
+    ${R(110,140,66,34,"#2a3533","#455854",8,1)}${T(143,161,"浏览器 B",10.5,"#e2e8f0","middle",600)}
+    ${R(38,182,138,28,"#153932","#0d7a64",8,1)}${T(107,200,"轻触手机随时唤醒",10.5,"#a7f3d0","middle",600)}
+
+    <!-- Center Cables & Peripherals -->
+    <path d="M198 90 L386 90" fill="none" stroke="${C.brand}" stroke-width="2.6" marker-end="url(#hArr)"/>
+    ${R(226,54,136,28,C.brandBg,"#99d5c4",8,1)}
+    ${T(294,72,"USB-C 视频直出虚拟屏",11.5,C.brandDark,"middle",700)}
+
+    ${R(224,114,140,48,"#fff",C.line,11,1.2)}
+    ${icoMouse(246,138,C.blue,1.15)}
+    ${T(262,134,"蓝牙 / USB 鼠标",11.5,C.ink,"start",700)}
+    ${T(262,150,"路由到大屏直接点控",10,C.muted,"start",500)}
+    <path d="M364 138 L386 138" fill="none" stroke="${C.blue}" stroke-width="2" marker-end="url(#hBlue)"/>
+
+    ${R(224,172,140,42,"#fff",C.line,11,1.2)}
+    ${T(294,191,"🎮 也支持外接游戏手柄",11,C.violet,"middle",700)}
+    ${T(294,206,"按键自动发往大屏焦点应用",10,C.muted,"middle",500)}
+
+    <!-- External Monitor Zone -->
+    ${R(392,14,470,210,"#1f2428","#374151",16,2)}
+    ${R(570,224,114,8,"#9ca3af","none",4)}
+    ${R(535,232,184,8,"#cbd5e1","none",4)}
+    <!-- Status bar -->
+    ${R(402,22,450,28,C.bar,C.barBorder,6,1)}
+    ${T(414,40,"14:32  80%",11,"#e5e7eb","start",600)}
+    ${L(478,36,544,36,"#64748b",2)}${`<circle cx="516" cy="36" r="4.5" fill="#14b8a6"/>`}
+    ${T(554,40,"顶部快捷条（悬停 0.1 秒唤出）",10.5,"#94a3b8","start",500)}
+    ${icoPairTile(740,36,18)}
+    ${icoAppTile(766,36,"A",16)}${icoAppTile(788,36,"B",16)}${icoAppTile(810,36,"C",16)}
+    ${T(836,41,"×",16,"#f87171","middle",700)}
+
+    <!-- Split screen content -->
+    ${R(404,56,220,158,"#142321","#264642",8,1)}
+    ${T(514,94,"左栏：影片 A",14,"#5eead4","middle",700)}
+    ${`<circle cx="514" cy="132" r="20" fill="#0d7a64" fill-opacity=".35" stroke="#5eead4" stroke-width="1.5"/>`}
+    ${P("M508 123 L524 132 L508 141 Z","#5eead4")}
+    ${T(514,188,"独立尺寸运行 · 互不干扰",10.5,"#99b2ac","middle",500)}
+
+    ${R(630,56,220,158,"#ffffff","#cbd5e1",8,1)}
+    ${R(642,66,196,24,"#eef2f6","none",6)}${T(652,82,"https://boxscreen.app",10.5,C.muted,"start",500)}
+    ${T(740,122,"右栏：浏览器 B",14,C.blue,"middle",700)}
+    ${R(644,136,192,24,"#eff6ff","#bfdbfe",6)}${T(654,152,"全屏 / 分屏自由切换",10.5,C.blue,"start",600)}
+    ${R(644,168,192,24,"#f8fafc","#e2e8f0",6)}${T(654,184,"支持各自保存触摸或鼠标模式",10.5,C.muted,"start",500)}
+
+    <!-- Center floating split handle + clean badge above bottom border -->
+    ${R(623,72,8,38,"#ffffff",C.brand,4,2)}
+    ${R(575,196,104,20,"#0f172a","#5eead4",6,1)}
+    ${T(627,210,"中间滑块（靠近可见）",10,"#5eead4","middle",600)}
+  </svg>`;
+  document.getElementById("heroDiagram").innerHTML = svg;
+}
+
+// 2. Four Magnified Cheat-Sheet Infographics (Zero text collision)
+const cheatSheets = [
+  {
+    id:"Q1",
+    tag:"状态栏单图标",
+    title:"单个应用图标：5 个方向的隐藏手势",
+    desc:"在状态栏按住任意单应用图标拖动，看松手位置落在虚线边界线的哪个区域：",
+    legend:[
+      {col:C.blue, txt:"轻点图标：切全屏（在分屏中则拆散并铺满）"},
+      {col:C.brand, txt:"保持高度往左/右拖出：放进左栏或右栏分屏"},
+      {col:C.amber, txt:"往左上方斜拖出双边界：原位强杀重启（不伤另一栏）"},
+      {col:C.rose, txt:"左右边界内往下拖出：强杀关闭该应用"}
+    ],
+    svg:`<svg viewBox="0 0 560 308" role="img" aria-label="单个应用图标拖动判定边界放大图">
+      ${R(16,112,528,72,"#24292e","#3a4148",12,1.2)}
+      ${T(30,132,"顶部状态栏局部放大",11,"#94a3b8","start",500)}
+
+      <!-- Zone boxes cleanly outside dashed boundary area -->
+      ${R(18,12,186,74,C.amberBg,C.amber,12,1.5)}
+      ${T(111,35,"↖ 超出左边界 + 上边界",12,C.amber,"middle",700)}
+      ${T(111,55,"在原位 / 原分栏强制重启",13.5,C.ink,"middle",700)}
+      ${T(111,74,"左栏重启，右栏继续跑不受影响",11,C.muted,"middle",500)}
+
+      ${R(18,204,178,86,C.brandBg,C.brand,12,1.5)}
+      ${T(107,230,"← 保持高度，拖出左边界",12,C.brandDark,"middle",700)}
+      ${T(107,252,"放进左侧分屏栏",14,C.ink,"middle",700)}
+      ${T(107,272,"Y 坐标需留在图标上下线之间",11,C.muted,"middle",500)}
+
+      ${R(364,204,178,86,C.brandBg,C.brand,12,1.5)}
+      ${T(453,230,"保持高度，拖出右边界 →",12,C.brandDark,"middle",700)}
+      ${T(453,252,"放进右侧分屏栏",14,C.ink,"middle",700)}
+      ${T(453,272,"Y 坐标需留在图标上下线之间",11,C.muted,"middle",500)}
+
+      ${R(208,204,144,86,C.roseBg,C.rose,12,1.5)}
+      ${T(280,230,"↓ 左右边界内向下",12,C.rose,"middle",700)}
+      ${T(280,252,"强制关闭该应用",14,C.ink,"middle",700)}
+      ${T(280,272,"若下有后台组合则自动切回",11,C.muted,"middle",500)}
+
+      ${R(330,12,212,74,C.blueBg,C.blue,12,1.2)}
+      ${T(436,35,"👆 直接点击一下图标",12.5,C.blue,"middle",700)}
+      ${T(436,55,"切回全屏显示",13.5,C.ink,"middle",700)}
+      ${T(436,74,"若为分屏成员，会自动拆散组合",11,C.muted,"middle",500)}
+
+      <!-- Center Target Icon & Boundary Guides -->
+      ${L(248,12,248,292,C.amber,1.4,"5 4")}
+      ${L(312,12,312,292,C.rose,1.4,"5 4")}
+      ${L(32,120,528,120,C.brand,1.3,"5 4")}
+      ${L(32,176,528,176,C.brand,1.3,"5 4")}
+      ${R(248,120,64,56,"#0f766e","#fff",13,2)}
+      ${T(280,156,"A",24,"#fff","middle",800)}
+
+      <!-- Crisp non-overlapping Arrows ending cleanly outside boxes -->
+      ${P("M258 128 L194 90","none",C.amber,2.6)}${P("M194 90 L207 90 M194 90 L200 101","none",C.amber,2.2)}
+      ${P("M246 148 L120 148 L120 200","none",C.brand,2.4)}${P("M114 191 L120 201 L126 191","none",C.brand,2.2)}
+      ${P("M314 148 L440 148 L440 200","none",C.brand,2.4)}${P("M434 191 L440 201 L446 191","none",C.brand,2.2)}
+      ${P("M280 176 L280 200","none",C.rose,2.6)}${P("M274 191 L280 201 L286 191","none",C.rose,2.2)}
+    </svg>`
+  },
+  {
+    id:"Q2",
+    tag:"v1.0.19 组合图标",
+    title:"分屏组合图标（交叠 A+B）：三向手势 & 为什么同时显示 A、B",
+    desc:"分屏成对时，状态栏紧邻显示「交叠组合」与「两个单图标」——组合负责整体切换/拆散/全关，单图标负责单独重启或切全屏：",
+    legend:[
+      {col:C.blue, txt:"点击交叠图标：A + B 整组拉回前台"},
+      {col:C.brand, txt:"正上方拖出：无损拆散组合（两个 App 均保持运行）"},
+      {col:C.rose, txt:"正下方拖出：同时强停并关闭 A 和 B"},
+      {col:C.amber, txt:"往左上方拖单图标 A/B：只重启那一栏应用"}
+    ],
+    svg:`<svg viewBox="0 0 560 308" role="img" aria-label="分屏组合图标三向手势及旁边同时保留单图标的原因">
+      ${R(16,108,528,74,"#24292e","#3a4148",12,1.2)}
+      ${T(30,138,"状态栏",12,"#e2e8f0","start",700)}
+      ${T(30,156,"实际排列",11,"#94a3b8","start",500)}
+
+      ${icoAppTile(194,144,"C",34)}
+      ${T(194,175,"普通应用",10,"#94a3b8","middle",500)}
+
+      <!-- Pair icon -->
+      ${R(248,116,74,56,"#313940","#5eead4",12,1.6)}
+      ${icoPairTile(285,144,42)}
+
+      <!-- Individual A & B -->
+      ${R(338,120,50,48,"#0f766e","#fff",10,1.4)}${T(363,151,"A",20,"#fff","middle",800)}
+      ${R(398,120,50,48,"#2563eb","#fff",10,1.4)}${T(423,151,"B",20,"#fff","middle",800)}
+      ${T(502,151,"×",22,"#f87171","middle",700)}
+
+      <!-- Rails for [A+B] -->
+      ${L(248,12,248,290,C.brand,1.3,"5 4")}
+      ${L(322,12,322,290,C.brand,1.3,"5 4")}
+
+      <!-- Top Ungroup Box -->
+      ${R(166,12,238,74,C.brandBg,C.brand,12,1.5)}
+      ${T(285,35,"↑ 左右边界内向上拖出上沿",12,C.brandDark,"middle",700)}
+      ${T(285,56,"无损拆散组合",14.5,C.ink,"middle",700)}
+      ${T(285,75,"不杀进程！各自变回独立任务",11,C.muted,"middle",500)}
+
+      <!-- Bottom Kill Both Box -->
+      ${R(140,204,250,86,C.roseBg,C.rose,12,1.5)}
+      ${T(265,230,"↓ 左右边界内向下拖出下沿",12,C.rose,"middle",700)}
+      ${T(265,252,"同时关闭 A 和 B 两个应用",14,C.ink,"middle",700)}
+      ${T(265,273,"均会被强制停止并清空任务",11,C.muted,"middle",500)}
+
+      <!-- Left Click Box -->
+      ${R(16,12,138,74,C.blueBg,C.blue,12,1.2)}
+      ${T(85,36,"👆 点交叠图标",12.5,C.blue,"middle",700)}
+      ${T(85,57,"整体恢复分屏",13.5,C.ink,"middle",700)}
+      ${T(85,76,"适配当前横竖屏",11,C.muted,"middle",500)}
+      ${P("M136 86 L244 134","none",C.blue,1.6,"4 3")}
+
+      <!-- Right Explanation Box -->
+      ${R(402,204,142,86,C.amberBg,C.amber,12,1.4)}
+      ${T(473,227,"旁边 A / B 的用处",12,C.amber,"middle",700)}
+      ${T(473,249,"• 左上拖：单栏重启",11.5,C.ink,"middle",600)}
+      ${T(473,268,"• 点击：拆散全屏看",11.5,C.ink,"middle",600)}
+      ${P("M374 170 L430 204","none",C.amber,1.6,"4 3")}
+
+      <!-- Arrows -->
+      ${P("M285 114 L285 88","none",C.brand,2.6)}${P("M279 97 L285 87 L291 97","none",C.brand,2.2)}
+      ${P("M285 174 L285 201","none",C.rose,2.6)}${P("M279 192 L285 202 L291 192","none",C.rose,2.2)}
+    </svg>`
+  },
+  {
+    id:"Q3",
+    tag:"分屏中线滑块",
+    title:"分界「隐藏滑块」：靠近才出现，3 种用法一次看懂",
+    desc:"为避免遮挡居中的弹窗和悬浮键盘，滑块固定在分界线偏上方（高度约 18% 处）。鼠标离开就自动隐身：",
+    legend:[
+      {col:C.brand, txt:"靠近唤醒：距分界约 24px 内浮现 12×64 白胶囊"},
+      {col:C.blue, txt:"按住左右拖：白线预览落点，松手重排宽度"},
+      {col:C.violet, txt:"轻点（不拖）：左右两栏立刻互换，比例不变"},
+      {col:C.rose, txt:"长按 0.5 秒：两侧弹出 ─（隐藏）/ □（铺满）/ ✕（结束）"}
+    ],
+    svg:`<svg viewBox="0 0 560 308" role="img" aria-label="分屏中间分隔滑块的拖动、轻点互换与长按分栏菜单说明">
+      ${R(16,12,252,282,"#eef4f2","#b7c7c2",12,1.3)}
+      ${R(22,18,116,270,"#142321","none",8)}
+      ${R(146,18,116,270,"#ffffff",C.line,8,1)}
+      ${T(80,152,"左栏 A",14,"#5eead4","middle",700)}
+      ${T(204,152,"右栏 B",14,C.blue,"middle",700)}
+      ${R(26,254,232,26,"#0f172a","#5eead4",6,1)}
+      ${T(142,271,"滑块放在偏上方，避开居中键盘与弹窗",10.5,"#ccfbf1","middle",600)}
+
+      ${L(142,18,142,248,"#94a3b8",2)}
+      ${R(136,54,12,48,"#ffffff",C.brand,6,2.2)}
+      ${R(122,42,40,72,"none",C.brand,12,1.3,"4 3")}
+      ${P("M112 78 L131 78 M172 78 L153 78","none",C.blue,2.2)}
+      ${P("M117 73 L110 78 L117 83 M167 73 L174 78 L167 83","none",C.blue,1.8)}
+
+      ${R(284,12,260,78,C.blueBg,C.blue,12,1.3)}
+      ${T(300,37,"1. 按住左右拖（竖屏为上下拖）",13.5,C.blue,"start",700)}
+      ${T(300,59,"• 拖动时出现白线预览新宽度",12,C.ink,"start",500)}
+      ${T(300,77,"• 松手才重排画面，单栏最窄 20:9",12,C.muted,"start",500)}
+
+      ${R(284,102,260,64,C.violetBg,C.violet,12,1.3)}
+      ${T(300,127,"2. 原地轻点一下（不拖动）",13.5,C.violet,"start",700)}
+      ${T(300,149,"• 左栏 A 与右栏 B 互换位置，比例不变",12,C.ink,"start",500)}
+
+      ${R(284,178,260,116,C.roseBg,C.rose,12,1.3)}
+      ${T(300,202,"3. 长按约 0.5 秒（先松开手，再点按钮）",12.5,C.rose,"start",700)}
+      ${R(298,214,72,28,"#fff",C.line,7,1)}${T(334,232,"─ 最小化",11.5,C.ink,"middle",700)}
+      ${R(378,214,72,28,"#fff",C.line,7,1)}${T(414,232,"□ 最大化",11.5,C.ink,"middle",700)}
+      ${R(458,214,72,28,"#fff",C.rose,7,1)}${T(494,232,"✕ 关应用",11.5,C.rose,"middle",700)}
+      ${T(300,263,"─ 和 □ 只隐藏窗口、保留应用后台存活；",11.5,C.muted,"start",500)}
+      ${T(300,281,"只有 ✕ 会强停结束进程。按屏幕左右对应！",11.5,C.ink,"start",600)}
+    </svg>`
+  },
+  {
+    id:"Q4",
+    tag:"键鼠模式与手柄",
+    title:"鼠标「触摸模式 vs 鼠标模式」：右键究竟是返回还是右键菜单？",
+    desc:"可在快捷面板右上角按单个应用独立切换（默认「触摸模式」），切换另一个应用后仍保持各自的设置：",
+    legend:[
+      {col:C.brand, txt:"触摸模式（默认）：看视频/手机网页最好用"},
+      {col:C.blue, txt:"鼠标模式：远程桌面/PC 网页等要真右键时开启"},
+      {col:C.amber, txt:"小技巧：触摸模式下快速连按右键每 250ms 触发一次"},
+      {col:C.violet, txt:"外接手柄：插上即用，输入自动发往大屏当前焦点"}
+    ],
+    svg:`<svg viewBox="0 0 560 308" role="img" aria-label="触摸模式和鼠标模式下鼠标按键对比及手柄支持">
+      <!-- Touch Mode Card (12..272) -->
+      ${R(12,12,262,222,C.brandBg,C.brand,14,1.5)}
+      ${icoFinger(38,38,C.brandDark,1.2)}
+      ${T(56,38,"触摸模式（默认）",14.5,C.brandDark,"start",700)}
+      ${T(56,55,"鼠标当作“隔空手指”，适合多数 App",10.5,C.muted,"start",500)}
+      ${R(26,76,66,118,"#fff",C.brand,30,1.8)}
+      ${L(59,76,59,130,C.line,1.5)}${L(26,130,92,130,C.line,1.5)}
+      ${R(54,90,10,22,C.amberBg,C.amber,5,1.5)}
+      ${T(42,109,"左",11.5,C.brandDark,"middle",700)}${T(76,109,"右",11.5,C.rose,"middle",700)}
+      ${T(59,166,"拖=划屏",10,C.muted,"middle",500)}
+      ${T(102,94,"左键：",11.5,C.ink,"start",700)}${T(134,94,"手指点击 / 拖动",11.5,C.muted,"start",500)}
+      ${T(102,120,"右键：",11.5,C.rose,"start",700)}${T(134,120,"系统返回（松开触发）",11.5,C.ink,"start",600)}
+      ${T(102,146,"中键：",11.5,C.amber,"start",700)}${T(134,146,"菜单键（部分支持）",11.5,C.muted,"start",500)}
+      ${T(102,172,"滚轮：",11.5,C.ink,"start",700)}${T(134,172,"上下滚动页面",11.5,C.muted,"start",500)}
+      ${T(143,218,"面板按钮样式：手指图标",11,C.brandDark,"middle",700)}
+
+      <!-- Mouse Mode Card (286..548) -->
+      ${R(286,12,262,222,C.blueBg,C.blue,14,1.5)}
+      ${icoMouse(312,38,C.blue,1.15)}
+      ${T(328,38,"鼠标模式（按应用切换）",14.5,C.blue,"start",700)}
+      ${T(328,55,"将原生鼠标事件直接透传给当前应用",10.5,C.muted,"start",500)}
+      ${R(300,76,66,118,"#fff",C.blue,30,1.8)}
+      ${L(333,76,333,130,C.line,1.5)}${L(300,130,366,130,C.line,1.5)}
+      ${R(328,90,10,22,C.blueBg,C.blue,5,1.5)}
+      ${T(316,109,"左",11.5,C.blue,"middle",700)}${T(350,109,"右",11.5,C.blue,"middle",700)}
+      ${T(333,166,"真指针",10,C.muted,"middle",500)}
+      ${T(376,94,"左键：",11.5,C.ink,"start",700)}${T(408,94,"原生鼠标左键",11.5,C.muted,"start",500)}
+      ${T(376,120,"右键：",11.5,C.blue,"start",700)}${T(408,120,"透传应用右键菜单",11.5,C.ink,"start",600)}
+      ${T(376,146,"中键：",11.5,C.blue,"start",700)}${T(408,146,"透传应用自身处理",11.5,C.muted,"start",500)}
+      ${T(376,172,"滚轮：",11.5,C.ink,"start",700)}${T(408,172,"上下滚动页面",11.5,C.muted,"start",500)}
+      ${T(417,218,"面板按钮样式：鼠标图标",11,C.blue,"middle",700)}
+
+      <!-- Bottom Gamepad Note -->
+      ${R(12,246,536,48,C.violetBg,C.violet,12,1.3)}
+      ${T(280,267,"🎮 外接游戏手柄：连上手机后（需 Shizuku 正常），摇杆与按键直接发给外接屏焦点应用",12,C.violet,"middle",700)}
+      ${T(280,285,"注：若极少数移植游戏窗口不可获焦而收不到手柄信号，请在面板保持“触摸模式”用鼠标玩",11,C.muted,"middle",500)}
+    </svg>`
+  }
+];
+
+function monitorFrame(inner, opts={}){
+  const {bar=false, pairBar=false, louder=false, darkContent=false, panel=false, dpiVal="250", sync=false, mouseMode=false} = opts;
+  let out = R(18,28,384,212, darkContent?"#181d20":"#f8fafb", "#1e293b", 12, 2);
+  out += inner;
+  if(bar || pairBar){
+    out += R(19,29,382,34,C.bar,C.barBorder,10,1);
+    out += T(30,50,"14:32  80%",11,"#e2e8f0","start",600);
+    out += L(94,46,154,46,"#64748b",2.4);
+    out += `<circle cx="${louder?142:114}" cy="46" r="5" fill="#14b8a6"/>`;
+    if(pairBar){
+      out += icoAppTile(248,46,"C",24);
+      out += R(274,33,34,26,"#334155","#5eead4",6,1.2) + icoPairTile(291,46,24);
+      out += icoAppTile(322,46,"A",24);
+      out += icoAppTile(352,46,"B",24);
+    } else {
+      out += icoAppTile(316,46,"A",24);
+      out += icoAppTile(348,46,"B",24);
+    }
+    out += T(384,52,"×",20,"#f87171","middle",700);
+  }
+  if(panel){
+    out += R(19,29,382,130,"#262c31",C.barBorder,10,1.2);
+    out += T(30,50,`DPI ${dpiVal}`,11,"#e2e8f0","start",700);
+    out += L(84,46,274,46,"#64748b",2.8);
+    out += `<circle cx="${dpiVal==="360"?192:132}" cy="46" r="5.5" fill="#14b8a6"/>`;
+    out += R(288,35,28,22,mouseMode?"#2563eb":"#0d7a64","#94a3b8",6,1);
+    out += mouseMode ? icoMouse(302,46,"#fff",0.85) : icoFinger(302,46,"#fff",0.85);
+    out += R(322,35,28,22,"#334155","#64748b",6,1) + icoRotate(336,46,"#fff",0.85);
+    out += R(356,35,28,22,"#334155","#64748b",6,1) + icoCamera(370,46,"#fff",0.85);
+    out += T(30,74,"主屏 DPI 同步 · 当前应用",10.5,"#cbd5e1","start",500);
+    out += R(156,64,28,14,sync?"#0d7a64":"#475569","#94a3b8",7,1);
+    out += `<circle cx="${sync?176:164}" cy="71" r="5" fill="#fff"/>`;
+    if(!opts.hideSplitBtn){
+      out += R(340,60,46,21,"#0d7a64","#5eead4",6,1) + T(363,74,"分屏",11,"#fff","middle",700);
+    }
+    const cardNames = ["影片 A","浏览器 B","相册 C","游戏 G","阅读","设置","文件","笔记"];
+    cardNames.forEach((n,i)=>{
+      const cx = 30 + (i%4)*91, cy = 88 + Math.floor(i/4)*32;
+      const hi = i < 3;
+      out += R(cx,cy,84,26,hi?"#374151":"#2f363d",hi?"#64748b":"#475569",6,1);
+      out += T(cx+42,cy+17,n,10.5,"#f8fafc","middle",600);
+    });
+  }
+  return out;
+}
+
+function appScene(kind, opts={}){
+  if(kind==="A"){
+    return R(28,38,364,192,"#10201e","none",8)+
+      `<circle cx="210" cy="126" r="26" fill="#0d7a64" fill-opacity=".35" stroke="#5eead4" stroke-width="1.8"/>`+
+      P("M202 115 L222 126 L202 137 Z","#5eead4")+
+      T(210,180,"A · 影片全屏播放中",14,"#ccfbf1","middle",700)+
+      L(60,204,360,204,"#334155",3)+L(60,204,210,204,"#14b8a6",3);
+  }
+  if(kind==="B"){
+    const scrolled = opts.scrolled;
+    let b = R(28,38,364,192,"#ffffff",C.line,8,1)+
+      R(42,66,336,22,"#f1f5f9","none",6)+T(54,81,"B · 浏览器 — boxscreen.app",11,C.blue,"start",700);
+    const items = scrolled ? ["② 第二栏：滚动后的文章段落","③ 第三栏：底部评论与链接"] : ["① 首页推荐文章卡片（点击）","② 向下滑动查看更多内容"];
+    items.forEach((t,i)=>{
+      b += R(42,96+i*40,336,32,i===0?"#eff6ff":"#f8fafc","#dbeafe",7,1)+T(58,117+i*40,t,11.5,C.ink,"start",600);
+    });
+    if(opts.contextMenu){
+      b += R(242,130,128,74,"#ffffff",C.blue,9,1.5)+
+        T(256,152,"应用右键菜单",11.5,C.blue,"start",700)+
+        L(250,160,362,160,C.line,1)+
+        T(256,178,"新标签页打开 / 复制",11,C.ink,"start",500)+
+        T(256,196,"保存网页图片",11,C.muted,"start",500);
+    }
+    return b;
+  }
+  if(kind==="C"){
+    // Leaves crisp room from y=65..100 for status bars and callout pills!
+    return R(28,38,364,192,"#fffbeb","#fde68a",8,1)+
+      T(210,112,"C · 相册（全屏运行中）",14.5,C.amber,"middle",700)+
+      R(54,126,94,88,"#fef3c7","#f59e0b",8,1)+T(101,175,"风景照",12,C.amber,"middle",600)+
+      R(163,126,94,88,"#ffedd5","#f97316",8,1)+T(210,175,"人像照",12,"#ea580c","middle",600)+
+      R(272,126,94,88,"#ecfccb","#84cc16",8,1)+T(319,175,"虚拟屏截图",12,"#4d7c0f","middle",600);
+  }
+  if(kind==="G"){
+    return R(28,38,364,192,"#1e1b4b","#4338ca",8,1)+
+      T(210,76,"🎮 手柄操控中 · 焦点已锁定大屏",13.5,"#c4b5fd","middle",700)+
+      L(48,176,372,176,"#6366f1",2)+
+      P(`M${opts.moved?265:155} 166 L${opts.moved?280:170} 140 L${opts.moved?295:185} 166 Z`,"#a78bfa","#fff",1.2)+
+      T(opts.moved?280:170,198,opts.moved?"角色向右移动/跳跃！":"角色待机",11.5,"#e0e7ff","middle",600);
+  }
+  if(kind==="preview"){
+    return R(28,38,364,192,"#111827","#374151",8,1)+
+      R(84,48,252,130,"#132a26","#5eead4",8,1.3)+
+      T(210,112,"🖼️ 截图大图预览",15,"#ccfbf1","middle",700)+
+      T(210,134,"干净画质，不含状态栏/面板遮挡",11,"#99b2ac","middle",500)+
+      R(84,186,74,30,"#3f1d28",C.rose,8,1.2)+T(121,205,"删除截图",11.5,"#fda4af","middle",700)+
+      R(173,186,74,30,"#1f2937","#94a3b8",8,1.2)+T(210,205,"× 关闭",11.5,"#e2e8f0","middle",700)+
+      R(262,186,74,30,"#0d7a64","#5eead4",8,1.2)+T(299,205,"图库打开",11.5,"#fff","middle",700);
+  }
+  return "";
+}
+
+function splitScene(leftKind, rightKind, opts={}){
+  const ratio = opts.wide ? 0.64 : opts.narrow ? 0.36 : 0.5;
+  const cut = Math.round(18 + 384 * ratio);
+  let out = "";
+  if(leftKind==="PICK"){
+    out += R(24,34,cut-30,200,"#edf2f0","#94a3b8",8,1)+
+      T((24+cut-6)/2,62,"选择左侧要放入的应用",11.5,C.brandDark,"middle",700);
+    ["A 影片","C 相册","G 游戏"].forEach((t,i)=>out+=R(40,78+i*42,cut-62,32,"#fff",C.line,7,1)+T((40+cut-22)/2,99+i*42,t,11.5,C.ink,"middle",600));
+  } else {
+    const lc = leftKind==="A"?"#10201e":leftKind==="B"?"#eff6ff":"#fffbeb";
+    const lt = leftKind==="A"?"A · 影片":leftKind==="B"?"B · 浏览器":"C · 相册";
+    const lcol = leftKind==="A"?"#5eead4":leftKind==="B"?C.blue:C.amber;
+    out += R(24,34,cut-28,200,lc,C.line,8,1)+T(24+(cut-28)/2,150,lt,15,lcol,"middle",700);
+    if(opts.restartingDone){
+      out += R(36,166,cut-52,26,"#0d7a64","none",6)+T(24+(cut-28)/2,183,"↻ 新进程已原位重启",10.5,"#fff","middle",700);
+    }
+  }
+  if(rightKind==="PICK"){
+    const rx = cut+6, rw = 396-cut;
+    out += R(rx,34,rw,200,"#edf2f0","#94a3b8",8,1)+
+      T(rx+rw/2,62,"选择右侧要放入的应用",11.5,C.brandDark,"middle",700);
+    ["B 浏览器","C 相册","G 游戏"].forEach((t,i)=>out+=R(rx+14,78+i*42,rw-28,32,"#fff",C.line,7,1)+T(rx+rw/2,99+i*42,t,11.5,C.ink,"middle",600));
+  } else {
+    const rx = cut+4, rw = 394-cut;
+    const rc = rightKind==="B"?"#ffffff":rightKind==="A"?"#10201e":"#fffbeb";
+    const rcol = rightKind==="B"?C.blue:rightKind==="A"?"#5eead4":C.amber;
+    const rt = rightKind==="B"?"B · 浏览器":rightKind==="A"?"A · 影片":"C · 相册";
+    out += R(rx,34,rw,200,rc,C.line,8,1)+T(rx+rw/2,150,rt,15,rcol,"middle",700);
+    if(opts.rightKeep){
+      out += T(rx+rw/2,176,"✓ 全程继续运行未中断",11,C.brandDark,"middle",600);
+    }
+  }
+  out += L(cut,30,cut,236,"#94a3b8",2);
+  if(opts.previewCut) out += L(opts.previewCut,30,opts.previewCut,236,C.blue,2.2,"5 3");
+  if(opts.handle || opts.menu) out += R(cut-5,58,10,44,"#ffffff",C.brand,5,1.8);
+  if(opts.menu){
+    out += R(cut-78,63,68,26,"#1e293b","#fff",6,1.2)+T(cut-44,80,"─  □  ✕",11.5,"#fff","middle",700);
+    out += R(cut+10,63,68,26,"#1e293b","#fff",6,1.2)+T(cut+44,80,"─  □  ✕",11.5,"#fff","middle",700);
+  }
+  return out;
+}
+
+function phoneScene(state="list"){
+  let s = R(142,14,136,232,"#1e293b","#0f172a",20,2);
+  if(state==="black"){
+    return s + R(149,22,122,216,"#0b0f0e","#334155",14,1) +
+      T(210,122,"手机已自动黑屏",13,"#94a3b8","middle",700)+
+      T(210,144,"省电中 · 鼠标仍控制大屏",10.5,"#64748b","middle",500);
+  }
+  s += R(149,22,122,216,"#ffffff","#334155",14,1);
+  s += T(159,40,"BoxScreen",12,C.ink,"start",800);
+  s += T(159,54,state==="empty"?"未连显示器":"● 已连接外接屏",9.5,state==="empty"?C.muted:C.brand,"start",600);
+  const mOn = !["off","empty","nomouse"].includes(state);
+  s += R(158,61,50,18,mOn?C.brandBg:"#f1f5f9",mOn?C.brand:C.line,5,1)+T(183,73,mOn?"鼠标已开":"开启鼠标",9,mOn?C.brandDark:C.ink,"middle",700);
+  s += R(212,61,50,18,"#f1f5f9",C.line,5,1)+T(237,73,"横竖屏",9,C.ink,"middle",600);
+  s += R(158,83,32,16,"#f1f5f9",C.line,4,1)+T(174,94,"DPI",8.5,C.ink,"middle",600);
+  s += R(194,83,34,16,"#fff1f2","#fecdd3",4,1)+T(211,94,"停输出",8.5,C.rose,"middle",600);
+  s += R(232,83,30,16,"#f1f5f9",C.line,4,1)+T(247,94,"黑屏",8.5,C.ink,"middle",600);
+  s += T(158,113,"应用列表",9.5,C.ink,"start",700);
+  s += T(262,113,state==="fav"?"★ 已收藏":"系统 / 收藏",8.5,C.blue,"end",600);
+  s += R(158,118,104,17,"#f8fafc",C.line,5,1)+T(164,130,state==="filtered"?"浏览器":"搜索应用名...",9,state==="filtered"?C.ink:C.muted,"start",500);
+  const list = state==="filtered" ? ["B 浏览器"] : state==="fav" ? ["★ 浏览器 B","影片 A","相册 C","系统设置"] : ["影片 A","浏览器 B","相册 C","游戏 G"];
+  list.forEach((n,i)=>{
+    const gx = 158 + (i%2)*54, gy = 141 + Math.floor(i/2)*34;
+    s += R(gx,gy,50,28,"#f0fdfa","#99d5c4",6,1)+T(gx+25,gy+18,n,9,C.ink,"middle",700);
+  });
+  if(state==="perm"){
+    s += R(149,22,122,216,"rgba(15,23,42,.58)","none",14);
+    s += R(154,78,112,78,"#ffffff",C.brand,10,1.8)+
+      T(210,102,"允许使用 Shizuku？",10.5,C.ink,"middle",700)+
+      T(210,118,"首次开虚拟屏需要授权",9,C.muted,"middle",500)+
+      R(163,128,42,19,"#f1f5f9",C.line,5,1)+T(184,141,"拒绝",9.5,C.muted,"middle",600)+
+      R(213,128,44,19,C.brand,"none",5)+T(235,141,"允许",9.5,"#fff","middle",700);
+  }
+  return s;
+}
+
+function dualScene(phoneState, monContent){
+  let s = R(14,30,108,200,"#1e293b","#0f172a",16,1.6);
+  if(phoneState==="black"){
+    s += R(19,36,98,188,"#0b0f0e","#334155",12,1)+T(68,125,"手机黑屏",11.5,"#94a3b8","middle",700)+T(68,144,"轻触唤醒",10,"#64748b","middle",500);
+  } else {
+    s += R(19,36,98,188,"#fff","#334155",12,1)+T(68,54,"BoxScreen",11,C.ink,"middle",800);
+    s += R(26,64,84,22,phoneState==="dpiSync"?C.brandBg:"#f1f5f9",C.line,5,1)+T(68,78,phoneState==="dpiSync"?"主屏跟着缩放":"手机保持正常",9.5,phoneState==="dpiSync"?C.brandDark:C.ink,"middle",600);
+    s += R(26,96,40,30,"#f0fdfa","#99d5c4",6,1)+T(46,115,"影片 A",9,C.brandDark,"middle",700);
+    s += R(70,96,40,30,"#eff6ff","#bfdbfe",6,1)+T(90,115,"浏览器 B",9,C.blue,"middle",700);
+    s += R(26,134,84,30,"#fffbeb","#fde68a",6,1)+T(68,153,"点相册 C 启动",9.5,C.amber,"middle",700);
+  }
+  s += L(124,130,142,130,C.brand,2.2);
+  s += R(144,44,262,158,"#181d20","#1e293b",10,1.8);
+  s += monContent;
+  return s;
+}
+
+function gArrow(x1,y1,x2,y2,col=C.brand,label1="",label2="",opts={}){
+  let s = `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${col}" stroke-width="2.6" stroke-dasharray="5 3" stroke-linecap="round"/>`;
+  const ang = Math.atan2(y2-y1,x2-x1);
+  const hx1 = x2 - 9*Math.cos(ang-0.55), hy1 = y2 - 9*Math.sin(ang-0.55);
+  const hx2 = x2 - 9*Math.cos(ang+0.55), hy2 = y2 - 9*Math.sin(ang+0.55);
+  s += P(`M${hx1} ${hy1} L${x2} ${y2} L${hx2} ${hy2}`,"none",col,2.4);
+  s += `<circle cx="${x1}" cy="${y1}" r="5.5" fill="${col}" stroke="#fff" stroke-width="1.6"/>`;
+  s += `<circle class="anim-dot" data-x1="${x1}" data-y1="${y1}" data-x2="${x2}" data-y2="${y2}" cx="${x1}" cy="${y1}" r="6" fill="${col}" fill-opacity=".85" stroke="#fff" stroke-width="1.5"/>`;
+  if(label1){
+    const w = Math.max(54, label1.length*11+14);
+    const lx = opts.l1x ?? Math.max(8, Math.min(412-w, x1 - w/2));
+    const ly = opts.l1y ?? (y1>130 ? Math.min(238,y1+12) : Math.max(2, y1-26));
+    s += R(lx,ly,w,20,"#fff",col,6,1.2) + T(lx+w/2,ly+14,label1,10.5,col,"middle",700);
+  }
+  if(label2){
+    const w = Math.max(58, label2.length*11+14);
+    const lx = opts.l2x ?? Math.max(8, Math.min(412-w, x2 - w/2));
+    const ly = opts.l2y ?? (y2<120 ? Math.max(2, y2-25) : Math.min(238, y2+10));
+    s += R(lx,ly,w,20,col,"#fff",6,1.2) + T(lx+w/2,ly+14,label2,10.5,"#fff","middle",700);
+  }
+  return s;
+}
+function gTap(x,y,col=C.blue,label="点击",pos="top",customBox=null){
+  const w = Math.max(56, label.length*11+16);
+  const lx = customBox?.x ?? Math.max(8, Math.min(412-w, x-w/2));
+  const ly = customBox?.y ?? (pos==="bottom" ? Math.min(238,y+14) : Math.max(2,y-34));
+  return `<circle cx="${x}" cy="${y}" r="13" fill="${col}" fill-opacity=".16" stroke="${col}" stroke-width="2" class="anim-pulse"/>`+
+         `<circle cx="${x}" cy="${y}" r="4.5" fill="${col}" stroke="#fff" stroke-width="1.2"/>`+
+         R(lx,ly,w,20,col,"#fff",6,1.2)+T(lx+w/2,ly+14,label,10.5,"#fff","middle",700);
+}
+
+const steps = [
+  {
+    n:"01", group:"1. 起步连接与手机控制", groupId:"g1",
+    badge:"手指轻点 · 首次授权", badgeType:"green",
+    title:"连好设备，手机点选应用并授权 Shizuku",
+    doText:"① 连上外接显示器（与鼠标）并启动 Shizuku；② 在手机 BoxScreen 点一下想打开的应用（如「影片 A」），首次弹窗点「允许」。",
+    keys:"连接 首次 启动 授权 shizuku 创建 虚拟屏",
+    beforeLabel:"手机端 · 点应用并允许授权",
+    beforeSvg:()=>phoneScene("perm")+gTap(235,137,C.brand,"允许授权","bottom",{x:184,y:168}),
+    afterLabel:"外接屏 · 独立运行，非手机镜像",
+    afterSvg:()=>dualScene("normal",R(152,52,246,142,"#10201e","#0d7a64",8,1.2)+T(275,116,"A · 影片大屏启动成功",13.5,"#5eead4","middle",700)+T(275,142,"手机仍保留应用列表控制页",11,"#99b2ac","middle",500)),
+    resText:"外接显示器自动创建专属虚拟屏并打开影片；之后再点别的应用会直接复用该虚拟屏。",
+    tip:"提示：无需重启或重新插拔，换应用点手机列表即可无缝切换。"
+  },
+  {
+    n:"02", group:"1. 起步连接与手机控制", groupId:"g1",
+    badge:"自动黑屏 · 触摸唤醒", badgeType:"amber",
+    title:"连鼠标自动转发与手机黑屏，轻触手机随时亮屏",
+    doText:"连着鼠标时点开应用，鼠标立刻控制大屏、手机黑屏省电；想用手机时轻触黑屏任意处即可亮屏（无鼠标时手机默认一直亮屏）。",
+    keys:"黑屏 自动 鼠标 转发 省电 唤醒 亮屏",
+    beforeLabel:"鼠标已连 → 手机自动黑屏省电",
+    beforeSvg:()=>phoneScene("black")+gTap(210,174,C.amber,"轻触手机屏幕唤醒","bottom",{x:146,y:198}),
+    afterLabel:"轻触后恢复手机亮屏与操作",
+    afterSvg:()=>phoneScene("list")+R(138,200,144,24,C.brandBg,C.brand,6,1)+T(210,216,"大屏鼠标依然照常工作",10,C.brandDark,"middle",700),
+    resText:"手机恢复正常亮度，可继续在手机上搜应用、换功能；也可随时点手机右上角「黑屏」再次手动息屏。",
+    tip:"提示：停用输出或退出 BoxScreen 时，手机会自动恢复原亮度。"
+  },
+  {
+    n:"03", group:"1. 起步连接与手机控制", groupId:"g1",
+    badge:"手机管理 · 搜索/收藏/停输出", badgeType:"green",
+    title:"手机列表常用功能：搜应用、设收藏、手动开关鼠标",
+    doText:"可在手机界面搜索筛选应用、打开「收藏」让常用软件置顶，或用「鼠标已开」开关暂时收回电脑/本机鼠标，「停输出」可关闭虚拟屏。",
+    keys:"搜索 收藏 系统应用 鼠标开关 停止输出",
+    beforeLabel:"手机控制面板一目了然",
+    beforeSvg:()=>phoneScene("list")+gTap(183,70,C.brand,"关/开鼠标","top",{x:148,y:2})+gTap(210,126,C.blue,"搜应用","bottom",{x:176,y:196}),
+    afterLabel:"收藏置顶 / 筛选定位想开的应用",
+    afterSvg:()=>phoneScene("fav"),
+    resText:"收藏的应用不仅手机排前面，在外接屏下拉快捷面板里也会优先摆在最前排。",
+    tip:"提示：点击「停止输出」会安全释放虚拟屏；需要时再点任意应用即重建。"
+  },
+  {
+    n:"04", group:"2. 鼠标、输入模式与手柄", groupId:"g2",
+    badge:"触摸模式（默认）", badgeType:"green",
+    title:"外接屏默认「触摸模式」：左键滑动、右键返回、中键菜单",
+    doText:"鼠标就是隔空手指：左键按住拖=手指划屏滚动，滚轮上下翻页；点一下鼠标「右键松开」等价安卓返回键，中键松开触发菜单键。",
+    keys:"触摸 左键 右键 返回 中键 菜单 滚轮 拖动 滑动",
+    beforeLabel:"鼠标左键拖动 / 右键松开返回",
+    beforeSvg:()=>monitorFrame(appScene("B")+gArrow(294,196,294,116,C.brand,"左键按住","上滑翻页",{l1x:236,l1y:204,l2x:252,l2y:84})+gTap(106,192,C.rose,"右键松开=返回","bottom",{x:52,y:210})),
+    afterLabel:"页面顺滑滚动，或返回上一页",
+    afterSvg:()=>monitorFrame(appScene("B",{scrolled:true})),
+    resText:"普通手机 App 无需任何适配就能用大屏轻松翻页、后退，比来回找界面返回按钮顺手得多。",
+    tip:"提示：为防系统切换动画卡顿，右键连按触发返回每 250ms 最多生效一次。"
+  },
+  {
+    n:"05", group:"2. 鼠标、输入模式与手柄", groupId:"g2",
+    badge:"按应用切换鼠标模式", badgeType:"green",
+    title:"需要真右键时，在面板给当前应用切到「鼠标模式」",
+    doText:"推到顶边并展开面板 → 点击右上角「手指图标」切为亮蓝色「鼠标图标」，之后当前应用就会直接收到真实鼠标左/右/中键。",
+    keys:"鼠标模式 切换 输入模式 右键菜单 远程",
+    beforeLabel:"面板右上角点击「手指/鼠标」切换按钮",
+    beforeSvg:()=>monitorFrame(appScene("B"),{panel:true,mouseMode:false,hideSplitBtn:true})+gTap(302,46,C.blue,"点切鼠标模式","top",{x:252,y:6}),
+    afterLabel:"当前浏览器变为鼠标模式（右键直出菜单）",
+    afterSvg:()=>monitorFrame(appScene("B",{contextMenu:true}))+gTap(226,154,C.blue,"右键出菜单","bottom",{x:116,y:178}),
+    resText:"输入模式按应用独立记住：浏览器开启鼠标模式后，再切回看影片时，影片依然自动用触摸模式！",
+    tip:"提示：使用 UU 远程等自带鼠标捕获的应用时，建议关闭其内置“沉浸式鼠标”。"
+  },
+  {
+    n:"06", group:"2. 鼠标、输入模式与手柄", groupId:"g2",
+    badge:"外接手柄即插即用", badgeType:"green",
+    title:"连接蓝牙或 USB 游戏手柄，直接操控大屏焦点应用",
+    doText:"手机连上手柄（且 Shizuku 在线）后，无需额外绑定按键，推摇杆和按手柄按钮会直接送到大屏上当前有焦点的游戏。",
+    keys:"手柄 游戏 摇杆 按键 焦点",
+    beforeLabel:"手机连好手柄，大屏焦点在游戏",
+    beforeSvg:()=>monitorFrame(appScene("G",{moved:false}))+R(140,192,140,36,"#4c1d95","#a78bfa",10,1.3)+T(210,214,"🎮 推右摇杆 / 按 A 键",11,"#f5f3ff","middle",700),
+    afterLabel:"大屏游戏角色实时响应操作",
+    afterSvg:()=>monitorFrame(appScene("G",{moved:true})),
+    resText:"BoxScreen 会自动解除手柄与手机主屏的绑定并投递给外接屏。",
+    tip:"提示：极少数移植游戏窗口不可获焦导致收不到手柄时，可切回“触摸模式”玩。"
+  },
+  {
+    n:"07", group:"3. 顶边快捷条与下拉面板", groupId:"g3",
+    badge:"顶边悬停 ~0.1 秒", badgeType:"green",
+    title:"推到顶边唤出快捷条：调音量、切任务或点「×」关闭前台",
+    doText:"把鼠标指针推到画面最上沿停留约 0.1 秒，快捷条自动出现；可拖动滑块调音量、点击右排任务图标切换应用，或点最右 × 关闭当前前台。",
+    keys:"快捷条 状态栏 顶边 悬停 音量 切换 最近任务 关闭 ×",
+    beforeLabel:"① 指针推到最顶边 ~0.1 秒唤出快捷条",
+    beforeSvg:()=>monitorFrame(appScene("A"),{bar:true})+gArrow(196,120,196,30,C.brand,"指针上移","顶边停 0.1s",{l1x:154,l1y:134,l2x:150,l2y:6})+gTap(114,46,C.blue,"拖音量","bottom",{x:82,y:72})+gTap(384,46,C.rose,"点×关应用","bottom",{x:332,y:72}),
+    afterLabel:"点「B」切换到浏览器，或移回内容区 0.1 秒自动收起",
+    afterSvg:()=>monitorFrame(appScene("B")),
+    resText:"指针离开快捷条回到应用画面后约 0.1 秒自动隐身，日常看剧/玩游戏绝不挡视线。",
+    tip:"提示：拖动任意任务图标期间，快捷条会自动锁定不会消失。"
+  },
+  {
+    n:"08", group:"3. 顶边快捷条与下拉面板", groupId:"g3",
+    badge:"点空白或下拉 >56dp", badgeType:"green",
+    title:"展开下拉「快捷面板」：快速切换最近/收藏应用",
+    doText:"快捷条出现后，点击空白处（或按住空白处向下拖出一点）即可展开整张快捷面板；里面按收藏优先展示最多 12 张文字应用卡片，点击即切。",
+    keys:"快捷面板 下拉 展开 文字卡片 应用",
+    beforeLabel:"快捷条空白处：点击或向下拖展开面板",
+    beforeSvg:()=>monitorFrame(appScene("A"),{bar:true})+gArrow(205,46,205,112,C.brand,"空白处按住","向下拖 >56dp",{l1x:164,l1y:6,l2x:152,l2y:124}),
+    afterLabel:"面板展开，点击「浏览器 B」卡片即刻切换",
+    afterSvg:()=>monitorFrame(appScene("A"),{panel:true})+gTap(163,101,C.blue,"点「浏览器 B」卡片切换","bottom",{x:110,y:172}),
+    resText:"面板自带“返回快捷开关+12 应用矩阵”，比回手机找应用快很多；把鼠标移到面板外下方就会收起。",
+    tip:"提示：面板也能直接把任意文字卡片左右拖进分屏，见第 11 步。"
+  },
+  {
+    n:"09", group:"3. 顶边快捷条与下拉面板", groupId:"g3",
+    badge:"DPI 调节 · 主屏同步", badgeType:"amber",
+    title:"调节虚拟屏 DPI 与「主屏 DPI 同步」（修复排版错乱）",
+    doText:"拖动「DPI」滑块（140–600，10 DPI 一格）时数字会先变、松手才重绘大屏；遇到个别文字/比例怪的应用，可单为它开启「主屏 DPI 同步」。",
+    keys:"DPI 缩放 显示大小 主屏同步 排版 清晰度",
+    beforeLabel:"面板：拖动 DPI 滑块（松手生效）或拨同步开关",
+    beforeSvg:()=>monitorFrame(appScene("A"),{panel:true,dpiVal:"250",sync:false})+gArrow(132,46,192,46,C.amber,"按住拖","松手应用 360",{l1x:86,l1y:6,l2x:160,l2y:6})+gTap(170,71,C.brand,"开主屏同步","bottom",{x:126,y:172}),
+    afterLabel:"开启主屏同步时，手机会临时跟着一起缩放到相同 DPI",
+    afterSvg:()=>dualScene("dpiSync",R(152,52,246,142,"#10201e","#0d7a64",8,1.2)+T(275,112,"大屏应用比例恢复正常",13.5,"#5eead4","middle",700)+T(275,138,"离开该应用或停输出时手机自动复原",10.5,"#cbd5e1","middle",500)),
+    resText:"横屏和竖屏各自的 DPI 会分开保存；主屏 DPI 同步也是按应用记住。",
+    tip:"提示：切换到一个没开同步的应用时，BoxScreen 会自动还原手机原来的显示大小。"
+  },
+  {
+    n:"10", group:"3. 顶边快捷条与下拉面板", groupId:"g3",
+    badge:"横竖屏 · 纯净截图", badgeType:"green",
+    title:"一键切竖屏显示 + 虚拟屏纯净截屏与预览",
+    doText:"点面板右上「旋转图标」把大屏内容顺时针转 90°（适合把便携屏竖着摆看竖版视频/文档）；点最右「相机图标」直接保存无浮层纯净截图。",
+    keys:"竖屏 横屏 旋转 方向 截图 相册 图库 删除 预览",
+    beforeLabel:"① 面板点旋转图标，或点最右截图图标",
+    beforeSvg:()=>monitorFrame(appScene("A"),{panel:true})+gTap(336,46,C.brand,"切竖屏","top",{x:288,y:6})+gTap(370,46,C.amber,"截图","bottom",{x:334,y:170}),
+    afterLabel:"竖屏自动转 90° / 截图弹出管理预览",
+    afterSvg:()=>monitorFrame(appScene("preview"))+R(30,36,122,48,"#0f172a","#5eead4",8,1)+T(91,56,"↕ 竖屏视角提示",10,"#5eead4","middle",700)+T(91,72,"指针同向顺转 90°",9.5,"#cbd5e1","middle",500),
+    resText:"截图保存在 Pictures/Screenshots，自动剔除 BoxScreen 面板；点右下缩略图可打开预览，支持「删除」「× 关闭」或「图库打开」。",
+    tip:"提示：外接显示器本身视频信号仍是横向；把显示器竖着立起看竖屏最自然。"
+  },
+  {
+    n:"11", group:"4. 分屏建立与分栏管理", groupId:"g4",
+    badge:"3 种方法进分屏", badgeType:"green",
+    title:"怎么开启双应用分屏？点按钮或左右横拖入栏",
+    doText:"方法① 面板右上点绿色「分屏」，原应用留左边，右边挑第二个；方法② 状态栏图标 / 面板卡片保持原高度，向左或向右拖出框外松手即直接分进左/右栏！",
+    keys:"分屏 进入 左右 双开 拖动 卡片 图标 选择器",
+    beforeLabel:"把状态栏「B」保持原高度往左（或右）拖出框",
+    beforeSvg:()=>monitorFrame(appScene("A"),{bar:true})+L(335,33,335,59,"#5eead4",1.2,"3 2")+L(361,33,361,59,"#5eead4",1.2,"3 2")+gArrow(348,46,262,46,C.brand,"按住 B","← 左拖进左栏",{l1x:316,l1y:6,l2x:184,l2y:6})+R(28,170,174,52,"#1e293b","#5eead4",9,1.2)+T(115,192,"保持 Y 在上下边线之间，",10.5,"#fff","middle",700)+T(115,210,"往右拖出即放进右侧分栏 →",10.5,"#5eead4","middle",700),
+    afterLabel:"两栏无缝并排运行（点面板「分屏」则右边出现选择器）",
+    afterSvg:()=>monitorFrame(splitScene("A","PICK")+R(228,194,158,32,"#f0fdfa",C.brand,7,1)+T(307,214,"右栏点「B 浏览器」即完成",10.5,C.brandDark,"middle",700)),
+    resText:"左栏与右栏紧贴无黑缝；进入半屏选区时底层全屏应用会被自动遮蔽，不会透底干扰视线。",
+    tip:"提示：从全屏把“当前正开着的软件自己”向右拖，则会让另一栏进入应用选择状态。"
+  },
+  {
+    n:"12", group:"4. 分屏建立与分栏管理", groupId:"g4",
+    badge:"替换栏 / 拖回全屏", badgeType:"green",
+    title:"分屏状态下继续拖拽：替换某一栏，或把右侧拖向左栏铺满",
+    doText:"已经分屏 [A+B] 时：从面板/快捷条拖第三个应用 C 到右栏 → 替换掉 B（B 仍后台保活）；如果把右栏的 B 拖向左栏 → 系统直接最大化 B！",
+    keys:"替换 覆盖 最大化 拖入另一栏 保留",
+    beforeLabel:"已有 [A+B]，把面板「相册 C」向右拖替换右栏 B",
+    beforeSvg:()=>monitorFrame(splitScene("A","B"),{panel:true,hideSplitBtn:true})+gArrow(290,101,356,101,C.amber,"按住相册 C","→ 拖向右栏替换 B",{l1x:196,l1y:6,l2x:284,l2y:6})+R(32,174,356,50,"#0f172a","#60a5fa",9,1.2)+T(210,195,"同理：把对面那栏已有的「浏览器 B」拖向左栏，",10.5,"#e2e8f0","middle",600)+T(210,213,"BoxScreen 会直接把 B 最大化切为单屏全屏！",10.5,"#93c5fd","middle",700),
+    afterLabel:"C 顺利接管右栏（原浏览器 B 仍保留在后台）",
+    afterSvg:()=>monitorFrame(splitScene("A","C")),
+    resText:"替换栏操作不会强杀原来的 B；再点状态栏或面板中的 B 可以快速带回旧状态。",
+    tip:"提示：拖目标应用到它自己当前所在那一栏不会有变化。"
+  },
+  {
+    n:"13", group:"4. 分屏建立与分栏管理", groupId:"g4",
+    badge:"中线滑块 · 调宽与互换", badgeType:"green",
+    title:"分界「隐藏滑块」：拖动改左右比例，轻点一下互换位置",
+    doText:"鼠标移近中线偏上方（约 18% 高度处）滑块就会出现：① 按住左右拖，松手后按白线比例重排；② 原地轻点（移动不超过 4 像素）立刻左右互换。",
+    keys:"滑块 分界线 比例 宽度 互换 交换",
+    beforeLabel:"靠近分界唤醒滑块，按住右拖或原地轻点",
+    beforeSvg:()=>monitorFrame(splitScene("A","B",{handle:true,previewCut:266})+gArrow(210,80,266,80,C.blue,"按住拖","白线预览",{l1x:152,l1y:6,l2x:246,l2y:6})),
+    afterLabel:"按白线比例重排（轻点则 A / B 左右互换）",
+    afterSvg:()=>monitorFrame(splitScene("B","A",{wide:true,handle:true})),
+    resText:"最窄单栏受 20:9 保护，拖不过头不会挤崩溃；交换后连同菜单方向也会按新的视觉左右自动对应。",
+    tip:"提示：鼠标移开分界线，滑块立刻隐身还给你完整画面。"
+  },
+  {
+    n:"14", group:"4. 分屏建立与分栏管理", groupId:"g4",
+    badge:"长按滑块菜单 + 竖屏视角", badgeType:"amber",
+    title:"长按滑块弹出 ─ □ ✕ 菜单；以及旋转竖屏后的上下分栏",
+    doText:"在滑块上按住约 0.5 秒→先松开手指/左键，两侧出现对应本栏的按钮：─ 最小化（保活回选择器）、□ 最大化（保活）、✕ 强制关掉该栏。",
+    keys:"菜单 最小化 最大化 关闭 ─ □ ✕ 长按 竖屏 上下分屏",
+    beforeLabel:"长按滑块半秒弹出菜单（─ 和 □ 不杀进程）",
+    beforeSvg:()=>monitorFrame(splitScene("A","B",{menu:true})+gTap(166,76,C.amber,"左侧 ─ 最小化","top",{x:82,y:4})+gTap(274,76,C.rose,"右侧 ✕ 关闭 B","top",{x:236,y:4})),
+    afterLabel:"左侧选 ─ 回选择器 / 竖屏状态下左=上、右=下",
+    afterSvg:()=>monitorFrame(splitScene("PICK","B")+R(198,176,196,54,"#0f172a","#5eead4",9,1.2)+T(296,198,"📱 若切换到竖屏效果：",10.5,"#5eead4","middle",700)+T(296,217,"左栏=上栏、右栏=下栏，沿上下拖动滑块",10,"#cbd5e1","middle",500)),
+    resText:"最小化或最大化后，从空栏选择器重新点选原应用，它会带着当时网页/进度原地回到分栏；只有 ✕ 会真结束应用。",
+    tip:"提示：旋转成竖屏时如把显示器横着放，请从显示器右侧往左看，上就是 A、下就是 B。"
+  },
+  {
+    n:"15", group:"5. 后台分屏组合与高频手势", groupId:"g5",
+    badge:"v1.0.19 · 后台组合保活", badgeType:"green",
+    title:"分屏时打开第三个应用 C：原分屏组合自动在后台完整保留",
+    doText:"在 [A+B] 前台分屏时，直接从面板或手机端点击第三个应用 C → C 正常全屏打开，[A+B] 会整组退居后台（状态栏同时保留组合图标 + A、B 单图标）。",
+    keys:"后台 保留 组合 第三个 三个应用 状态栏 单图标 交叠",
+    beforeLabel:"[A+B] 正在前台，从面板点击「相册 C」",
+    beforeSvg:()=>monitorFrame(splitScene("A","B"),{panel:true,hideSplitBtn:true})+gTap(284,101,C.amber,"点击打开相册 C","bottom",{x:210,y:172}),
+    afterLabel:"C 全屏运行；状态栏同时保留 [A+B] 与 A、B",
+    afterSvg:()=>monitorFrame(appScene("C"),{pairBar:true})+R(218,70,174,24,"#0f172a","#5eead4",7,1.2)+T(305,86,"后台组合 + A、B 单图标并存",10.5,"#5eead4","middle",700),
+    resText:"以前开第三个软件会拆散分屏；现在 [A+B] 整组记在任务栈中，随时可以一键拉回。（当前最多保留一组后台组合）",
+    tip:"提示：把相册 C 等直接从快捷条向左/右拖入，则是“替换”某一栏，不会保留原双栏。"
+  },
+  {
+    n:"16", group:"5. 后台分屏组合与高频手势", groupId:"g5",
+    badge:"一键拉回 / 关 C 自动切回", badgeType:"green",
+    title:"恢复后台组合：点击 [A+B] 交叠图标，或关掉上层 C 自动切回",
+    doText:"想回到之前的双栏，直接点状态栏的「交叠 [A+B] 图标」；如果把当前压在上面的 C 关掉（点右上角 × 或往下拖 C 图标），系统会自动切回下方的 [A+B]！",
+    keys:"恢复 切回 交叠 组合图标 返回 自动 × 关闭",
+    beforeLabel:"两种方式回去：点交叠图标 / 点右上角 × 关掉 C",
+    beforeSvg:()=>monitorFrame(appScene("C"),{pairBar:true})+gTap(291,46,C.brand,"点组合图标","bottom",{x:236,y:72})+gTap(384,46,C.rose,"点×关掉 C","top",{x:334,y:4}),
+    afterLabel:"[A+B] 完整回到前台（期间切横竖屏也自动重排）",
+    afterSvg:()=>monitorFrame(splitScene("A","B"),{pairBar:true}),
+    resText:"虚拟屏内部维护精确的前后栈顺序，即使在 [A+B] 上方连续打开 C、D 多层全屏应用，逐个关闭后仍能依次正确回到 [A+B]。",
+    tip:"提示：只要处于同一显示会话中，哪怕后台期间把大屏转成竖屏，切回组合也会自动按新方向重排。"
+  },
+  {
+    n:"17", group:"5. 后台分屏组合与高频手势", groupId:"g5",
+    badge:"组合上拖/下拖 · 单图标拆散", badgeType:"amber",
+    title:"解除或关闭组合：组合上拖无损拆散、下拖全关，或点单图标全屏",
+    doText:"① 按住 [A+B] 在左右边界内「正向上拖出」= 无损拆散不杀进程；②「正向下拖出」= 同时强停 A 和 B；③ 点击旁边的「A 单图标」= 拆散组合且让 A 完整全屏！",
+    keys:"拆散 上拖 下拖 无损 同时关闭 组合 单击 全屏",
+    beforeLabel:"[A+B] 正上拖拆散 / 正下拖全关 / 点 A 单图标铺满",
+    beforeSvg:()=>monitorFrame(splitScene("A","B"),{pairBar:true})+L(274,8,274,118,"#94a3b8",1.2,"4 3")+L(308,8,308,118,"#94a3b8",1.2,"4 3")+gArrow(291,38,291,10,C.brand,"","↑上拖=无损拆散",{l2x:156,l2y:4})+gArrow(291,54,291,92,C.rose,"","↓下拖=关掉双App",{l2x:224,l2y:98})+gTap(322,46,C.blue,"点A=铺满","bottom",{x:336,y:68}),
+    afterLabel:"点 A 或上拖后：不结束应用，A 直接 2560×1440 完整铺满",
+    afterSvg:()=>monitorFrame(appScene("A"),{bar:true})+R(128,200,164,24,"#10201e","#5eead4",7,1.2)+T(210,216,"无残余半屏裁剪 · 全屏清晰",10.5,"#5eead4","middle",700),
+    resText:"v1.0.19 修复了后台组合点单图标切回全屏时可能只显示左半屏的问题，无论点击 A 还是 B 都会立即恢复完整全屏。",
+    tip:"提示：如果是后台 [A+B] 被“上拖拆散”，A 和 B 都会安静退回普通最近任务，当前 C 保持前台。"
+  },
+  {
+    n:"18", group:"5. 后台分屏组合与高频手势", groupId:"g5",
+    badge:"左上角重启 vs 正下方关闭", badgeType:"warn",
+    title:"为什么状态栏依然保留 A、B？向左上拖快速重启单栏应用",
+    doText:"按住状态栏里的「A」或「B」单图标：① 往「左上方斜拖出双边界」= 强制重启该应用在原全屏/原分栏（另一栏 B 纹丝不动）；② 左右边界内「正下拖出」= 强杀关闭。",
+    keys:"重启 左上 斜拖 原位 强杀 关闭 卡死 保留单图标",
+    beforeLabel:"分屏中拖动 A 单图标：斜向左上重启 / 垂直向下关闭",
+    beforeSvg:()=>monitorFrame(splitScene("A","B"),{pairBar:true})+L(310,6,310,124,C.amber,1.2,"4 3")+L(334,6,334,124,C.rose,1.2,"4 3")+gArrow(322,42,262,12,C.amber,"","↖左上重启 A",{l2x:154,l2y:4})+gArrow(322,52,322,96,C.rose,"","↓正下关闭 A",{l2x:274,l2y:102}),
+    afterLabel:"只强杀重启左侧 A，右侧浏览器 B 全程正常运行",
+    afterSvg:()=>monitorFrame(splitScene("A","B",{restartingDone:true,rightKeep:true}),{pairBar:true}),
+    resText:"某半边软件卡死或调整字体不适配时，一秒拖向左上角就能单栏原位复活，不用退出分屏重新配对。",
+    tip:"提示：记住口诀——“斜向左上角”是重启；“竖直正下方”是彻底关闭。"
+  }
+];
+
+const tabsDef = [
+  {id:"all", label:"全部查看"},
+  {id:"cheat", label:"核心速查 (4图)"},
+  {id:"g1", label:"1. 起步连接"},
+  {id:"g2", label:"2. 鼠标手柄"},
+  {id:"g3", label:"3. 快捷条面板"},
+  {id:"g4", label:"4. 分屏管理"},
+  {id:"g5", label:"5. 后台组合/重启"}
+];
+
+let state = { tab:"all", q:"", mode:"grid", step:0, anim:true };
+
+function parseHash(){
+  const raw = location.hash.replace(/^#/,"");
+  if(!raw) return;
+  const p = new URLSearchParams(raw);
+  if(p.has("tab") && tabsDef.some(t=>t.id===p.get("tab"))) state.tab = p.get("tab");
+  if(p.get("mode")==="pager") state.mode = "pager";
+  if(p.has("step")){
+    const idx = parseInt(p.get("step"),10) - 1;
+    if(!Number.isNaN(idx) && idx>=0 && idx<steps.length) state.step = idx;
+  }
+  if(p.get("anim")==="0") state.anim = false;
+}
+function syncHash(){
+  const p = new URLSearchParams();
+  if(state.tab!=="all") p.set("tab", state.tab);
+  if(state.mode==="pager") { p.set("mode","pager"); p.set("step", String(state.step+1)); }
+  if(!state.anim) p.set("anim","0");
+  const str = p.toString();
+  try { history.replaceState(null,"", str ? "#"+str : location.pathname+location.search); } catch {}
+}
+
+function renderTabs(){
+  const el = document.getElementById("tabs");
+  el.innerHTML = tabsDef.map(t => `<button class="tab-btn" role="tab" data-tab="${t.id}" aria-selected="${state.tab===t.id}">${t.label}</button>`).join("");
+  el.querySelectorAll("button").forEach(b => b.onclick = () => {
+    state.tab = b.dataset.tab;
+    if(state.mode==="pager" && state.tab!=="all" && state.tab!=="cheat"){
+      const firstIdx = steps.findIndex(s => s.groupId===state.tab);
+      if(firstIdx>=0) state.step = firstIdx;
+    }
+    renderApp();
+    syncHash();
+  });
+}
+
+function renderCheatSheet(){
+  const grid = document.getElementById("cheatGrid");
+  const q = state.q.trim().toLowerCase();
+  const visible = cheatSheets.filter(c => !q || (c.title + " " + c.desc + " " + c.tag + " " + c.legend.map(l=>l.txt).join(" ")).toLowerCase().includes(q));
+  grid.innerHTML = visible.map(c => `
+    <article class="cheat-card">
+      <h3><span class="cheat-tag">${c.tag}</span>${esc(c.title)}</h3>
+      <p>${esc(c.desc)}</p>
+      <div class="cheat-svg">${c.svg}</div>
+      <div class="legend-list">${c.legend.map(l=>`<div class="legend-item"><span class="sw" style="background:${l.col}"></span><span>${esc(l.txt)}</span></div>`).join("")}</div>
+    </article>
+  `).join("");
+  const sec = document.getElementById("cheatSection");
+  sec.style.display = ((state.tab==="all" || state.tab==="cheat") && visible.length>0 && state.mode!=="pager") ? "" : "none";
+}
+
+function stepCardHtml(s){
+  const cls = s.badgeType || "green";
+  return `<article class="step-card" id="step-${s.n}">
+    <div class="step-top">
+      <div class="step-id-wrap">
+        <span class="step-num">步骤 ${s.n}</span>
+        <span class="step-group">${esc(s.group)}</span>
+      </div>
+      <span class="gesture-badge ${cls}">${esc(s.badge)}</span>
+    </div>
+    <h3 class="step-title">${esc(s.title)}</h3>
+    <p class="step-do">${esc(s.doText)}</p>
+    <div class="pair">
+      <div class="pane">
+        <div class="pane-label"><span>怎么操作（动作轨迹）</span><span class="side-pill">${esc(s.beforeLabel)}</span></div>
+        <svg viewBox="0 0 420 260" role="img" aria-label="${esc(s.beforeLabel)}">${s.beforeSvg()}</svg>
+      </div>
+      <div class="mid-arrow" aria-hidden="true">➜</div>
+      <div class="pane">
+        <div class="pane-label"><span>发生什么（立即结果）</span><span class="side-pill">${esc(s.afterLabel)}</span></div>
+        <svg viewBox="0 0 420 260" role="img" aria-label="${esc(s.afterLabel)}">${s.afterSvg()}</svg>
+      </div>
+    </div>
+    <div class="step-res">
+      <span class="res-main">✅ 结果：${esc(s.resText)}</span>
+      ${s.tip ? `<span class="res-tip">${esc(s.tip)}</span>` : ""}
+    </div>
+  </article>`;
+}
+
+function getFilteredSteps(){
+  const q = state.q.trim().toLowerCase();
+  return steps.filter(s => {
+    const tabOk = state.tab==="all" || state.tab==="cheat" || s.groupId===state.tab;
+    if(!tabOk) return false;
+    if(!q) return true;
+    return (s.n+" "+s.title+" "+s.doText+" "+s.resText+" "+s.badge+" "+s.keys).toLowerCase().includes(q);
+  });
+}
+
+function renderSteps(){
+  const sec = document.getElementById("stepsSection");
+  const listEl = document.getElementById("stepsList");
+  const emptyEl = document.getElementById("emptyState");
+  const pagerBar = document.getElementById("pagerBar");
+  const countPill = document.getElementById("stepsCountPill");
+  const heading = document.getElementById("stepsHeading");
+
+  if(state.tab==="cheat" && !state.q.trim() && state.mode!=="pager"){
+    sec.style.display = "none";
+    return;
+  }
+  sec.style.display = "";
+
+  if(state.mode==="pager"){
+    const item = steps[state.step];
+    countPill.textContent = `逐页 ${state.step+1} / ${steps.length}`;
+    heading.textContent = "逐页演示模式（支持键盘 ← → 或左右滑动）";
+    listEl.innerHTML = stepCardHtml(item);
+    emptyEl.classList.remove("show");
+    pagerBar.classList.add("show");
+    document.getElementById("pagerStatus").textContent = `${state.step+1} / ${steps.length} · 步骤 ${item.n}`;
+    document.getElementById("prevBtn").disabled = state.step <= 0;
+    document.getElementById("nextBtn").disabled = state.step >= steps.length - 1;
+  } else {
+    pagerBar.classList.remove("show");
+    const items = getFilteredSteps();
+    countPill.textContent = `显示 ${items.length} / ${steps.length} 步`;
+    const tabObj = tabsDef.find(t=>t.id===state.tab);
+    heading.textContent = state.q.trim() ? `包含“${state.q.trim()}”的操作` : (state.tab==="all" ? "全部 18 步完整操作图解" : tabObj.label + " · 分步图解");
+    if(items.length===0){
+      listEl.innerHTML = "";
+      emptyEl.classList.add("show");
+    } else {
+      emptyEl.classList.remove("show");
+      listEl.innerHTML = items.map(stepCardHtml).join("");
+    }
+  }
+}
+
+function renderApp(){
+  document.getElementById("heroSection").style.display = state.mode==="pager" ? "none" : "";
+  renderTabs();
+  renderCheatSheet();
+  renderSteps();
+  document.getElementById("modeGrid").setAttribute("aria-pressed", String(state.mode==="grid"));
+  document.getElementById("modePager").setAttribute("aria-pressed", String(state.mode==="pager"));
+  document.getElementById("animToggle").setAttribute("aria-pressed", String(state.anim));
+  document.getElementById("animLabel").textContent = state.anim ? "动态轨迹：开" : "动态轨迹：关";
+  document.getElementById("clearSearch").classList.toggle("show", state.q.length>0);
+  document.querySelectorAll(".anim-dot").forEach(dot => {
+    dot.style.display = state.anim ? "" : "none";
+  });
+}
+
+let rafId = null;
+function tick(ts){
+  if(state.anim){
+    const cycle = (ts % 2200) / 2200;
+    const ease = cycle < 0.72 ? (cycle / 0.72) : 1;
+    const t = ease < 0.5 ? 2*ease*ease : 1 - Math.pow(-2*ease+2, 2)/2;
+    document.querySelectorAll(".anim-dot").forEach(dot => {
+      const x1 = +dot.dataset.x1, y1 = +dot.dataset.y1;
+      const x2 = +dot.dataset.x2, y2 = +dot.dataset.y2;
+      dot.setAttribute("cx", (x1 + (x2-x1)*t).toFixed(1));
+      dot.setAttribute("cy", (y1 + (y2-y1)*t).toFixed(1));
+      dot.setAttribute("fill-opacity", cycle > 0.86 ? ((1-cycle)/0.14 * 0.85).toFixed(2) : "0.85");
+    });
+    const pulseR = 10 + ((ts % 1400)/1400) * 8;
+    const pulseOp = 0.28 * (1 - (ts % 1400)/1400);
+    document.querySelectorAll(".anim-pulse").forEach(c => {
+      c.setAttribute("r", pulseR.toFixed(1));
+      c.setAttribute("fill-opacity", pulseOp.toFixed(2));
+    });
+  }
+  rafId = requestAnimationFrame(tick);
+}
+
+document.getElementById("searchInput").addEventListener("input", e => {
+  state.q = e.target.value;
+  if(state.q.trim() && state.mode==="pager") state.mode = "grid";
+  renderApp();
+});
+document.getElementById("clearSearch").onclick = () => {
+  state.q = "";
+  document.getElementById("searchInput").value = "";
+  renderApp();
+};
+document.getElementById("modeGrid").onclick = () => { state.mode="grid"; renderApp(); syncHash(); };
+document.getElementById("modePager").onclick = () => { state.mode="pager"; state.q=""; document.getElementById("searchInput").value=""; renderApp(); syncHash(); };
+document.getElementById("animToggle").onclick = () => { state.anim = !state.anim; renderApp(); syncHash(); };
+document.getElementById("prevBtn").onclick = () => { if(state.step>0){ state.step--; renderApp(); syncHash(); window.scrollTo({top:0,behavior:"smooth"}); } };
+document.getElementById("nextBtn").onclick = () => { if(state.step<steps.length-1){ state.step++; renderApp(); syncHash(); window.scrollTo({top:0,behavior:"smooth"}); } };
+
+document.addEventListener("keydown", e => {
+  if(document.activeElement === document.getElementById("searchInput")) return;
+  if(state.mode==="pager" && (e.key==="ArrowLeft" || e.key==="ArrowRight")){
+    const nxt = state.step + (e.key==="ArrowLeft" ? -1 : 1);
+    if(nxt>=0 && nxt<steps.length){ state.step = nxt; renderApp(); syncHash(); }
+    e.preventDefault();
+  }
+});
+
+let swipeStart = null;
+const stepsListEl = document.getElementById("stepsList");
+stepsListEl.addEventListener("touchstart", e => {
+  if(state.mode!=="pager") return;
+  swipeStart = [e.changedTouches[0].clientX, e.changedTouches[0].clientY];
+},{passive:true});
+stepsListEl.addEventListener("touchend", e => {
+  if(!swipeStart || state.mode!=="pager") return;
+  const dx = e.changedTouches[0].clientX - swipeStart[0];
+  const dy = e.changedTouches[0].clientY - swipeStart[1];
+  swipeStart = null;
+  if(Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy)*1.5){
+    const nxt = state.step + (dx<0 ? 1 : -1);
+    if(nxt>=0 && nxt<steps.length){ state.step = nxt; renderApp(); syncHash(); }
+  }
+},{passive:true});
+
+if(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches){
+  state.anim = false;
+}
+parseHash();
+renderHeroDiagram();
+renderApp();
+rafId = requestAnimationFrame(tick);
+</script>
+</body>
+</html>
