@@ -39,4 +39,6 @@ interface IDisplayService {
     String[] closeDisplayedApp(String packageName, String foregroundPackage);
     int getForegroundBoxScreenTaskId();
     void returnBoxScreenTaskToPrimary(int taskId);
+    String[] activateSplitPair();
+    String[] closeSplitPair();
 }

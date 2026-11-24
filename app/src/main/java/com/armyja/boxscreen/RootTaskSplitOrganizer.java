@@ -117,7 +117,7 @@ final class RootTaskSplitOrganizer implements SplitStageOrganizer {
                     || !matchesPendingTask(task, pendingCookie, pendingWindowingMode)) return;
             try {
                 Object token = task.getClass().getField("token").get(task);
-                appearedStage = new SplitSession.Stage(token, leash);
+                appearedStage = new SplitSession.Stage(token, leash, task.taskId);
                 Log.d(TAG, "received created stage task=" + task.taskId + " display=" + displayId);
                 callbackLock.notifyAll();
             } catch (ReflectiveOperationException error) {

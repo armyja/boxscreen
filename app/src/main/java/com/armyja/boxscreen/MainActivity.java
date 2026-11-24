@@ -156,6 +156,7 @@ public final class MainActivity extends Activity {
     private final java.util.HashMap<String, ResolveInfo> launcherByPackage = new java.util.HashMap<>();
     private final java.util.HashMap<String, String> launcherLabelCache = new java.util.HashMap<>();
     private final java.util.HashMap<String, android.graphics.drawable.Drawable> launcherIconCache = new java.util.HashMap<>();
+    private final java.util.HashMap<String, android.graphics.drawable.Drawable> recentIconCache = new java.util.HashMap<>();
     private final java.util.HashMap<String, String> panelDisplayLabelCache = new java.util.HashMap<>();
     private boolean showSystemApps;
     private boolean editFavorites;
@@ -565,7 +566,7 @@ public final class MainActivity extends Activity {
                     new ComponentName(getPackageName(), PrivilegedDisplayService.class.getName()))
                     .daemon(false)
                     .processNameSuffix("display")
-                    .version(36);
+                    .version(37);
             Shizuku.bindUserService(shizukuServiceArgs, shizukuServiceConnection);
             status("正在连接 Shizuku 主机服务…");
         } catch (RuntimeException e) {
@@ -1031,6 +1032,15 @@ public final class MainActivity extends Activity {
                     gallery.activityInfo.name, uri.toString(), "image/png");
             Log.i(TAG, "opened screenshot in gallery " + gallery.activityInfo.packageName
                     + " on virtual display=" + virtualDisplayId + " uri=" + uri);
+            if (splitActive) {
+                splitActive = splitChoosing = false;
+                splitFirstPackage = splitSecondPackage = null;
+                splitCheckHandler.removeCallbacks(splitCheck);
+                refreshVirtualDisplayLayout("launch gallery from split");
+            }
+            currentVirtualPackage = gallery.activityInfo.packageName;
+            applyDensitySync();
+            if (mousePointerView != null) mousePointerView.invalidateRecentTasks();
             dismissScreenshotPreview();
         } catch (RemoteException | RuntimeException e) {
             Log.e(TAG, "failed to open screenshot in gallery", e);
@@ -1571,6 +1581,8 @@ public final class MainActivity extends Activity {
         private boolean screenshotPreviewPointerDown;
         private String cachedStatusBarLabel;
         private long statusBarLabelUpdatedAt;
+        private final Path statusClipPath = new Path();
+        private final RectF statusIconRect = new RectF();
 
         private final Runnable revealStatusBar = () -> {
             if (forwarding && pointerY <= statusBarRevealZone()) {
@@ -1689,6 +1701,7 @@ public final class MainActivity extends Activity {
             handler.removeCallbacks(hidePointer);
             handler.removeCallbacks(revealStatusBar);
             handler.removeCallbacks(hideStatusBar);
+            handler.removeCallbacks(delayedRecentTaskRefresh);
             setPointerIcon(PointerIcon.getSystemIcon(getContext(), enabled
                     ? PointerIcon.TYPE_NULL : PointerIcon.TYPE_ARROW));
             if (presentation != null && presentation.getWindow() != null) {
@@ -2283,10 +2296,20 @@ public final class MainActivity extends Activity {
         private final class RecentVirtualTask {
             final int taskId;
             final String packageName;
+            final String secondPackageName;
 
             RecentVirtualTask(int taskId, String packageName) {
+                this(taskId, packageName, null);
+            }
+
+            RecentVirtualTask(int taskId, String packageName, String secondPackageName) {
                 this.taskId = taskId;
                 this.packageName = packageName;
+                this.secondPackageName = secondPackageName;
+            }
+
+            boolean isSplitPair() {
+                return secondPackageName != null;
             }
         }
 
@@ -2295,17 +2318,19 @@ public final class MainActivity extends Activity {
             final String className;
             final int taskId;
             final boolean fromStatusBar;
+            final boolean splitPair;
             final float left;
             final float top;
             final float right;
             final float bottom;
 
             PanelAppDrag(String packageName, String className, int taskId, boolean fromStatusBar,
-                    float left, float top, float right, float bottom) {
+                    boolean splitPair, float left, float top, float right, float bottom) {
                 this.packageName = packageName;
                 this.className = className;
                 this.taskId = taskId;
                 this.fromStatusBar = fromStatusBar;
+                this.splitPair = splitPair;
                 this.left = left;
                 this.top = top;
                 this.right = right;
@@ -2316,6 +2341,17 @@ public final class MainActivity extends Activity {
         private final ArrayList<RecentVirtualTask> recentVirtualTasks = new ArrayList<>();
         private long lastRecentTaskRefreshAt;
         private boolean recentTaskRefreshInFlight;
+        private final Runnable delayedRecentTaskRefresh = () -> {
+            lastRecentTaskRefreshAt = 0;
+            refreshRecentStatusTasks();
+        };
+
+        void invalidateRecentTasks() {
+            lastRecentTaskRefreshAt = 0;
+            refreshRecentStatusTasks();
+            handler.removeCallbacks(delayedRecentTaskRefresh);
+            handler.postDelayed(delayedRecentTaskRefresh, 350);
+        }
 
         private final class StatusBarLayout {
             final String label;
@@ -2360,7 +2396,7 @@ public final class MainActivity extends Activity {
                 float iconBottom = iconTop + panelDp(28);
                 if (x < iconLeft || x > iconRight || y < iconTop || y > iconBottom) return null;
                 RecentVirtualTask task = layout.apps.get(index);
-                return new PanelAppDrag(task.packageName, null, task.taskId, true,
+                return new PanelAppDrag(task.packageName, null, task.taskId, true, task.isSplitPair(),
                         iconLeft, iconTop, iconRight, iconBottom);
             }
             if (control < PANEL_APP_BASE || control >= PANEL_RECENT_APP_BASE) return null;
@@ -2377,13 +2413,20 @@ public final class MainActivity extends Activity {
             float bottom = top + panelDp(58);
             if (x < left || x > right || y < top || y > bottom) return null;
             ResolveInfo app = apps.get(index);
-            return new PanelAppDrag(app.activityInfo.packageName, app.activityInfo.name, -1, false,
+            return new PanelAppDrag(app.activityInfo.packageName, app.activityInfo.name, -1, false, false,
                     left, top, right, bottom);
         }
 
         private boolean performPanelAppDrop(float x, float y) {
             PanelAppDrag drag = panelAppDrag;
             if (drag == null) return false;
+            if (drag.splitPair) {
+                if (drag.fromStatusBar && x >= drag.left && x <= drag.right && y > drag.bottom) {
+                    closeSplitPairFromStatusBar();
+                    return true;
+                }
+                return false;
+            }
             if (drag.fromStatusBar && x < drag.left && y < drag.top) {
                 restartDisplayedApp(drag.packageName);
                 return true;
@@ -2447,6 +2490,7 @@ public final class MainActivity extends Activity {
                     refreshVirtualDisplayLayout("drop app into split");
                     refreshSplitState();
                     scheduleSplitCheck();
+                    invalidateRecentTasks();
                     invalidate();
                 });
             }, "boxscreen-split-drop").start();
@@ -2507,6 +2551,7 @@ public final class MainActivity extends Activity {
                     refreshVirtualDisplayLayout("restart displayed app");
                     refreshSplitState();
                     scheduleSplitCheck();
+                    invalidateRecentTasks();
                     invalidate();
                 });
             }, "boxscreen-restart-displayed-app").start();
@@ -2559,8 +2604,7 @@ public final class MainActivity extends Activity {
                     applyDensitySync();
                     refreshVirtualDisplayLayout("close displayed app");
                     refreshSplitState();
-                    lastRecentTaskRefreshAt = 0;
-                    refreshRecentStatusTasks();
+                    invalidateRecentTasks();
                     scheduleSplitCheck();
                     invalidate();
                 });
@@ -2606,11 +2650,21 @@ public final class MainActivity extends Activity {
             new Thread(() -> {
                 ArrayList<RecentVirtualTask> tasks = new ArrayList<>();
                 HashSet<String> seenPackages = new HashSet<>();
+                boolean seenSplitPair = false;
                 try {
                     String[] rows = service.getVirtualDisplayRecentTasks();
                     if (rows != null) {
                         for (String row : rows) {
                             if (row == null) continue;
+                            if (row.startsWith("split\t")) {
+                                String[] parts = row.split("\t", -1);
+                                if (!seenSplitPair && parts.length == 3
+                                        && !parts[1].isEmpty() && !parts[2].isEmpty()) {
+                                    seenSplitPair = true;
+                                    tasks.add(new RecentVirtualTask(-1, parts[1], parts[2]));
+                                }
+                                continue;
+                            }
                             int separator = row.indexOf('\t');
                             if (separator <= 0 || separator == row.length() - 1) continue;
                             try {
@@ -2634,7 +2688,9 @@ public final class MainActivity extends Activity {
                         for (int i = 0; i < tasks.size(); i++) {
                             RecentVirtualTask old = recentVirtualTasks.get(i);
                             RecentVirtualTask next = tasks.get(i);
-                            if (old.taskId != next.taskId || !old.packageName.equals(next.packageName)) {
+                            if (old.taskId != next.taskId
+                                    || !old.packageName.equals(next.packageName)
+                                    || !java.util.Objects.equals(old.secondPackageName, next.secondPackageName)) {
                                 changed = true;
                                 break;
                             }
@@ -2665,6 +2721,10 @@ public final class MainActivity extends Activity {
             ArrayList<RecentVirtualTask> apps = recentStatusTasks();
             if (index < 0 || index >= apps.size() || splitOpening) return;
             RecentVirtualTask task = apps.get(index);
+            if (task.isSplitPair()) {
+                activateSplitPairFromStatusBar();
+                return;
+            }
             IDisplayService service = displayService;
             int display = virtualDisplayId;
             if (service == null || display < 0) return;
@@ -2694,13 +2754,111 @@ public final class MainActivity extends Activity {
                     splitActive = splitChoosing = false;
                     currentVirtualPackage = activatedPackage;
                     splitFirstPackage = splitSecondPackage = null;
+                    splitCheckHandler.removeCallbacks(splitCheck);
                     syncPrimaryDensityForPackage(activatedPackage);
                     if (wasSplit) refreshVirtualDisplayLayout("activate recent virtual task");
-                    lastRecentTaskRefreshAt = 0;
-                    refreshRecentStatusTasks();
+                    invalidateRecentTasks();
                     invalidate();
                 });
             }, "boxscreen-activate-recent-task").start();
+        }
+
+        private void activateSplitPairFromStatusBar() {
+            if (splitOpening || displayService == null || virtualDisplayId < 0) return;
+            quickPanelVisible = false;
+            statusBarVisible = false;
+            if (splitActive && !splitChoosing) {
+                invalidate();
+                return;
+            }
+            IDisplayService service = displayService;
+            int display = virtualDisplayId;
+            splitOpening = true;
+            invalidate();
+            new Thread(() -> {
+                String[] pair = null;
+                Exception failure = null;
+                try {
+                    pair = service.activateSplitPair();
+                } catch (Exception e) {
+                    failure = e;
+                }
+                String[] restored = pair;
+                Exception result = failure;
+                runOnUiThread(() -> {
+                    splitOpening = false;
+                    if (display != virtualDisplayId || service != displayService) return;
+                    if (result != null || restored == null || restored.length != 2
+                            || restored[0] == null || restored[1] == null) {
+                        Log.w(TAG, "could not activate split pair", result);
+                        status(result == null ? "分屏组合已失效" : "无法恢复分屏组合：" + result.getMessage());
+                        invalidateRecentTasks();
+                        invalidate();
+                        return;
+                    }
+                    splitActive = true;
+                    splitChoosing = false;
+                    splitFirstPackage = restored[0];
+                    splitSecondPackage = restored[1];
+                    currentVirtualPackage = null;
+                    splitPickerFirst = false;
+                    applyDensitySync();
+                    refreshVirtualDisplayLayout("activate split pair");
+                    scheduleSplitCheck();
+                    invalidateRecentTasks();
+                    invalidate();
+                });
+            }, "boxscreen-activate-split-pair").start();
+        }
+
+        private void closeSplitPairFromStatusBar() {
+            if (splitOpening || displayService == null || virtualDisplayId < 0) return;
+            IDisplayService service = displayService;
+            int display = virtualDisplayId;
+            boolean restorePanel = quickPanelVisible;
+            quickPanelVisible = false;
+            statusBarVisible = false;
+            splitOpening = true;
+            invalidate();
+            new Thread(() -> {
+                String[] outcome = null;
+                Exception failure = null;
+                try {
+                    outcome = service.closeSplitPair();
+                } catch (Exception e) {
+                    failure = e;
+                }
+                String[] resultState = outcome;
+                Exception resultError = failure;
+                runOnUiThread(() -> {
+                    splitOpening = false;
+                    if (display != virtualDisplayId || service != displayService) return;
+                    if (resultError != null || resultState == null || resultState.length == 0) {
+                        quickPanelVisible = restorePanel;
+                        statusBarVisible = true;
+                        Log.e(TAG, "close split pair failed", resultError);
+                        status(resultError == null ? "当前没有可关闭的分屏组合"
+                                : "关闭分屏组合失败：" + resultError.getMessage());
+                        invalidateRecentTasks();
+                        invalidate();
+                        return;
+                    }
+                    if ("foreground".equals(resultState[0])) {
+                        splitActive = splitChoosing = false;
+                        splitFirstPackage = splitSecondPackage = null;
+                        currentVirtualPackage = resultState.length > 1 ? resultState[1] : null;
+                        splitCheckHandler.removeCallbacks(splitCheck);
+                        if (currentVirtualPackage == null) restorePrimaryDensity();
+                        else syncPrimaryDensityForPackage(currentVirtualPackage);
+                        refreshVirtualDisplayLayout("close split pair");
+                        status("已关闭分屏组合");
+                    } else {
+                        status("已关闭后台分屏组合");
+                    }
+                    invalidateRecentTasks();
+                    invalidate();
+                });
+            }, "boxscreen-close-split-pair").start();
         }
 
         private void closeCurrentVirtualApp() {
@@ -2718,9 +2876,12 @@ public final class MainActivity extends Activity {
                         + " package=" + currentVirtualPackage);
                 if (removed) {
                     splitActive = splitChoosing = false;
+                    splitFirstPackage = splitSecondPackage = null;
+                    splitCheckHandler.removeCallbacks(splitCheck);
                     currentVirtualPackage = displayService.getVirtualDisplayForegroundPackage();
                     if (currentVirtualPackage == null) restorePrimaryDensity();
                     else syncPrimaryDensityForPackage(currentVirtualPackage);
+                    invalidateRecentTasks();
                     // Keep the next foreground task as current, so it retains the split action.
                     // If the virtual display is empty, the panel is the next affordance.
                     // The regular dwell logic hides them again once the pointer leaves
@@ -2785,8 +2946,12 @@ public final class MainActivity extends Activity {
         }
 
         private android.graphics.drawable.Drawable recentTaskIcon(String packageName) {
+            android.graphics.drawable.Drawable cached = recentIconCache.get(packageName);
+            if (cached != null) return cached;
             try {
-                return getPackageManager().getApplicationIcon(packageName);
+                android.graphics.drawable.Drawable icon = getPackageManager().getApplicationIcon(packageName);
+                if (icon != null) recentIconCache.put(packageName, icon);
+                return icon;
             } catch (android.content.pm.PackageManager.NameNotFoundException | RuntimeException e) {
                 Log.w(TAG, "could not load recent task icon for " + packageName, e);
                 return null;
@@ -2948,21 +3113,34 @@ public final class MainActivity extends Activity {
                             center, panelDp(8), panelPaint);
                 }
                 for (int i = 0; i < layout.apps.size(); i++) {
+                    RecentVirtualTask task = layout.apps.get(i);
                     float left = layout.appsLeft + i * panelDp(42);
                     float top = (barHeight - panelDp(32)) / 2f;
+                    float pillLeft = left + panelDp(5);
+                    float pillRight = left + panelDp(37);
+                    float pillBottom = top + panelDp(32);
                     panelPaint.setColor(0x665f6875);
-                    canvas.drawRoundRect(left + panelDp(5), top, left + panelDp(37), top + panelDp(32),
+                    canvas.drawRoundRect(pillLeft, top, pillRight, pillBottom,
                             panelDp(7), panelDp(7), panelPaint);
-                    try {
-                        android.graphics.drawable.Drawable icon = recentTaskIcon(layout.apps.get(i).packageName);
-                        if (icon == null) continue;
-                        canvas.save();
-                        canvas.clipRect(left + panelDp(7), top + panelDp(2), left + panelDp(35), top + panelDp(30));
-                        icon.setBounds((int) (left + panelDp(7)), (int) (top + panelDp(2)),
-                                (int) (left + panelDp(35)), (int) (top + panelDp(30)));
-                        icon.draw(canvas);
-                        canvas.restore();
-                    } catch (RuntimeException ignored) { }
+                    float iconLeft = left + panelDp(7);
+                    float iconTop = top + panelDp(2);
+                    float iconRight = left + panelDp(35);
+                    float iconBottom = top + panelDp(30);
+                    if (task.isSplitPair()) {
+                        drawSplitPairStatusIcon(canvas, task, pillLeft, top, pillRight, pillBottom,
+                                iconLeft, iconTop, iconRight, iconBottom);
+                    } else {
+                        try {
+                            android.graphics.drawable.Drawable icon = recentTaskIcon(task.packageName);
+                            if (icon == null) continue;
+                            canvas.save();
+                            canvas.clipRect(iconLeft, iconTop, iconRight, iconBottom);
+                            icon.setBounds(Math.round(iconLeft), Math.round(iconTop),
+                                    Math.round(iconRight), Math.round(iconBottom));
+                            icon.draw(canvas);
+                            canvas.restore();
+                        } catch (RuntimeException ignored) { }
+                    }
                 }
                 float closeCenterX = layout.closeLeft + panelDp(22);
                 float closeCenterY = barHeight / 2f;
@@ -2972,6 +3150,53 @@ public final class MainActivity extends Activity {
                 panelTextPaint.setTextSize(panelDp(22));
                 canvas.drawText("×", closeCenterX, closeCenterY + panelDp(8), panelTextPaint);
             }
+        }
+
+        private void drawSplitPairStatusIcon(Canvas canvas, RecentVirtualTask task,
+                float pillLeft, float pillTop, float pillRight, float pillBottom,
+                float iconLeft, float iconTop, float iconRight, float iconBottom) {
+            float subSize = panelDp(18);
+            float subRadius = panelDp(4);
+            try {
+                android.graphics.drawable.Drawable firstIcon = recentTaskIcon(task.packageName);
+                if (firstIcon != null) {
+                    canvas.save();
+                    statusIconRect.set(iconLeft, iconTop, iconLeft + subSize, iconTop + subSize);
+                    statusClipPath.reset();
+                    statusClipPath.addRoundRect(statusIconRect, subRadius, subRadius, Path.Direction.CW);
+                    canvas.clipPath(statusClipPath);
+                    firstIcon.setBounds(Math.round(statusIconRect.left), Math.round(statusIconRect.top),
+                            Math.round(statusIconRect.right), Math.round(statusIconRect.bottom));
+                    firstIcon.draw(canvas);
+                    canvas.restore();
+                }
+            } catch (RuntimeException ignored) { }
+
+            float gap = Math.max(1f, panelDp(1));
+            canvas.save();
+            statusIconRect.set(pillLeft, pillTop, pillRight, pillBottom);
+            statusClipPath.reset();
+            statusClipPath.addRoundRect(statusIconRect, panelDp(7), panelDp(7), Path.Direction.CW);
+            canvas.clipPath(statusClipPath);
+            panelPaint.setColor(0xd9252a33);
+            canvas.drawRoundRect(iconRight - subSize - gap, iconBottom - subSize - gap,
+                    iconRight + gap, iconBottom + gap, panelDp(5), panelDp(5), panelPaint);
+            canvas.restore();
+
+            try {
+                android.graphics.drawable.Drawable secondIcon = recentTaskIcon(task.secondPackageName);
+                if (secondIcon != null) {
+                    canvas.save();
+                    statusIconRect.set(iconRight - subSize, iconBottom - subSize, iconRight, iconBottom);
+                    statusClipPath.reset();
+                    statusClipPath.addRoundRect(statusIconRect, subRadius, subRadius, Path.Direction.CW);
+                    canvas.clipPath(statusClipPath);
+                    secondIcon.setBounds(Math.round(statusIconRect.left), Math.round(statusIconRect.top),
+                            Math.round(statusIconRect.right), Math.round(statusIconRect.bottom));
+                    secondIcon.draw(canvas);
+                    canvas.restore();
+                }
+            } catch (RuntimeException ignored) { }
         }
 
         private void drawInputModeIcon(Canvas canvas, float cx, float cy, boolean touchMode) {
@@ -3371,6 +3596,7 @@ public final class MainActivity extends Activity {
                     splitRatio = ratio;
                     if (swap) splitLastFirst = !splitLastFirst;
                     refreshSplitState();
+                    if (swap) invalidateRecentTasks();
                     refreshVirtualDisplayLayout(swap ? "swap split panes" : "resize split panes", () -> {
                         if (splitPreviousFrame == null) {
                             finishSplitLayoutChange();
@@ -3399,6 +3625,7 @@ public final class MainActivity extends Activity {
 
         @Override
         protected void onDetachedFromWindow() {
+            handler.removeCallbacks(delayedRecentTaskRefresh);
             finishSplitLayoutChange();
             super.onDetachedFromWindow();
         }
@@ -3571,6 +3798,8 @@ public final class MainActivity extends Activity {
                         status(action == 0 ? "该栏没有运行中的应用" : "该栏没有运行中的应用");
                     } else if (action == 1) {
                         splitActive = splitChoosing = false;
+                        splitFirstPackage = splitSecondPackage = null;
+                        splitCheckHandler.removeCallbacks(splitCheck);
                         currentVirtualPackage = resultName;
                         status("已放大 " + resultName);
                     } else if (action == 0) {
@@ -3578,6 +3807,7 @@ public final class MainActivity extends Activity {
                     } else {
                         status("已关闭 " + resultName);
                     }
+                    invalidateRecentTasks();
                     invalidate();
                 });
             }, "boxscreen-split-action").start();
@@ -3736,6 +3966,7 @@ public final class MainActivity extends Activity {
         launcherByPackage.clear();
         launcherLabelCache.clear();
         launcherIconCache.clear();
+        recentIconCache.clear();
         panelDisplayLabelCache.clear();
         quickPanelAppCache = null;
         for (ResolveInfo app : appEntries) {
@@ -3920,6 +4151,7 @@ public final class MainActivity extends Activity {
                 refreshSplitState();
                 applyDensitySync();
                 scheduleSplitCheck();
+                if (mousePointerView != null) mousePointerView.invalidateRecentTasks();
             });
         }, "boxscreen-split").start();
     }
@@ -3984,8 +4216,14 @@ public final class MainActivity extends Activity {
             if (pair == null || pair.length != 2) {
                 if (splitActive) {
                     splitActive = splitChoosing = false;
+                    splitFirstPackage = splitSecondPackage = null;
+                    splitCheckHandler.removeCallbacks(splitCheck);
                     if (mousePointerView != null) mousePointerView.invalidate();
                 }
+                if (currentVirtualPackage == null) {
+                    currentVirtualPackage = displayService.getVirtualDisplayForegroundPackage();
+                }
+                if (mousePointerView != null) mousePointerView.invalidateRecentTasks();
                 return;
             }
             boolean changed = !java.util.Objects.equals(splitFirstPackage, pair[0])
@@ -3999,7 +4237,10 @@ public final class MainActivity extends Activity {
                 mousePointerView.splitPickerOffset = 0;
                 mousePointerView.splitPickerCache = null;
             }
-            if (mousePointerView != null) mousePointerView.invalidate();
+            if (mousePointerView != null) {
+                mousePointerView.invalidateRecentTasks();
+                mousePointerView.invalidate();
+            }
             scheduleSplitCheck();
         } catch (RemoteException | RuntimeException e) {
             Log.w(TAG, "could not sync split state", e);
@@ -4018,8 +4259,14 @@ public final class MainActivity extends Activity {
 
     private void applySplitState(String[] pair) {
         if (pair == null || pair.length != 2) {
+            boolean wasActive = splitActive;
             splitActive = splitChoosing = false;
-            if (mousePointerView != null) mousePointerView.invalidate();
+            splitFirstPackage = splitSecondPackage = null;
+            splitCheckHandler.removeCallbacks(splitCheck);
+            if (wasActive && mousePointerView != null) {
+                mousePointerView.invalidateRecentTasks();
+                mousePointerView.invalidate();
+            }
             return;
         }
         boolean changed = !java.util.Objects.equals(splitFirstPackage, pair[0])
@@ -4031,6 +4278,7 @@ public final class MainActivity extends Activity {
         if (changed && mousePointerView != null) {
             mousePointerView.splitPickerOffset = 0;
             mousePointerView.splitPickerCache = null;
+            mousePointerView.invalidateRecentTasks();
             mousePointerView.invalidate();
         }
         if (changed) applyDensitySync();
@@ -4048,10 +4296,14 @@ public final class MainActivity extends Activity {
             // expandSplit() takes the visual side: true = left/top pane.
             currentVirtualPackage = displayService.expandSplit(isPointerInFirstSplitPaneForPanel());
             splitActive = splitChoosing = false;
+            splitFirstPackage = splitSecondPackage = null;
             splitCheckHandler.removeCallbacks(splitCheck);
             applyDensitySync();
             refreshVirtualDisplayLayout("expand split");
-            if (mousePointerView != null) mousePointerView.invalidate();
+            if (mousePointerView != null) {
+                mousePointerView.invalidateRecentTasks();
+                mousePointerView.invalidate();
+            }
             status("已退出分屏，正在刷新全屏画面");
         } catch (RemoteException | RuntimeException e) {
             Log.e(TAG, "could not expand split", e);
@@ -4161,6 +4413,8 @@ public final class MainActivity extends Activity {
             boolean leavingSplit = splitActive;
             displayService.launchActivity(packageName, activityName);
             splitActive = splitChoosing = false;
+            splitFirstPackage = splitSecondPackage = null;
+            splitCheckHandler.removeCallbacks(splitCheck);
             currentVirtualPackage = packageName;
             if (leavingSplit) refreshVirtualDisplayLayout("launch fullscreen from split");
             recentAppPackages.remove(packageName);
@@ -4170,7 +4424,10 @@ public final class MainActivity extends Activity {
             getPreferences(MODE_PRIVATE).edit()
                     .putString("recent_apps", android.text.TextUtils.join("\n", recentAppPackages))
                     .apply();
-            if (mousePointerView != null) mousePointerView.invalidate();
+            if (mousePointerView != null) {
+                mousePointerView.invalidateRecentTasks();
+                mousePointerView.invalidate();
+            }
             if (mouseBound) dimAndBlackoutPhoneScreen();
             status("已请求在虚拟屏中打开 " + packageName);
         } catch (Exception e) {

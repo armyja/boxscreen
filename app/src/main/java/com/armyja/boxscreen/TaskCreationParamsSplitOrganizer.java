@@ -43,7 +43,8 @@ final class TaskCreationParamsSplitOrganizer implements SplitStageOrganizer {
         if (appeared == null) throw new IllegalStateException("系统未创建分屏区域");
         Object info = appeared.getClass().getMethod("getTaskInfo").invoke(appeared);
         SurfaceControl leash = (SurfaceControl) appeared.getClass().getMethod("getLeash").invoke(appeared);
-        return new SplitSession.Stage(info.getClass().getField("token").get(info), leash);
+        int taskId = info.getClass().getField("taskId").getInt(info);
+        return new SplitSession.Stage(info.getClass().getField("token").get(info), leash, taskId);
     }
 
     @Override

@@ -75,14 +75,17 @@ final class RecentTaskReader {
 
     private static void addTree(LinkedHashMap<Integer, String> result, Class<?> organizerType,
             Object organizer, Object task, int depth) throws ReflectiveOperationException {
+        if (depth < 8) {
+            Object token = task.getClass().getField("token").get(task);
+            List<?> children = (List<?>) organizerType
+                    .getMethod("getChildTasks", token.getClass(), int[].class)
+                    .invoke(organizer, token, null);
+            if (children != null && !children.isEmpty()) {
+                for (Object child : children) addTree(result, organizerType, organizer, child, depth + 1);
+                return;
+            }
+        }
         addOne(result, task);
-        if (depth >= 8) return;
-        Object token = task.getClass().getField("token").get(task);
-        List<?> children = (List<?>) organizerType
-                .getMethod("getChildTasks", token.getClass(), int[].class)
-                .invoke(organizer, token, null);
-        if (children == null) return;
-        for (Object child : children) addTree(result, organizerType, organizer, child, depth + 1);
     }
 
     private static void add(LinkedHashMap<Integer, String> result, List<?> taskList)

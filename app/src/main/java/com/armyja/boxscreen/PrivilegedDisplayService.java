@@ -583,9 +583,14 @@ public final class PrivilegedDisplayService extends IDisplayService.Stub {
         if (virtualDisplay == null) throw new IllegalStateException("Virtual display is not running");
         if (splitSession != null) {
             try {
-                boolean reused = splitSession.leaveSplitForLaunch(packageName);
-                splitSession = null;
-                if (reused) return;
+                if (splitSession.containsPackage(packageName) || !splitSession.isCompletePair()) {
+                    boolean reused = splitSession.leaveSplitForLaunch(packageName);
+                    splitSession = null;
+                    if (reused) return;
+                } else {
+                    if (splitSession.isForeground()) splitSession.background();
+                    if (splitSession.bringFullscreenTaskToFront(packageName)) return;
+                }
             } catch (ReflectiveOperationException e) {
                 throw new IllegalStateException("无法保留分栏应用：" + describeFailure(e), e);
             }
@@ -611,7 +616,13 @@ public final class PrivilegedDisplayService extends IDisplayService.Stub {
         try {
             // Check that this firmware exposes the organizer before launching either app.
             next = new SplitSession(virtualDisplay.getDisplay().getDisplayId());
-            closeSplit();
+            if (splitSession != null) {
+                if (splitSession.isForeground()) closeSplit();
+                else {
+                    splitSession.dissolveToBackground();
+                    splitSession = null;
+                }
+            }
             Set<Integer> before = next.taskIds();
             startOnDisplay(firstPackage, firstClass, true);
             Object first = next.awaitTask(firstPackage, before);
@@ -638,7 +649,11 @@ public final class PrivilegedDisplayService extends IDisplayService.Stub {
         if (virtualDisplay == null) throw new IllegalStateException("当前无法开始分屏");
         SplitSession next = null;
         try {
-            if (splitSession != null) throw new IllegalStateException("当前已处于分屏");
+            if (splitSession != null) {
+                if (splitSession.isForeground()) throw new IllegalStateException("当前已处于分屏");
+                splitSession.dissolveToBackground();
+                splitSession = null;
+            }
             int displayId = virtualDisplay.getDisplay().getDisplayId();
             int foregroundTaskId = findTopTaskId(displayId);
             if (foregroundTaskId < 0) throw new IllegalStateException("虚拟屏没有可分屏的前台应用");
@@ -658,7 +673,7 @@ public final class PrivilegedDisplayService extends IDisplayService.Stub {
     @Override
     public synchronized void fillSplit(String packageName, String className, boolean firstSide) {
         checkComponent(packageName, className);
-        if (splitSession == null) throw new IllegalStateException("分屏已关闭");
+        if (splitSession == null || !splitSession.isForeground()) throw new IllegalStateException("分屏已关闭");
         try {
             splitSession.fill(packageName, className, firstSide, displayWidth, displayHeight);
         } catch (Exception e) {
@@ -668,7 +683,7 @@ public final class PrivilegedDisplayService extends IDisplayService.Stub {
 
     @Override
     public synchronized void adjustSplit(float ratio, boolean swap) {
-        if (splitSession == null || !Float.isFinite(ratio)) {
+        if (splitSession == null || !splitSession.isForeground() || !Float.isFinite(ratio)) {
             return;
         }
         try {
@@ -680,7 +695,7 @@ public final class PrivilegedDisplayService extends IDisplayService.Stub {
 
     @Override
     public synchronized String[] getSplitPackages() {
-        if (splitSession == null) return null;
+        if (splitSession == null || !splitSession.isForeground()) return null;
         try {
             return splitSession.packages();
         } catch (ReflectiveOperationException e) {
@@ -690,7 +705,7 @@ public final class PrivilegedDisplayService extends IDisplayService.Stub {
 
     @Override
     public synchronized String expandSplit(boolean firstSide) {
-        if (splitSession == null) throw new IllegalStateException("分屏已关闭");
+        if (splitSession == null || !splitSession.isForeground()) throw new IllegalStateException("分屏已关闭");
         try {
             String packageName = splitSession.expand(firstSide);
             splitSession = null;
@@ -702,7 +717,7 @@ public final class PrivilegedDisplayService extends IDisplayService.Stub {
 
     @Override
     public synchronized boolean hideSplitSide(boolean firstSide) {
-        if (splitSession == null) throw new IllegalStateException("分屏已关闭");
+        if (splitSession == null || !splitSession.isForeground()) throw new IllegalStateException("分屏已关闭");
         try {
             return splitSession.hideSide(firstSide);
         } catch (ReflectiveOperationException e) {
@@ -712,7 +727,7 @@ public final class PrivilegedDisplayService extends IDisplayService.Stub {
 
     @Override
     public synchronized String killSplitSide(boolean firstSide) {
-        if (splitSession == null) throw new IllegalStateException("分屏已关闭");
+        if (splitSession == null || !splitSession.isForeground()) throw new IllegalStateException("分屏已关闭");
         try {
             return splitSession.killSide(firstSide);
         } catch (ReflectiveOperationException e) {
@@ -734,7 +749,7 @@ public final class PrivilegedDisplayService extends IDisplayService.Stub {
     }
 
     @Override
-    public void launchViewOnVirtualDisplay(String packageName, String className, String uri,
+    public synchronized void launchViewOnVirtualDisplay(String packageName, String className, String uri,
             String mimeType) {
         if (virtualDisplay == null || virtualDisplay.getDisplay() == null) {
             throw new IllegalStateException("Virtual display is not running");
@@ -744,6 +759,18 @@ public final class PrivilegedDisplayService extends IDisplayService.Stub {
                 || uri == null || !uri.matches("content://[A-Za-z0-9_./:%?=&-]+")
                 || mimeType == null || !mimeType.matches("[A-Za-z0-9.+-]+/[A-Za-z0-9.+-]+")) {
             throw new IllegalArgumentException("Invalid image viewer request");
+        }
+        if (splitSession != null && splitSession.isForeground()) {
+            try {
+                if (splitSession.isCompletePair()) {
+                    splitSession.background();
+                } else {
+                    splitSession.leaveSplitForLaunch(packageName);
+                    splitSession = null;
+                }
+            } catch (ReflectiveOperationException e) {
+                throw new IllegalStateException("无法保留分栏应用：" + describeFailure(e), e);
+            }
         }
         run(new String[]{"/system/bin/am", "start", "--display",
                 Integer.toString(virtualDisplay.getDisplay().getDisplayId()),
@@ -814,8 +841,8 @@ public final class PrivilegedDisplayService extends IDisplayService.Stub {
 
     @Override
     @SuppressLint("BlockedPrivateApi")
-    public boolean closeTopTaskOnVirtualDisplay() {
-        if (closeSplit()) return true;
+    public synchronized boolean closeTopTaskOnVirtualDisplay() {
+        if (splitSession != null && splitSession.isForeground() && closeSplit()) return true;
         if (virtualDisplay == null || virtualDisplay.getDisplay() == null) {
             throw new IllegalStateException("Virtual display is not running");
         }
@@ -848,8 +875,77 @@ public final class PrivilegedDisplayService extends IDisplayService.Stub {
     @Override
     public synchronized String[] getVirtualDisplayRecentTasks() {
         if (virtualDisplay == null || virtualDisplay.getDisplay() == null) return new String[0];
+        int displayId = virtualDisplay.getDisplay().getDisplayId();
         try {
-            return RecentTaskReader.read(virtualDisplay.getDisplay().getDisplayId());
+            if (splitSession != null && !splitSession.isForeground()) {
+                if (!splitSession.validateOrDissolveIfIncomplete()) {
+                    splitSession = null;
+                }
+            }
+            String[] rows = RecentTaskReader.read(displayId);
+            String[] pair = (splitSession != null && splitSession.isCompletePair())
+                    ? splitSession.packages() : null;
+            int splitRootId = splitSession != null ? splitSession.rootTaskId() : -1;
+            if (pair == null || pair[0] == null || pair[1] == null) {
+                return rows;
+            }
+            ArrayList<String> filtered = new ArrayList<>(rows.length + 1);
+            HashSet<String> seenPackages = new HashSet<>();
+            int pairInsertIndex = -1;
+            for (String row : rows) {
+                if (row == null) continue;
+                int separator = row.indexOf('\t');
+                if (separator <= 0 || separator == row.length() - 1) continue;
+                int id;
+                try {
+                    id = Integer.parseInt(row.substring(0, separator));
+                } catch (NumberFormatException ignored) {
+                    continue;
+                }
+                if (id == splitRootId) continue;
+                String pkg = row.substring(separator + 1);
+                if (pkg.equals("com.armyja.boxscreen")) continue;
+                if (pkg.equals(pair[0]) || pkg.equals(pair[1])) {
+                    if (pairInsertIndex < 0) pairInsertIndex = filtered.size();
+                    continue;
+                }
+                if (seenPackages.add(pkg)) {
+                    filtered.add(row);
+                }
+            }
+            String pairRow = "split\t" + pair[0] + "\t" + pair[1];
+            if (splitSession.isForeground()) {
+                filtered.add(0, pairRow);
+            } else {
+                String fgPkg = getVirtualDisplayForegroundPackage();
+                if (fgPkg != null && !fgPkg.equals(pair[0]) && !fgPkg.equals(pair[1])) {
+                    int fgIdx = -1;
+                    for (int i = 0; i < filtered.size(); i++) {
+                        String row = filtered.get(i);
+                        int sep = row.indexOf('\t');
+                        if (sep > 0 && fgPkg.equals(row.substring(sep + 1))) {
+                            fgIdx = i;
+                            break;
+                        }
+                    }
+                    if (fgIdx > 0) {
+                        String fgRow = filtered.remove(fgIdx);
+                        filtered.add(0, fgRow);
+                    }
+                }
+                int insertAt;
+                if (fgPkg != null && !filtered.isEmpty()) {
+                    insertAt = pairInsertIndex >= 0
+                            ? Math.max(1, Math.min(pairInsertIndex, filtered.size()))
+                            : 1;
+                } else {
+                    insertAt = pairInsertIndex >= 0
+                            ? Math.min(pairInsertIndex, filtered.size())
+                            : 0;
+                }
+                filtered.add(insertAt, pairRow);
+            }
+            return filtered.toArray(new String[0]);
         } catch (ReflectiveOperationException | RuntimeException e) {
             throw new IllegalStateException("无法读取虚拟屏最近任务：" + describeFailure(e), e);
         }
@@ -860,12 +956,49 @@ public final class PrivilegedDisplayService extends IDisplayService.Stub {
         if (virtualDisplay == null || virtualDisplay.getDisplay() == null || taskId <= 0) return null;
         SplitSession tasks = splitSession;
         try {
-            if (tasks == null) tasks = new SplitSession(virtualDisplay.getDisplay().getDisplayId());
-            String packageName = tasks.activateTask(taskId);
-            if (splitSession != null) splitSession = null;
-            return packageName;
+            if (tasks != null) {
+                if (tasks.containsTaskId(taskId) || (tasks.isForeground() && !tasks.isCompletePair())) {
+                    String packageName = tasks.activateTask(taskId);
+                    splitSession = null;
+                    return packageName;
+                }
+                return tasks.activateExternalTask(taskId);
+            }
+            tasks = new SplitSession(virtualDisplay.getDisplay().getDisplayId());
+            return tasks.activateTask(taskId);
         } catch (ReflectiveOperationException | RuntimeException e) {
             throw new IllegalStateException("无法切换虚拟屏任务：" + describeFailure(e), e);
+        }
+    }
+
+    @Override
+    public synchronized String[] activateSplitPair() {
+        if (virtualDisplay == null || virtualDisplay.getDisplay() == null) return null;
+        if (splitSession == null) return null;
+        try {
+            String[] pair = splitSession.bringToFront(displayWidth, displayHeight);
+            if (pair == null) splitSession = null;
+            return pair;
+        } catch (ReflectiveOperationException | RuntimeException e) {
+            throw new IllegalStateException("无法恢复分屏组合：" + describeFailure(e), e);
+        }
+    }
+
+    @Override
+    public synchronized String[] closeSplitPair() {
+        if (virtualDisplay == null || virtualDisplay.getDisplay() == null) return null;
+        if (splitSession == null) return null;
+        boolean wasForeground = splitSession.isForeground();
+        try {
+            splitSession.killAllAndClose();
+            splitSession = null;
+            if (wasForeground) {
+                String nextPackage = getVirtualDisplayForegroundPackage();
+                return new String[]{"foreground", nextPackage};
+            }
+            return new String[]{"background", null};
+        } catch (ReflectiveOperationException | RuntimeException e) {
+            throw new IllegalStateException("无法关闭分屏组合：" + describeFailure(e), e);
         }
     }
 
@@ -896,6 +1029,11 @@ public final class PrivilegedDisplayService extends IDisplayService.Stub {
         boolean created = false;
         int foregroundTaskId = -1;
         try {
+            if (session != null && !session.isForeground()) {
+                session.dissolveToBackground();
+                splitSession = null;
+                session = null;
+            }
             if (session == null) {
                 foregroundTaskId = findTopTaskId(displayId);
                 session = new SplitSession(displayId);
@@ -925,7 +1063,7 @@ public final class PrivilegedDisplayService extends IDisplayService.Stub {
             throw new IllegalArgumentException("Invalid package name");
         }
         try {
-            if (splitSession != null) {
+            if (splitSession != null && splitSession.isForeground()) {
                 String[] pair = splitSession.packages();
                 boolean firstSide = pair != null && packageName.equals(pair[0]);
                 boolean secondSide = pair != null && packageName.equals(pair[1]);
@@ -939,7 +1077,7 @@ public final class PrivilegedDisplayService extends IDisplayService.Stub {
 
             int displayId = virtualDisplay.getDisplay().getDisplayId();
             int taskId = findTopTaskId(displayId);
-            SplitSession tasks = new SplitSession(displayId);
+            SplitSession tasks = splitSession != null ? splitSession : new SplitSession(displayId);
             if (taskId < 0 && findTopTaskId(displayId, true) >= 0
                     && packageName.equals(foregroundPackage)) {
                 taskId = tasks.taskIdForPackage(packageName);
@@ -961,7 +1099,7 @@ public final class PrivilegedDisplayService extends IDisplayService.Stub {
             throw new IllegalArgumentException("Invalid package name");
         }
         try {
-            if (splitSession != null) {
+            if (splitSession != null && splitSession.isForeground()) {
                 String[] pair = splitSession.packages();
                 boolean firstSide = pair != null && packageName.equals(pair[0]);
                 boolean secondSide = pair != null && packageName.equals(pair[1]);
@@ -973,7 +1111,7 @@ public final class PrivilegedDisplayService extends IDisplayService.Stub {
 
             int displayId = virtualDisplay.getDisplay().getDisplayId();
             int taskId = findTopTaskId(displayId);
-            SplitSession tasks = new SplitSession(displayId);
+            SplitSession tasks = splitSession != null ? splitSession : new SplitSession(displayId);
             if (taskId < 0 && findTopTaskId(displayId, true) >= 0
                     && packageName.equals(foregroundPackage)) {
                 taskId = tasks.taskIdForPackage(packageName);
