@@ -566,7 +566,7 @@ public final class MainActivity extends Activity {
                     new ComponentName(getPackageName(), PrivilegedDisplayService.class.getName()))
                     .daemon(false)
                     .processNameSuffix("display")
-                    .version(37);
+                    .version(38);
             Shizuku.bindUserService(shizukuServiceArgs, shizukuServiceConnection);
             status("正在连接 Shizuku 主机服务…");
         } catch (RuntimeException e) {
@@ -2421,6 +2421,10 @@ public final class MainActivity extends Activity {
             PanelAppDrag drag = panelAppDrag;
             if (drag == null) return false;
             if (drag.splitPair) {
+                if (drag.fromStatusBar && x >= drag.left && x <= drag.right && y < drag.top) {
+                    ungroupSplitPairFromStatusBar();
+                    return true;
+                }
                 if (drag.fromStatusBar && x >= drag.left && x <= drag.right && y > drag.bottom) {
                     closeSplitPairFromStatusBar();
                     return true;
@@ -2593,6 +2597,7 @@ public final class MainActivity extends Activity {
                         splitChoosing = resultState[0] == null || resultState[1] == null;
                         splitFirstPackage = resultState[0];
                         splitSecondPackage = resultState[1];
+                        splitPickerFirst = resultState[0] == null;
                         currentVirtualPackage = null;
                     } else {
                         splitActive = splitChoosing = false;
@@ -2861,6 +2866,56 @@ public final class MainActivity extends Activity {
             }, "boxscreen-close-split-pair").start();
         }
 
+        private void ungroupSplitPairFromStatusBar() {
+            if (splitOpening || displayService == null || virtualDisplayId < 0) return;
+            IDisplayService service = displayService;
+            int display = virtualDisplayId;
+            boolean preferFirst = splitLastFirst;
+            boolean restorePanel = quickPanelVisible;
+            quickPanelVisible = false;
+            statusBarVisible = false;
+            splitOpening = true;
+            invalidate();
+            new Thread(() -> {
+                String[] outcome = null;
+                Exception failure = null;
+                try {
+                    outcome = service.ungroupSplitPair(preferFirst);
+                } catch (Exception e) {
+                    failure = e;
+                }
+                String[] resultState = outcome;
+                Exception resultError = failure;
+                runOnUiThread(() -> {
+                    splitOpening = false;
+                    if (display != virtualDisplayId || service != displayService) return;
+                    if (resultError != null || resultState == null || resultState.length == 0) {
+                        quickPanelVisible = restorePanel;
+                        statusBarVisible = true;
+                        Log.e(TAG, "ungroup split pair failed", resultError);
+                        status(resultError == null ? "当前没有可拆散的分屏组合"
+                                : "拆散分屏组合失败：" + resultError.getMessage());
+                        invalidateRecentTasks();
+                        invalidate();
+                        return;
+                    }
+                    if ("foreground".equals(resultState[0])) {
+                        splitActive = splitChoosing = false;
+                        splitFirstPackage = splitSecondPackage = null;
+                        currentVirtualPackage = resultState.length > 1 ? resultState[1] : null;
+                        splitCheckHandler.removeCallbacks(splitCheck);
+                        applyDensitySync();
+                        refreshVirtualDisplayLayout("ungroup split pair");
+                        status("已拆散分屏组合");
+                    } else {
+                        status("已拆散后台分屏组合");
+                    }
+                    invalidateRecentTasks();
+                    invalidate();
+                });
+            }, "boxscreen-ungroup-split-pair").start();
+        }
+
         private void closeCurrentVirtualApp() {
             if (splitOpening) return;
             if (displayService == null || virtualDisplayId < 0) return;
@@ -2875,19 +2930,36 @@ public final class MainActivity extends Activity {
                 Log.i(TAG, "close foreground virtual display task result=" + removed
                         + " package=" + currentVirtualPackage);
                 if (removed) {
-                    splitActive = splitChoosing = false;
-                    splitFirstPackage = splitSecondPackage = null;
-                    splitCheckHandler.removeCallbacks(splitCheck);
-                    currentVirtualPackage = displayService.getVirtualDisplayForegroundPackage();
-                    if (currentVirtualPackage == null) restorePrimaryDensity();
-                    else syncPrimaryDensityForPackage(currentVirtualPackage);
-                    invalidateRecentTasks();
-                    // Keep the next foreground task as current, so it retains the split action.
-                    // If the virtual display is empty, the panel is the next affordance.
-                    // The regular dwell logic hides them again once the pointer leaves
-                    // their area, so mouse behaviour stays unchanged.
-                    quickPanelVisible = true;
-                    statusBarVisible = true;
+                    String[] pair = displayService.getSplitPackages();
+                    if (pair != null && pair.length == 2
+                            && (pair[0] != null || pair[1] != null)) {
+                        splitActive = true;
+                        splitChoosing = pair[0] == null || pair[1] == null;
+                        splitFirstPackage = pair[0];
+                        splitSecondPackage = pair[1];
+                        splitPickerFirst = pair[0] == null;
+                        currentVirtualPackage = null;
+                        applyDensitySync();
+                        refreshVirtualDisplayLayout("restore split pair after close");
+                        scheduleSplitCheck();
+                        invalidateRecentTasks();
+                        quickPanelVisible = false;
+                        statusBarVisible = true;
+                    } else {
+                        splitActive = splitChoosing = false;
+                        splitFirstPackage = splitSecondPackage = null;
+                        splitCheckHandler.removeCallbacks(splitCheck);
+                        currentVirtualPackage = displayService.getVirtualDisplayForegroundPackage();
+                        if (currentVirtualPackage == null) restorePrimaryDensity();
+                        else syncPrimaryDensityForPackage(currentVirtualPackage);
+                        invalidateRecentTasks();
+                        // Keep the next foreground task as current, so it retains the split action.
+                        // If the virtual display is empty, the panel is the next affordance.
+                        // The regular dwell logic hides them again once the pointer leaves
+                        // their area, so mouse behaviour stays unchanged.
+                        quickPanelVisible = true;
+                        statusBarVisible = true;
+                    }
                 } else {
                     status("虚拟屏上没有可关闭的应用任务");
                 }
@@ -4146,8 +4218,8 @@ public final class MainActivity extends Activity {
                 } else {
                     currentVirtualPackage = null;
                     splitLastFirst = targetFirst;
-                    refreshVirtualDisplayLayout("fill split pane");
                 }
+                refreshVirtualDisplayLayout(splitChoosing ? "begin split" : "fill split pane");
                 refreshSplitState();
                 applyDensitySync();
                 scheduleSplitCheck();

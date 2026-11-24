@@ -31,6 +31,7 @@ final class SplitSession {
     private Stage root;
     private Stage first;
     private Stage second;
+    private SurfaceControl backdrop;
     private Object firstAppToken;
     private Object secondAppToken;
     private boolean active;
@@ -119,10 +120,12 @@ final class SplitSession {
         firstAppToken = firstTask;
         secondAppToken = secondTask;
         root = create("BoxScreenSplit", 1, null);
+        backdrop = createBackdrop(root);
         first = create("BoxScreenSplitFirst", 6, root);
         second = create("BoxScreenSplitSecond", 6, root);
         Object tx = transaction();
         Method reparent = transactionType.getMethod("reparent", tokenType, tokenType, boolean.class);
+        Method setMode = transactionType.getMethod("setWindowingMode", tokenType, int.class);
         if (stageOrganizer != null && stageOrganizer.requiresExplicitStageParenting()) {
             reparent.invoke(tx, first.token(), root.token(), true);
             reparent.invoke(tx, second.token(), root.token(), true);
@@ -131,8 +134,13 @@ final class SplitSession {
         Array.set(pair, 0, first.token());
         Array.set(pair, 1, second.token());
         transactionType.getMethod("setAdjacentRoots", pair.getClass()).invoke(tx, pair);
+        // Clear any explicit fullscreen windowingMode (1) so reparented tasks inherit MULTI_WINDOW (6).
+        setMode.invoke(tx, firstTask, 0);
         reparent.invoke(tx, firstTask, first.token(), true);
-        if (secondTask != null) reparent.invoke(tx, secondTask, second.token(), true);
+        if (secondTask != null) {
+            setMode.invoke(tx, secondTask, 0);
+            reparent.invoke(tx, secondTask, second.token(), true);
+        }
         transactionType.getMethod("reorder", tokenType, boolean.class).invoke(tx, root.token(), true);
         Rect[] bounds = bounds(width, height);
         applyLayout(tx, bounds);
@@ -174,8 +182,6 @@ final class SplitSession {
         if (root != null) {
             Object tx = transaction();
             setHidden(tx, root.token(), true);
-            transactionType.getMethod("reorder", tokenType, boolean.class)
-                    .invoke(tx, root.token(), false);
             apply(tx);
         }
         hideSurfaces();
@@ -271,12 +277,34 @@ final class SplitSession {
 
     private void applyLayout(Object tx, Rect[] bounds) throws ReflectiveOperationException {
         setBounds(tx, bounds);
-        attachStageGeometry(tx, first, bounds[0]);
-        attachStageGeometry(tx, second, bounds[1]);
+        attachRootGeometry(tx, bounds);
+        attachStageGeometry(tx, first, bounds[0], 1);
+        attachStageGeometry(tx, second, bounds[1], 2);
         apply(tx);
     }
 
-    private void attachStageGeometry(Object layout, Stage stage, Rect bounds)
+    private void attachRootGeometry(Object layout, Rect[] bounds)
+            throws ReflectiveOperationException {
+        if (root == null || root.surface() == null || !root.surface().isValid()) return;
+        Class<?> type = Class.forName("android.view.SurfaceControl$Transaction");
+        Method attach;
+        try {
+            attach = transactionType.getMethod("setBoundsChangeTransaction", tokenType, type);
+        } catch (NoSuchMethodException ignored) {
+            return;
+        }
+        Object geometry = type.getConstructor().newInstance();
+        type.getMethod("show", SurfaceControl.class).invoke(geometry, root.surface());
+        type.getMethod("setAlpha", SurfaceControl.class, float.class).invoke(geometry, root.surface(), 1f);
+        int topLayer = foregroundRootLayer();
+        if (topLayer > 0) {
+            type.getMethod("setLayer", SurfaceControl.class, int.class).invoke(geometry, root.surface(), topLayer);
+        }
+        configureBackdrop(type, geometry, bounds);
+        attach.invoke(layout, root.token(), geometry);
+    }
+
+    private void attachStageGeometry(Object layout, Stage stage, Rect bounds, int layer)
             throws ReflectiveOperationException {
         Class<?> type = Class.forName("android.view.SurfaceControl$Transaction");
         Method attach;
@@ -288,19 +316,71 @@ final class SplitSession {
         }
         Object geometry = type.getConstructor().newInstance();
         // The WCT retains the transaction until it is parcelled and sent.
-        setStageGeometry(type, geometry, stage, bounds);
+        setStageGeometry(type, geometry, stage, bounds, layer);
         attach.invoke(layout, stage.token(), geometry);
     }
 
-    private void setStageGeometry(Class<?> type, Object tx, Stage stage, Rect bounds)
+    private void setStageGeometry(Class<?> type, Object tx, Stage stage, Rect bounds, int layer)
             throws ReflectiveOperationException {
+        if (stage == null || stage.surface() == null || !stage.surface().isValid()) return;
         Class<SurfaceControl> surface = SurfaceControl.class;
         type.getMethod("show", surface).invoke(tx, stage.surface());
         type.getMethod("setAlpha", surface, float.class).invoke(tx, stage.surface(), 1f);
+        type.getMethod("setLayer", surface, int.class).invoke(tx, stage.surface(), layer);
         type.getMethod("setPosition", surface, float.class, float.class)
                 .invoke(tx, stage.surface(), (float) bounds.left, (float) bounds.top);
         type.getMethod("setWindowCrop", surface, int.class, int.class)
                 .invoke(tx, stage.surface(), bounds.width(), bounds.height());
+    }
+
+    private SurfaceControl createBackdrop(Stage parentRoot) {
+        if (parentRoot == null || parentRoot.surface() == null || !parentRoot.surface().isValid()) {
+            return null;
+        }
+        try {
+            SurfaceControl.Builder builder = new SurfaceControl.Builder()
+                    .setName("BoxScreenSplitBackdrop")
+                    .setParent(parentRoot.surface())
+                    .setOpaque(true);
+            SurfaceControl.Builder.class.getMethod("setColorLayer").invoke(builder);
+            return builder.build();
+        } catch (ReflectiveOperationException | RuntimeException e) {
+            Log.w(TAG, "Unable to create split backdrop layer", e);
+            return null;
+        }
+    }
+
+    private void configureBackdrop(Class<?> type, Object tx, Rect[] bounds)
+            throws ReflectiveOperationException {
+        if (backdrop == null || !backdrop.isValid()) return;
+        int totalWidth = Math.max(bounds[0].right, bounds[1].right);
+        int totalHeight = Math.max(bounds[0].bottom, bounds[1].bottom);
+        Class<SurfaceControl> surface = SurfaceControl.class;
+        try {
+            type.getMethod("setColor", surface, float[].class)
+                    .invoke(tx, backdrop, new float[]{0f, 0f, 0f});
+        } catch (ReflectiveOperationException ignored) { }
+        type.getMethod("setAlpha", surface, float.class).invoke(tx, backdrop, 1f);
+        try {
+            type.getMethod("setOpaque", surface, boolean.class).invoke(tx, backdrop, true);
+        } catch (ReflectiveOperationException ignored) { }
+        type.getMethod("setLayer", surface, int.class).invoke(tx, backdrop, -1);
+        type.getMethod("setPosition", surface, float.class, float.class).invoke(tx, backdrop, 0f, 0f);
+        type.getMethod("setWindowCrop", surface, int.class, int.class)
+                .invoke(tx, backdrop, totalWidth, totalHeight);
+        type.getMethod("show", surface).invoke(tx, backdrop);
+    }
+
+    private int foregroundRootLayer() {
+        if (root == null) return -1;
+        try {
+            List<?> currentRoots = roots();
+            if (currentRoots == null || currentRoots.isEmpty()) return -1;
+            if (taskId(currentRoots.get(0)) != root.taskId()) return -1;
+            return Math.max(currentRoots.size() + 2, 16);
+        } catch (ReflectiveOperationException | RuntimeException e) {
+            return -1;
+        }
     }
 
     private void showSurfaces(Rect[] bounds) throws ReflectiveOperationException {
@@ -315,8 +395,16 @@ final class SplitSession {
                 show.invoke(tx, stage.surface());
                 alpha.invoke(tx, stage.surface(), 1f);
             }
-            setStageGeometry(type, tx, first, bounds[0]);
-            setStageGeometry(type, tx, second, bounds[1]);
+            if (root != null && root.surface() != null && root.surface().isValid()) {
+                int topLayer = foregroundRootLayer();
+                if (topLayer > 0) {
+                    type.getMethod("setLayer", surface, int.class)
+                            .invoke(tx, root.surface(), topLayer);
+                }
+            }
+            configureBackdrop(type, tx, bounds);
+            setStageGeometry(type, tx, first, bounds[0], 1);
+            setStageGeometry(type, tx, second, bounds[1], 2);
             type.getMethod("apply").invoke(tx);
         } finally {
             type.getMethod("close").invoke(tx);
@@ -332,6 +420,12 @@ final class SplitSession {
             for (Stage stage : new Stage[]{root, first, second}) {
                 if (stage == null || stage.surface() == null || !stage.surface().isValid()) continue;
                 hide.invoke(tx, stage.surface());
+            }
+            if (root != null && root.surface() != null && root.surface().isValid()) {
+                type.getMethod("setLayer", surface, int.class).invoke(tx, root.surface(), 0);
+            }
+            if (backdrop != null && backdrop.isValid()) {
+                hide.invoke(tx, backdrop);
             }
             type.getMethod("apply").invoke(tx);
         } finally {
@@ -350,7 +444,10 @@ final class SplitSession {
         Integer existingTaskId = existing == null ? null : taskId(existing);
         if (existingTaskId != null) {
             Object resume = transaction();
-            setHidden(resume, token(existing), false);
+            Object existingToken = token(existing);
+            setHidden(resume, existingToken, false);
+            transactionType.getMethod("setWindowingMode", tokenType, int.class)
+                    .invoke(resume, existingToken, 0);
             transactionType.getMethod("startTask", int.class, Bundle.class)
                     .invoke(resume, existingTaskId, options.toBundle());
             apply(resume);
@@ -426,6 +523,13 @@ final class SplitSession {
         ActivityOptions.class.getMethod("setLaunchRootTask", tokenType)
                 .invoke(options, target.token());
         Object tx = transaction();
+        Object existing = taskById(recentTaskId);
+        if (existing != null) {
+            Object existingToken = token(existing);
+            setHidden(tx, existingToken, false);
+            transactionType.getMethod("setWindowingMode", tokenType, int.class)
+                    .invoke(tx, existingToken, 0);
+        }
         transactionType.getMethod("startTask", int.class, Bundle.class)
                 .invoke(tx, recentTaskId, options.toBundle());
         apply(tx);
@@ -700,6 +804,31 @@ final class SplitSession {
         return reversed ? new String[]{b, a} : new String[]{a, b};
     }
 
+    synchronized int[] stageTaskIds() throws ReflectiveOperationException {
+        if (!active) return new int[]{-1, -1};
+        Object one = stageTask(first, null);
+        Object two = stageTask(second, null);
+        int idA = one == null ? -1 : taskId(one);
+        int idB = two == null ? -1 : taskId(two);
+        return reversed ? new int[]{idB, idA} : new int[]{idA, idB};
+    }
+
+    synchronized List<Integer> nonSplitRootTaskIds() throws ReflectiveOperationException {
+        List<Integer> ids = new ArrayList<>();
+        for (Object task : roots()) {
+            if (isSplitContainerTask(task)) continue;
+            String pkg = packageOf(task);
+            if (pkg == null || pkg.equals("com.armyja.boxscreen")) continue;
+            int id = taskId(task);
+            if (id > 0) ids.add(id);
+        }
+        return ids;
+    }
+
+    synchronized boolean isTaskAlive(int taskId) throws ReflectiveOperationException {
+        return taskId > 0 && taskById(taskId) != null;
+    }
+
     /**
      * Hide the app in one pane without killing it: the task stays alive (and can be restored)
      * while the pane falls back to the app picker.
@@ -900,6 +1029,24 @@ final class SplitSession {
                 apply(tx);
             }
         } finally {
+            if (backdrop != null) {
+                try {
+                    if (backdrop.isValid()) {
+                        SurfaceControl.Transaction cleanup = new SurfaceControl.Transaction();
+                        try {
+                            cleanup.reparent(backdrop, null);
+                            cleanup.apply();
+                        } finally {
+                            cleanup.close();
+                        }
+                    }
+                } catch (RuntimeException e) {
+                    Log.w(TAG, "backdrop reparent cleanup failed", e);
+                } finally {
+                    backdrop.release();
+                    backdrop = null;
+                }
+            }
             for (Stage stage : new Stage[]{first, second, root}) {
                 if (stage != null) stage.surface().release();
             }

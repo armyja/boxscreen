@@ -41,4 +41,5 @@ interface IDisplayService {
     void returnBoxScreenTaskToPrimary(int taskId);
     String[] activateSplitPair();
     String[] closeSplitPair();
+    String[] ungroupSplitPair(boolean preferFirstSide);
 }
