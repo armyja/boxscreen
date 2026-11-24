@@ -601,27 +601,88 @@ final class SplitSession {
         return task == null ? -1 : taskId(task);
     }
 
-    synchronized void restartSplitSide(int id, boolean firstSide, int width, int height)
+    synchronized String splitTaskClassName(String packageName, boolean firstSide)
             throws ReflectiveOperationException {
         Stage target = firstSide == reversed ? second : first;
-        Object task = stageTaskById(target, id);
-        if (task == null) throw new IllegalStateException("应用任务已离开原分栏");
+        Object task = stageTask(target, packageName);
+        if (task == null) return null;
+        ComponentName base = (ComponentName) task.getClass().getField("baseActivity").get(task);
+        if (base != null && packageName.equals(base.getPackageName())) return base.getClassName();
+        ComponentName top = (ComponentName) task.getClass().getField("topActivity").get(task);
+        if (top != null && packageName.equals(top.getPackageName())) return top.getClassName();
+        return null;
+    }
+
+    synchronized void restartSplitSide(int id, String packageName, String fallbackClassName,
+            boolean firstSide, int width, int height)
+            throws ReflectiveOperationException {
+        Stage target = firstSide == reversed ? second : first;
+        if (target == null || root == null) throw new IllegalStateException("分屏容器已关闭");
         ActivityOptions options = ActivityOptions.makeBasic().setLaunchDisplayId(displayId);
         ActivityOptions.class.getMethod("setLaunchRootTask", tokenType)
                 .invoke(options, target.token());
-        Object tx = transaction();
-        setHidden(tx, token(task), false);
-        transactionType.getMethod("startTask", int.class, Bundle.class)
-                .invoke(tx, id, options.toBundle());
-        apply(tx);
-        Object restarted = awaitStageTask(target, null, id);
+        Object task = stageTaskById(target, id);
+        if (task == null) task = taskById(id);
+        Object restarted = null;
+        if (task != null || findRecentTask(id) != null) {
+            Object tx = transaction();
+            if (task != null) {
+                Object taskToken = token(task);
+                setHidden(tx, taskToken, false);
+                transactionType.getMethod("setWindowingMode", tokenType, int.class)
+                        .invoke(tx, taskToken, 0);
+            }
+            transactionType.getMethod("startTask", int.class, Bundle.class)
+                    .invoke(tx, id, options.toBundle());
+            apply(tx);
+            restarted = awaitRestartedStageTask(target, packageName, id);
+        }
+        if (restarted == null && fallbackClassName != null) {
+            startNewStageActivity(packageName, fallbackClassName, options);
+            restarted = awaitStageTask(target, packageName, null);
+        }
+        if (restarted == null) {
+            throw new IllegalStateException("系统未能恢复分栏应用：" + packageName);
+        }
         if (target == first) firstAppToken = restarted;
         else secondAppToken = restarted;
         Object layout = transaction();
+        setHidden(layout, restarted, false);
+        transactionType.getMethod("setWindowingMode", tokenType, int.class)
+                .invoke(layout, restarted, 0);
+        transactionType.getMethod("reorder", tokenType, boolean.class)
+                .invoke(layout, root.token(), true);
         Rect[] targetBounds = bounds(width, height);
         applyLayout(layout, targetBounds);
         showSurfaces(targetBounds);
         stabilizeSurfaces(targetBounds);
+    }
+
+    private Object awaitRestartedStageTask(Stage target, String packageName, int id)
+            throws ReflectiveOperationException {
+        boolean reparented = false;
+        for (int attempt = 0; attempt < 30; attempt++) {
+            Object task = stageTaskById(target, id);
+            if (task == null) task = stageTask(target, packageName);
+            if (task != null) return token(task);
+            if (!reparented && attempt >= 4) {
+                Object stray = taskById(id);
+                if (stray == null) stray = findRootTask(packageName);
+                if (stray != null) {
+                    Object tx = transaction();
+                    Object strayToken = token(stray);
+                    setHidden(tx, strayToken, false);
+                    transactionType.getMethod("setWindowingMode", tokenType, int.class)
+                            .invoke(tx, strayToken, 0);
+                    transactionType.getMethod("reparent", tokenType, tokenType, boolean.class)
+                            .invoke(tx, strayToken, target.token(), true);
+                    apply(tx);
+                    reparented = true;
+                }
+            }
+            android.os.SystemClock.sleep(50);
+        }
+        return null;
     }
 
     private static int taskId(Object task) throws ReflectiveOperationException {
@@ -649,15 +710,31 @@ final class SplitSession {
     }
 
     boolean bringFullscreenTaskToFront(String packageName) throws ReflectiveOperationException {
-        Object task = findRootTask(packageName);
-        if (task == null) return false;
-        Object tx = transaction();
+        return bringRootTaskToFront(findRootTask(packageName));
+    }
+
+    private boolean bringRootTaskToFront(Object task) throws ReflectiveOperationException {
+        if (task == null || packageOf(task) == null) return false;
+        int id = taskId(task);
         Object taskToken = token(task);
-        resetFullscreenBounds(tx, taskToken);
-        setHidden(tx, taskToken, false);
-        transactionType.getMethod("reorder", tokenType, boolean.class).invoke(tx, taskToken, true);
-        apply(tx);
-        return true;
+        ActivityOptions options = ActivityOptions.makeBasic().setLaunchDisplayId(displayId);
+        try {
+            Object tx = transaction();
+            resetFullscreenBounds(tx, taskToken);
+            setHidden(tx, taskToken, false);
+            transactionType.getMethod("startTask", int.class, Bundle.class)
+                    .invoke(tx, id, options.toBundle());
+            apply(tx);
+            return true;
+        } catch (ReflectiveOperationException | RuntimeException e) {
+            Log.w(TAG, "startTask failed while bringing task=" + id + " to front; falling back to reorder", e);
+            Object tx = transaction();
+            resetFullscreenBounds(tx, taskToken);
+            setHidden(tx, taskToken, false);
+            transactionType.getMethod("reorder", tokenType, boolean.class).invoke(tx, taskToken, true);
+            apply(tx);
+            return true;
+        }
     }
 
     private void startNewStageActivity(String packageName, String className, ActivityOptions options)
@@ -776,21 +853,7 @@ final class SplitSession {
     }
 
     boolean bringTaskToFront(int taskId) throws ReflectiveOperationException {
-        Object task = null;
-        for (Object candidate : roots()) {
-            if (!isSplitContainerTask(candidate) && taskId(candidate) == taskId) {
-                task = candidate;
-                break;
-            }
-        }
-        if (task == null || packageOf(task) == null) return false;
-        Object taskToken = token(task);
-        Object tx = transaction();
-        resetFullscreenBounds(tx, taskToken);
-        setHidden(tx, taskToken, false);
-        transactionType.getMethod("reorder", tokenType, boolean.class).invoke(tx, taskToken, true);
-        apply(tx);
-        return true;
+        return bringRootTaskToFront(taskById(taskId));
     }
 
     synchronized String[] packages() throws ReflectiveOperationException {
@@ -940,7 +1003,7 @@ final class SplitSession {
             }
         }
         if (preferred != null) {
-            moveToFullscreen(tx, preferred, true);
+            moveToFullscreen(tx, preferred, wasForeground);
             setHidden(tx, token(preferred), false);
         }
         apply(tx);

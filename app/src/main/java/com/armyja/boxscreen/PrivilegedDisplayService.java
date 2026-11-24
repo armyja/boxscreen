@@ -1141,9 +1141,19 @@ public final class PrivilegedDisplayService extends IDisplayService.Stub {
                 if (entry == SPLIT_STACK_ENTRY) {
                     if (pairRow != null && !addedPair) {
                         ordered.add(pairRow);
-                        seenPackages.add(pair[0]);
-                        seenPackages.add(pair[1]);
                         addedPair = true;
+                        int[] stageIds = splitSession.stageTaskIds();
+                        for (int i = 0; i < stageIds.length; i++) {
+                            int childId = stageIds[i];
+                            String childPkg = i < pair.length ? pair[i] : null;
+                            if (childId <= 0 || childPkg == null
+                                    || childPkg.equals("com.armyja.boxscreen")) continue;
+                            String childRow = rowByTaskId.get(childId);
+                            if (childRow == null) childRow = childId + "\t" + childPkg;
+                            if (seenPackages.add(childPkg)) {
+                                ordered.add(childRow);
+                            }
+                        }
                     }
                     continue;
                 }
@@ -1157,7 +1167,6 @@ public final class PrivilegedDisplayService extends IDisplayService.Stub {
                     pkg = row.substring(row.indexOf('\t') + 1);
                 }
                 if (pkg.equals("com.armyja.boxscreen")) continue;
-                if (pair != null && (pkg.equals(pair[0]) || pkg.equals(pair[1]))) continue;
                 if (seenPackages.add(pkg)) {
                     ordered.add(row);
                 }
@@ -1165,7 +1174,6 @@ public final class PrivilegedDisplayService extends IDisplayService.Stub {
             for (String row : extraRows) {
                 int separator = row.indexOf('\t');
                 String pkg = row.substring(separator + 1);
-                if (pair != null && (pkg.equals(pair[0]) || pkg.equals(pair[1]))) continue;
                 if (seenPackages.add(pkg)) {
                     ordered.add(row);
                 }
@@ -1370,6 +1378,21 @@ public final class PrivilegedDisplayService extends IDisplayService.Stub {
         }
     }
 
+    private String resolveLaunchClassName(String packageName) {
+        if (baseContext == null || packageName == null) return null;
+        try {
+            android.content.Intent launch = baseContext.getPackageManager()
+                    .getLaunchIntentForPackage(packageName);
+            if (launch != null && launch.getComponent() != null
+                    && packageName.equals(launch.getComponent().getPackageName())) {
+                return launch.getComponent().getClassName();
+            }
+        } catch (RuntimeException e) {
+            Log.w("BoxScreenService", "could not resolve launch class for " + packageName, e);
+        }
+        return null;
+    }
+
     @Override
     public synchronized String[] restartDisplayedApp(String packageName, String foregroundPackage) {
         if (virtualDisplay == null || virtualDisplay.getDisplay() == null) return null;
@@ -1384,8 +1407,14 @@ public final class PrivilegedDisplayService extends IDisplayService.Stub {
                 if (!firstSide && !secondSide) return null;
                 int taskId = splitSession.splitTaskId(packageName, firstSide);
                 if (taskId <= 0) return null;
+                String fallbackClass = resolveLaunchClassName(packageName);
+                if (fallbackClass == null) {
+                    fallbackClass = splitSession.splitTaskClassName(packageName, firstSide);
+                }
                 run(new String[]{"/system/bin/am", "force-stop", packageName});
-                splitSession.restartSplitSide(taskId, firstSide, displayWidth, displayHeight);
+                splitSession.restartSplitSide(
+                        taskId, packageName, fallbackClass, firstSide, displayWidth, displayHeight);
+                recordActiveSplitOnTop(splitSession);
                 return splitSession.packages();
             }
 
