@@ -74,6 +74,8 @@ APK 输出路径：`app/build/outputs/apk/debug/app-debug.apk`。
 
 正式发布构建需要在 `~/.gradle/boxscreen-release.properties` 配置 `storeFile`、`storePassword`、`keyAlias`、`keyPassword`。签名密钥和配置不在仓库中；私钥丢失后，已安装官方 Release 的用户将无法通过新签名 APK 原地更新。普通开发和调试不需要发布签名文件。
 
+如需在连接外接显示器的真机上做端到端自动化验证（含自绘鼠标注入、状态栏交互与分屏任务栈核对），见[真机自动化测试指南](docs/TESTING_GUIDE_zh-CN.md)。
+
 ## 兼容性说明
 
 BoxScreen 使用 Android 的公开虚拟显示能力和 Shizuku 主机服务。分屏容器按系统实际提供的接口选择实现：OnePlus 16 使用 `TaskCreationParams` 路径；OnePlus 8 的上述第三方 Android 16 构建使用 `createRootTask` 路径。最近任务读取不依赖任一分屏实现。其他 Android 设备及未列出的系统构建尚未承诺兼容。个别应用可能拒绝在副屏启动、强制回到主屏，或自行限制方向和窗口尺寸；这些行为由应用自身的副屏适配决定。竖屏效果是把竖屏虚拟画面旋转后铺到保持横向的视频输出上。
