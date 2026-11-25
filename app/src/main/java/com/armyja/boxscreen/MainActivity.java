@@ -783,17 +783,6 @@ public final class MainActivity extends Activity {
         barInner.setPadding(dp(14), 0, dp(14), 0);
         topBarContainer.addView(barInner, new LinearLayout.LayoutParams(-1, dp(52)));
 
-        LinearLayout leftBrand = new LinearLayout(this);
-        leftBrand.setOrientation(LinearLayout.HORIZONTAL);
-        leftBrand.setGravity(Gravity.CENTER_VERTICAL);
-        ImageView brandIcon = new ImageView(this);
-        brandIcon.setImageResource(R.mipmap.ic_boxscreen);
-        LinearLayout.LayoutParams brandIconParams = new LinearLayout.LayoutParams(dp(24), dp(24));
-        brandIconParams.setMargins(0, 0, dp(6), 0);
-        leftBrand.addView(brandIcon, brandIconParams);
-
-        barInner.addView(leftBrand, new FrameLayout.LayoutParams(-2, -2, Gravity.START | Gravity.CENTER_VERTICAL));
-
         topBarTitle = text("BoxScreen", 18, true, theme.textPrimary);
         topBarTitle.setLetterSpacing(0.02f);
         barInner.addView(topBarTitle, new FrameLayout.LayoutParams(-2, -2, Gravity.CENTER));
