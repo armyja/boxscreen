@@ -3,7 +3,9 @@ package com.armyja.boxscreen;
 import android.app.Activity;
 import android.app.Presentation;
 import android.content.ComponentName;
+import android.content.BroadcastReceiver;
 import android.content.Context;
+import android.content.IntentFilter;
 import android.content.Intent;
 import android.content.ServiceConnection;
 import android.content.res.Configuration;
@@ -112,6 +114,7 @@ public final class MainActivity extends Activity {
 
     private static final class SmartisanPalette {
         final boolean isDark;
+        final boolean glass;
         final int pageBg;
         final int titleBarTop;
         final int titleBarBottom;
@@ -176,17 +179,18 @@ public final class MainActivity extends Activity {
         final int switchOnBorder;
         final int webBg;
 
-        private SmartisanPalette(boolean dark) {
+        private SmartisanPalette(boolean dark, boolean glass) {
             this.isDark = dark;
+            this.glass = glass;
             if (dark) {
-                pageBg = 0xff25282d;
-                titleBarTop = 0xff2d3036;
-                titleBarBottom = 0xff292c31;
+                pageBg = glass ? 0xff132035 : 0xff25282d;
+                titleBarTop = glass ? 0xdd334b69 : 0xff2d3036;
+                titleBarBottom = glass ? 0xf21c304b : 0xff292c31;
                 titleBarBorder = 0xff1c1e22;
                 titleBarShadowStart = 0x44000000;
-                cardBg = 0xff34373c;
-                appsCardBg = 0xff34373c;
-                cardBorder = 0xff23262b;
+                cardBg = glass ? 0xbd304765 : 0xff34373c;
+                appsCardBg = glass ? 0xbd304765 : 0xff34373c;
+                cardBorder = glass ? 0x77afcbef : 0xff23262b;
                 cardShadow = 0x40000000;
                 divider = 0xff404348;
                 textPrimary = 0xfff2f2f3;
@@ -215,8 +219,8 @@ public final class MainActivity extends Activity {
                 amberSoftBg = 0xff3f3526;
                 amberSoftBorder = 0xff675334;
                 amberText = 0xfff5bc63;
-                btnTop = 0xff454a52;
-                btnBottom = 0xff3b4048;
+                btnTop = glass ? 0xe04a6485 : 0xff454a52;
+                btnBottom = glass ? 0xe52c425e : 0xff3b4048;
                 btnBorder = 0xff25282e;
                 btnPressedTop = 0xff31353c;
                 btnPressedBottom = 0xff373c43;
@@ -244,12 +248,12 @@ public final class MainActivity extends Activity {
                 webBg = 0xff25282d;
             } else {
                 pageBg = 0xffeff0f2;
-                titleBarTop = 0xffffffff;
+                titleBarTop = glass ? 0xfaffffff : 0xffffffff;
                 titleBarBottom = 0xfff8f8f8;
                 titleBarBorder = 0xffdcdcdc;
                 titleBarShadowStart = 0x1c000000;
-                cardBg = 0xffffffff;
-                appsCardBg = 0xfff6f7f9;
+                cardBg = glass ? 0xfaffffff : 0xffffffff;
+                appsCardBg = glass ? 0xffe7f1fc : 0xfff6f7f9;
                 cardBorder = 0xffdcdcdc;
                 cardShadow = 0x14000000;
                 divider = 0xffebebeb;
@@ -279,9 +283,9 @@ public final class MainActivity extends Activity {
                 amberSoftBg = 0xfffef6e8;
                 amberSoftBorder = 0xffedd4a7;
                 amberText = 0xffb46b14;
-                btnTop = 0xffffffff;
-                btnBottom = 0xfff3f4f6;
-                btnBorder = 0xffd2d4d8;
+                btnTop = glass ? 0xfaffffff : 0xffffffff;
+                btnBottom = glass ? 0xe1e0eefc : 0xfff3f4f6;
+                btnBorder = glass ? 0xffb1c8e2 : 0xffd2d4d8;
                 btnPressedTop = 0xffe4e6ea;
                 btnPressedBottom = 0xffededf0;
                 btnPressedBorder = 0xffc2c5ca;
@@ -310,7 +314,7 @@ public final class MainActivity extends Activity {
         }
 
         static SmartisanPalette of(boolean dark) {
-            return new SmartisanPalette(dark);
+            return new SmartisanPalette(dark, false);
         }
     }
 
@@ -327,6 +331,33 @@ public final class MainActivity extends Activity {
             | ActivityInfo.CONFIG_LAYOUT_DIRECTION
             | ActivityInfo.CONFIG_UI_MODE;
     private Configuration lastConfiguration;
+    private static final String PREF_GLASS_STYLE = "glass_style";
+    private boolean glassStyle;
+    private android.app.Dialog settingsDialog;
+    private Runnable applySettingsTheme;
+    private boolean updateCheckRunning;
+    private int batteryPercent = -1;
+    private int batteryStatus = BatteryManager.BATTERY_STATUS_UNKNOWN;
+    private boolean batteryPlugged;
+    private String statusClock;
+    private final BroadcastReceiver statusInfoReceiver = new BroadcastReceiver() {
+        @Override public void onReceive(Context context, Intent intent) {
+            if (Intent.ACTION_BATTERY_CHANGED.equals(intent.getAction())) {
+                int level = intent.getIntExtra(BatteryManager.EXTRA_LEVEL, -1);
+                int scale = intent.getIntExtra(BatteryManager.EXTRA_SCALE, 0);
+                int percent = level >= 0 && scale > 0 ? Math.min(100, Math.round(100f * level / scale)) : -1;
+                int status = intent.getIntExtra(BatteryManager.EXTRA_STATUS, BatteryManager.BATTERY_STATUS_UNKNOWN);
+                boolean plugged = intent.getIntExtra(BatteryManager.EXTRA_PLUGGED, 0) != 0;
+                if (batteryPercent == percent && batteryStatus == status && batteryPlugged == plugged) return;
+                batteryPercent = percent;
+                batteryStatus = status;
+                batteryPlugged = plugged;
+            } else {
+                statusClock = null;
+            }
+            if (mousePointerView != null && mousePointerView.statusBarVisible) mousePointerView.invalidate();
+        }
+    };
     private int themeMode = THEME_MODE_SYSTEM;
     private boolean systemNightMode;
     private boolean darkMode;
@@ -375,11 +406,10 @@ public final class MainActivity extends Activity {
     private LinearLayout rootShell;
     private LinearLayout topBarContainer;
     private TextView topBarTitle;
-    private TextView versionChipView;
     private View topBarDivider;
     private View topBarShadow;
     private ScrollView mainScroll;
-    private Button guideButton;
+    private Button settingsButton;
     private View blackScreenOverlay;
     private TextView statusView;
     private TextView sectionControlTitle;
@@ -396,14 +426,7 @@ public final class MainActivity extends Activity {
     private TextView densityRangeView;
     private TextView densityView;
     private SmartisanSliderView densitySlider;
-    private View cardDivider3;
-    private TextView themeTitleView;
-    private LinearLayout themeSegmentTray;
-    private TextView themeModeSystemBtn;
-    private TextView themeModeLightBtn;
-    private TextView themeModeDarkBtn;
     private TextView appsSectionTitle;
-    private TextView systemAppsLabel;
     private LinearLayout searchContainer;
     private ImageView searchIconView;
     private LinearLayout appsCard;
@@ -412,7 +435,6 @@ public final class MainActivity extends Activity {
     private TextView searchClearButton;
     private TextView appsCountView;
     private TextView appsEmptyView;
-    private Switch systemAppsSwitch;
     private android.app.Dialog guideDialog;
     private WebView guideWebView;
     private LinearLayout guideContainer;
@@ -602,8 +624,14 @@ public final class MainActivity extends Activity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        IntentFilter statusFilter = new IntentFilter(Intent.ACTION_BATTERY_CHANGED);
+        statusFilter.addAction(Intent.ACTION_TIME_TICK);
+        statusFilter.addAction(Intent.ACTION_TIME_CHANGED);
+        statusFilter.addAction(Intent.ACTION_TIMEZONE_CHANGED);
+        registerReceiver(statusInfoReceiver, statusFilter);
         controlActivities.add(this);
         android.content.SharedPreferences preferences = getPreferences(MODE_PRIVATE);
+        glassStyle = preferences.getBoolean(PREF_GLASS_STYLE, false);
         themeMode = preferences.getInt(PREF_THEME_MODE, THEME_MODE_SYSTEM);
         if (themeMode < THEME_MODE_SYSTEM || themeMode > THEME_MODE_DARK) {
             themeMode = THEME_MODE_SYSTEM;
@@ -611,7 +639,7 @@ public final class MainActivity extends Activity {
         systemNightMode = isNightConfig(currentSystemConfiguration());
         lastConfiguration = new Configuration(currentSystemConfiguration());
         darkMode = resolveDarkMode();
-        theme = SmartisanPalette.of(darkMode);
+        theme = new SmartisanPalette(darkMode, glassStyle);
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         applySystemBarTheme(getWindow(), theme);
         displayManager = (DisplayManager) getSystemService(DISPLAY_SERVICE);
@@ -716,6 +744,8 @@ public final class MainActivity extends Activity {
             }
             virtualDisplayId = -1;
         }
+        if (settingsDialog != null) settingsDialog.dismiss();
+        unregisterReceiver(statusInfoReceiver);
         dismissGuideDialog();
         restorePhoneScreen();
         Shizuku.removeRequestPermissionResultListener(permissionListener);
@@ -757,38 +787,31 @@ public final class MainActivity extends Activity {
         leftBrand.setOrientation(LinearLayout.HORIZONTAL);
         leftBrand.setGravity(Gravity.CENTER_VERTICAL);
         ImageView brandIcon = new ImageView(this);
-        brandIcon.setImageResource(R.drawable.ic_launcher);
+        brandIcon.setImageResource(R.mipmap.ic_boxscreen);
         LinearLayout.LayoutParams brandIconParams = new LinearLayout.LayoutParams(dp(24), dp(24));
         brandIconParams.setMargins(0, 0, dp(6), 0);
         leftBrand.addView(brandIcon, brandIconParams);
 
-        String verName = "1.0";
-        try {
-            verName = getPackageManager().getPackageInfo(getPackageName(), 0).versionName;
-        } catch (PackageManager.NameNotFoundException ignored) { }
-        versionChipView = text("v" + verName, 10, true, theme.textSecondary);
-        versionChipView.setPadding(dp(6), dp(2), dp(6), dp(2));
-        leftBrand.addView(versionChipView, new LinearLayout.LayoutParams(-2, -2));
         barInner.addView(leftBrand, new FrameLayout.LayoutParams(-2, -2, Gravity.START | Gravity.CENTER_VERTICAL));
 
         topBarTitle = text("BoxScreen", 18, true, theme.textPrimary);
         topBarTitle.setLetterSpacing(0.02f);
         barInner.addView(topBarTitle, new FrameLayout.LayoutParams(-2, -2, Gravity.CENTER));
 
-        guideButton = new Button(this);
-        guideButton.setText("操作图解");
-        guideButton.setAllCaps(false);
-        guideButton.setTextSize(11.5f);
-        guideButton.setTypeface(null, android.graphics.Typeface.BOLD);
-        guideButton.setStateListAnimator(null);
-        guideButton.setElevation(0f);
-        guideButton.setMinHeight(dp(32));
-        guideButton.setMinimumHeight(dp(32));
-        guideButton.setMinWidth(0);
-        guideButton.setMinimumWidth(0);
-        guideButton.setPadding(dp(10), 0, dp(11), 0);
-        barInner.addView(guideButton, new FrameLayout.LayoutParams(-2, dp(32), Gravity.END | Gravity.CENTER_VERTICAL));
-        guideButton.setOnClickListener(v -> showOperationGuideDialog());
+        settingsButton = new Button(this);
+        settingsButton.setText("设置");
+        settingsButton.setAllCaps(false);
+        settingsButton.setTextSize(11.5f);
+        settingsButton.setTypeface(null, android.graphics.Typeface.BOLD);
+        settingsButton.setStateListAnimator(null);
+        settingsButton.setElevation(0f);
+        settingsButton.setMinHeight(dp(32));
+        settingsButton.setMinimumHeight(dp(32));
+        settingsButton.setMinWidth(0);
+        settingsButton.setMinimumWidth(0);
+        settingsButton.setPadding(dp(10), 0, dp(11), 0);
+        barInner.addView(settingsButton, new FrameLayout.LayoutParams(-2, dp(32), Gravity.END | Gravity.CENTER_VERTICAL));
+        settingsButton.setOnClickListener(v -> showSettings());
 
         topBarDivider = new View(this);
         topBarContainer.addView(topBarDivider, new LinearLayout.LayoutParams(-1, Math.max(1, dp(1))));
@@ -942,34 +965,6 @@ public final class MainActivity extends Activity {
             }
         });
 
-        cardDivider3 = new View(this);
-        LinearLayout.LayoutParams div3Params = new LinearLayout.LayoutParams(-1, Math.max(1, dp(1)));
-        div3Params.setMargins(0, dp(12), 0, dp(10));
-        controlCard.addView(cardDivider3, div3Params);
-
-        LinearLayout themeRow = new LinearLayout(this);
-        themeRow.setOrientation(LinearLayout.HORIZONTAL);
-        themeRow.setGravity(Gravity.CENTER_VERTICAL);
-        controlCard.addView(themeRow, fullWidth());
-
-        themeTitleView = text("外观主题", 13, true, theme.textPrimary);
-        themeRow.addView(themeTitleView, new LinearLayout.LayoutParams(-2, -2));
-
-        View themeSpacer = new View(this);
-        themeRow.addView(themeSpacer, new LinearLayout.LayoutParams(0, dp(1), 1f));
-
-        themeSegmentTray = new LinearLayout(this);
-        themeSegmentTray.setOrientation(LinearLayout.HORIZONTAL);
-        themeSegmentTray.setGravity(Gravity.CENTER_VERTICAL);
-        themeSegmentTray.setPadding(dp(2), dp(2), dp(2), dp(2));
-        themeModeSystemBtn = buildThemeSegment("跟随系统", THEME_MODE_SYSTEM);
-        themeModeLightBtn = buildThemeSegment("浅色", THEME_MODE_LIGHT);
-        themeModeDarkBtn = buildThemeSegment("暗色", THEME_MODE_DARK);
-        themeSegmentTray.addView(themeModeSystemBtn, new LinearLayout.LayoutParams(-2, -1));
-        themeSegmentTray.addView(themeModeLightBtn, new LinearLayout.LayoutParams(-2, -1));
-        themeSegmentTray.addView(themeModeDarkBtn, new LinearLayout.LayoutParams(-2, -1));
-        themeRow.addView(themeSegmentTray, new LinearLayout.LayoutParams(-2, dp(32)));
-
         LinearLayout appsHeader = new LinearLayout(this);
         appsHeader.setOrientation(LinearLayout.HORIZONTAL);
         appsHeader.setGravity(Gravity.CENTER_VERTICAL);
@@ -987,19 +982,6 @@ public final class MainActivity extends Activity {
         View appsSpacer = new View(this);
         appsHeader.addView(appsSpacer, new LinearLayout.LayoutParams(0, dp(1), 1f));
 
-        systemAppsLabel = text("系统应用", 12, false, theme.textSecondary);
-        LinearLayout.LayoutParams sysLabelParams = new LinearLayout.LayoutParams(-2, -2);
-        sysLabelParams.setMargins(0, 0, dp(6), 0);
-        appsHeader.addView(systemAppsLabel, sysLabelParams);
-
-        systemAppsSwitch = new Switch(this);
-        systemAppsSwitch.setShowText(false);
-        systemAppsSwitch.setChecked(showSystemApps);
-        LinearLayout.LayoutParams switchParams = new LinearLayout.LayoutParams(-2, -2);
-        switchParams.setMargins(0, 0, dp(10), 0);
-        appsHeader.addView(systemAppsSwitch, switchParams);
-        systemAppsLabel.setOnClickListener(v -> systemAppsSwitch.toggle());
-
         editFavoritesButton = button("编辑收藏");
         editFavoritesButton.setTextSize(11.5f);
         editFavoritesButton.setMinHeight(dp(30));
@@ -1014,14 +996,6 @@ public final class MainActivity extends Activity {
             updateEditFavoritesButtonStyle();
             rebuildAppsGrid();
         });
-        systemAppsSwitch.setOnCheckedChangeListener((button, checked) -> {
-            showSystemApps = checked;
-            getPreferences(MODE_PRIVATE).edit().putBoolean("show_system_apps", checked).apply();
-            quickPanelAppCache = null;
-            if (mousePointerView != null) mousePointerView.invalidate();
-            rebuildAppsGrid();
-        });
-
         searchContainer = new LinearLayout(this);
         searchContainer.setOrientation(LinearLayout.HORIZONTAL);
         searchContainer.setGravity(Gravity.CENTER_VERTICAL);
@@ -2365,8 +2339,6 @@ public final class MainActivity extends Activity {
         private int panelPressedControl;
         private PanelAppDrag panelAppDrag;
         private boolean screenshotPreviewPointerDown;
-        private String cachedStatusBarLabel;
-        private long statusBarLabelUpdatedAt;
         private final Path statusClipPath = new Path();
         private final RectF statusIconRect = new RectF();
         private final Rect savedIconBounds = new Rect();
@@ -3183,7 +3155,7 @@ public final class MainActivity extends Activity {
         }
 
         private StatusBarLayout statusBarLayout() {
-            panelTextPaint.setTextSize(panelDp(15));
+            setStatusTextSize();
             String label = statusBarLabel();
             ArrayList<RecentVirtualTask> apps = recentStatusTasks();
             float width = getWidth();
@@ -3427,25 +3399,47 @@ public final class MainActivity extends Activity {
             }, "boxscreen-close-displayed-app").start();
         }
 
+        private void setStatusTextSize() {
+            panelTextPaint.setTextSize(panelDp(14.5f));
+        }
+
         private String statusBarLabel() {
-            long now = android.os.SystemClock.uptimeMillis();
-            if (cachedStatusBarLabel != null && now - statusBarLabelUpdatedAt < 1000) {
-                return cachedStatusBarLabel;
+            if (statusClock == null) {
+                statusClock = android.text.format.DateFormat.format("HH:mm", System.currentTimeMillis()).toString();
             }
-            String time = new SimpleDateFormat("HH:mm", java.util.Locale.getDefault()).format(new Date());
-            BatteryManager battery = (BatteryManager) getSystemService(BATTERY_SERVICE);
-            int percent = battery == null ? -1
-                    : battery.getIntProperty(BatteryManager.BATTERY_PROPERTY_CAPACITY);
-            cachedStatusBarLabel = percent < 0 ? time : time + "   " + percent + "%";
-            statusBarLabelUpdatedAt = now;
-            return cachedStatusBarLabel;
+            return batteryPercent < 0 ? statusClock : statusClock + "   " + batteryPercent + "%";
+        }
+
+        private float statusInfoWidth() {
+            float digitWidth = 0f;
+            String digits = "0123456789";
+            for (int i = 0; i < digits.length(); i++) {
+                digitWidth = Math.max(digitWidth, panelTextPaint.measureText(digits, i, i + 1));
+            }
+            return 7 * digitWidth + panelTextPaint.measureText(":   %") + panelDp(17);
+        }
+
+        private void drawPowerIcon(Canvas canvas, float x, float y, int color) {
+            float unit = panelDp(1);
+            panelPaint.setColor(color);
+            panelPaint.setStrokeWidth(Math.max(1f, panelDp(1.3f)));
+            if (batteryStatus == BatteryManager.BATTERY_STATUS_CHARGING) {
+                canvas.drawLine(x + 2 * unit, y - 5 * unit, x - 2 * unit, y, panelPaint);
+                canvas.drawLine(x - 2 * unit, y, x + 2 * unit, y, panelPaint);
+                canvas.drawLine(x + 2 * unit, y, x - 2 * unit, y + 5 * unit, panelPaint);
+            } else {
+                canvas.drawLine(x - 2 * unit, y - 5 * unit, x - 2 * unit, y - unit, panelPaint);
+                canvas.drawLine(x + 2 * unit, y - 5 * unit, x + 2 * unit, y - unit, panelPaint);
+                canvas.drawRoundRect(x - 3 * unit, y - unit, x + 3 * unit, y + 3 * unit, unit, unit, panelPaint);
+                canvas.drawLine(x, y + 3 * unit, x, y + 5 * unit, panelPaint);
+            }
         }
 
         private ArrayList<RecentVirtualTask> recentStatusTasks() {
             refreshRecentStatusTasks();
             if (recentVirtualTasks.isEmpty()) return new ArrayList<>();
-            panelTextPaint.setTextSize(panelDp(15));
-            float sliderLeft = panelEdgeMargin() + panelTextPaint.measureText(statusBarLabel())
+            setStatusTextSize();
+            float sliderLeft = panelEdgeMargin() + statusInfoWidth()
                     + panelDp(14f);
             float closeLeft = getWidth() - panelEdgeMargin() - panelDp(STATUS_ITEM_SIZE_DP);
             float roomForIcons = closeLeft - sliderLeft - panelDp(12f + 72f);
@@ -4048,7 +4042,8 @@ public final class MainActivity extends Activity {
 
                 int panelFill = t.isDark ? 0xf525282d : 0xf7eff0f2;
                 drawSmartisanRect(canvas, 0, -radius, width, bottom, radius,
-                        panelFill, panelFill, t.cardBorder, 0);
+                        t.glass ? (t.isDark ? 0xe02f4666 : 0xe5ffffff) : panelFill,
+                        t.glass ? (t.isDark ? 0xee17283f : 0xebdceafb) : panelFill, t.cardBorder, 0);
 
                 ArrayList<ResolveInfo> apps = quickPanelApps();
                 float controlsTop = barHeight + panelDp(8);
@@ -4211,8 +4206,8 @@ public final class MainActivity extends Activity {
                     canvas.drawRect(0, barHeight, width, barHeight + panelDp(4), panelPaint);
                     panelPaint.setShader(null);
                 }
-                int barTop = t.isDark ? 0xf52e3137 : 0xf7ffffff;
-                int barBot = t.isDark ? 0xf5282b30 : 0xf7f7f8fa;
+                int barTop = t.glass ? t.titleBarTop : (t.isDark ? 0xf52e3137 : 0xf7ffffff);
+                int barBot = t.glass ? t.titleBarBottom : (t.isDark ? 0xf5282b30 : 0xf7f7f8fa);
                 drawSmartisanRect(canvas, 0, 0, width, barHeight, 0f, barTop, barBot, 0, 0);
                 panelPaint.setShader(null);
                 panelPaint.setColor(t.titleBarBorder);
@@ -4221,8 +4216,15 @@ public final class MainActivity extends Activity {
                 StatusBarLayout layout = statusBarLayout();
                 panelTextPaint.setColor(t.textPrimary);
                 panelTextPaint.setTextAlign(Paint.Align.LEFT);
-                panelTextPaint.setTextSize(panelDp(14.5f));
-                canvas.drawText(layout.label, panelEdgeMargin(), barHeight * 0.65f, panelTextPaint);
+                setStatusTextSize();
+                Paint.FontMetrics metrics = panelTextPaint.getFontMetrics();
+                float infoCenter = barHeight / 2f - panelDp(1);
+                float baseline = infoCenter - (metrics.ascent + metrics.descent) / 2f;
+                canvas.drawText(layout.label, panelEdgeMargin(), baseline, panelTextPaint);
+                if (batteryStatus == BatteryManager.BATTERY_STATUS_CHARGING || batteryPlugged) {
+                    drawPowerIcon(canvas, panelEdgeMargin() + panelTextPaint.measureText(layout.label)
+                            + panelDp(8), infoCenter, t.textPrimary);
+                }
 
                 AudioManager audio = (AudioManager) getSystemService(AUDIO_SERVICE);
                 if (audio != null && layout.sliderRight > layout.sliderLeft) {
@@ -5861,7 +5863,7 @@ public final class MainActivity extends Activity {
         boolean nextDark = resolveDarkMode();
         if (nextDark != darkMode) {
             darkMode = nextDark;
-            theme = SmartisanPalette.of(darkMode);
+            theme = new SmartisanPalette(darkMode, glassStyle);
             applySmartisanTheme();
         }
     }
@@ -5879,57 +5881,10 @@ public final class MainActivity extends Activity {
     private void applyThemeModeState(int mode) {
         this.themeMode = (mode >= THEME_MODE_SYSTEM && mode <= THEME_MODE_DARK) ? mode : THEME_MODE_SYSTEM;
         darkMode = resolveDarkMode();
-        theme = SmartisanPalette.of(darkMode);
+        theme = new SmartisanPalette(darkMode, glassStyle);
         applySmartisanTheme();
     }
 
-    private TextView buildThemeSegment(String label, int mode) {
-        TextView btn = text(label, 11.5f, false, theme.textSecondary);
-        btn.setGravity(Gravity.CENTER);
-        btn.setMinHeight(dp(28));
-        btn.setPadding(dp(10), 0, dp(10), 0);
-        btn.setClickable(true);
-        btn.setFocusable(true);
-        btn.setOnClickListener(v -> setThemeMode(mode));
-        return btn;
-    }
-
-    private void styleThemeSegmentButton(TextView btn, boolean selected, SmartisanPalette t) {
-        if (btn == null) return;
-        int pl = btn.getPaddingLeft();
-        int pt = btn.getPaddingTop();
-        int pr = btn.getPaddingRight();
-        int pb = btn.getPaddingBottom();
-        if (selected) {
-            int top = t.isDark ? 0xff4c525c : t.btnTop;
-            int bot = t.isDark ? 0xff3f444d : t.btnBottom;
-            int border = t.isDark ? 0xff262930 : t.btnBorder;
-            btn.setBackground(buildBeveledFace(top, bot, border, t.btnShadow, 7, false));
-            btn.setTextColor(t.textPrimary);
-            btn.setTypeface(null, android.graphics.Typeface.BOLD);
-        } else {
-            btn.setBackground(null);
-            btn.setTextColor(t.textSecondary);
-            btn.setTypeface(null, android.graphics.Typeface.NORMAL);
-        }
-        btn.setPadding(pl, pt, pr, pb);
-    }
-
-    private void updateThemeSegmentStyles(SmartisanPalette t) {
-        if (themeSegmentTray != null) {
-            GradientDrawable trayBg = new GradientDrawable(
-                    GradientDrawable.Orientation.TOP_BOTTOM,
-                    new int[]{t.searchBgTop, t.searchBgBottom});
-            trayBg.setCornerRadius(dp(9));
-            trayBg.setStroke(Math.max(1, dp(1)), t.searchBorder);
-            themeSegmentTray.setBackground(trayBg);
-        }
-        styleThemeSegmentButton(themeModeSystemBtn, themeMode == THEME_MODE_SYSTEM, t);
-        styleThemeSegmentButton(themeModeLightBtn, themeMode == THEME_MODE_LIGHT, t);
-        styleThemeSegmentButton(themeModeDarkBtn, themeMode == THEME_MODE_DARK, t);
-    }
-
-    @SuppressWarnings("deprecation")
     private void applySystemBarTheme(Window window, SmartisanPalette t) {
         if (window == null || t == null) return;
         window.setStatusBarColor(t.titleBarBottom);
@@ -5954,10 +5909,12 @@ public final class MainActivity extends Activity {
         SmartisanPalette t = theme;
         if (t == null) return;
         applySystemBarTheme(getWindow(), t);
-        if (rootLayout != null) rootLayout.setBackgroundColor(t.pageBg);
-        if (rootShell != null) rootShell.setBackgroundColor(t.pageBg);
-        if (mainScroll != null) mainScroll.setBackgroundColor(t.pageBg);
-        if (content != null) content.setBackgroundColor(t.pageBg);
+        if (applySettingsTheme != null) applySettingsTheme.run();
+        if (rootLayout != null) rootLayout.setBackground(pageBackground(t));
+        int innerColor = t.glass ? android.graphics.Color.TRANSPARENT : t.pageBg;
+        if (rootShell != null) rootShell.setBackgroundColor(innerColor);
+        if (mainScroll != null) mainScroll.setBackgroundColor(innerColor);
+        if (content != null) content.setBackgroundColor(innerColor);
         if (topBarContainer != null) {
             GradientDrawable barBg = new GradientDrawable(
                     GradientDrawable.Orientation.TOP_BOTTOM,
@@ -5965,26 +5922,14 @@ public final class MainActivity extends Activity {
             topBarContainer.setBackground(barBg);
         }
         if (topBarTitle != null) topBarTitle.setTextColor(t.textPrimary);
-        if (versionChipView != null) {
-            versionChipView.setTextColor(t.textSecondary);
-            versionChipView.setBackground(roundedCard(t.chipBg, t.chipBorder, 6));
-        }
         if (topBarDivider != null) topBarDivider.setBackgroundColor(t.titleBarBorder);
         if (topBarShadow != null) {
             topBarShadow.setBackground(new GradientDrawable(
                     GradientDrawable.Orientation.TOP_BOTTOM,
                     new int[]{t.titleBarShadowStart, 0x00000000}));
         }
-        if (guideButton != null) {
-            Drawable helpDrawable = getDrawable(R.drawable.ic_help_guide);
-            if (helpDrawable != null) {
-                Drawable tintedHelp = helpDrawable.mutate();
-                tintedHelp.setTint(t.textPrimary);
-                tintedHelp.setBounds(0, 0, dp(15), dp(15));
-                guideButton.setCompoundDrawables(tintedHelp, null, null, null);
-                guideButton.setCompoundDrawablePadding(dp(5));
-            }
-            styleNeutralBevelButton(guideButton, t, 8);
+        if (settingsButton != null) {
+            styleNeutralBevelButton(settingsButton, t, 8);
         }
         if (statusView != null) {
             statusView.setTextColor(t.accentBlueText);
@@ -6009,20 +5954,10 @@ public final class MainActivity extends Activity {
         }
         if (densityRangeView != null) densityRangeView.setTextColor(t.textMuted);
         if (densitySlider != null) densitySlider.applyTheme();
-        if (cardDivider3 != null) cardDivider3.setBackgroundColor(t.divider);
-        if (themeTitleView != null) themeTitleView.setTextColor(t.textPrimary);
-        updateThemeSegmentStyles(t);
         if (appsSectionTitle != null) appsSectionTitle.setTextColor(t.textSection);
         if (appsCountView != null) {
             appsCountView.setTextColor(t.textSecondary);
             appsCountView.setBackground(roundedCard(t.chipBg, t.chipBorder, 7));
-        }
-        if (systemAppsLabel != null) systemAppsLabel.setTextColor(t.textSecondary);
-        if (systemAppsSwitch != null) {
-            systemAppsSwitch.setTrackTintList(null);
-            systemAppsSwitch.setThumbTintList(null);
-            systemAppsSwitch.setTrackDrawable(buildSmartisanSwitchTrack(t));
-            systemAppsSwitch.setThumbDrawable(buildSmartisanSwitchThumb(t));
         }
         updateEditFavoritesButtonStyle();
         if (searchContainer != null) {
@@ -6169,6 +6104,240 @@ public final class MainActivity extends Activity {
             styleAccentRedButton(editFavoritesButton, theme, 8);
         } else {
             styleNeutralBevelButton(editFavoritesButton, theme, 8);
+        }
+    }
+
+    private void setGlassStyle(boolean glass) {
+        getPreferences(MODE_PRIVATE).edit().putBoolean(PREF_GLASS_STYLE, glass).apply();
+        for (MainActivity activity : activeThemeTargets()) {
+            if (!activity.isFinishing() && !activity.isDestroyed()) {
+                activity.glassStyle = glass;
+                activity.applyThemeModeState(activity.themeMode);
+            }
+        }
+    }
+
+    private void showSettings() {
+        if (settingsDialog != null) return;
+        android.app.Dialog dialog = new android.app.Dialog(this, android.R.style.Theme_Material_NoActionBar);
+        settingsDialog = dialog;
+
+        LinearLayout page = new LinearLayout(this);
+        page.setOrientation(LinearLayout.VERTICAL);
+        page.setOnApplyWindowInsetsListener((view, insets) -> {
+            if (Build.VERSION.SDK_INT >= 30) {
+                android.graphics.Insets bars = insets.getInsets(
+                        WindowInsets.Type.systemBars() | WindowInsets.Type.displayCutout());
+                view.setPadding(bars.left, bars.top, bars.right, bars.bottom);
+            } else {
+                view.setPadding(insets.getSystemWindowInsetLeft(), insets.getSystemWindowInsetTop(),
+                        insets.getSystemWindowInsetRight(), insets.getSystemWindowInsetBottom());
+            }
+            return insets;
+        });
+
+        ScrollView scroll = new ScrollView(this);
+        page.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1));
+        LinearLayout body = new LinearLayout(this);
+        body.setOrientation(LinearLayout.VERTICAL);
+        body.setPadding(dp(16), dp(12), dp(16), dp(20));
+        scroll.addView(body);
+
+        Button back = button("返回");
+        body.addView(back, new LinearLayout.LayoutParams(-2, -2));
+        back.setOnClickListener(v -> dialog.dismiss());
+        TextView title = text("设置", 24, true, theme.textPrimary);
+        body.addView(title, margins(0, 8, 0, 12));
+
+        LinearLayout appearance = settingsSection(body, "外观");
+        Button[] styles = settingsChoices(appearance, "主题风格", new String[]{"锤子", "液态玻璃"},
+                index -> setGlassStyle(index == 1));
+        Button[] modes = settingsChoices(appearance, "明暗模式", new String[]{"跟随系统", "浅色", "暗色"},
+                this::setThemeMode);
+
+        LinearLayout apps = settingsSection(body, "应用列表");
+        Switch systemApps = new Switch(this);
+        systemApps.setText("显示系统应用");
+        systemApps.setMinHeight(dp(48));
+        systemApps.setChecked(showSystemApps);
+        apps.addView(systemApps, fullWidth());
+        systemApps.setOnCheckedChangeListener((view, checked) -> {
+            getPreferences(MODE_PRIVATE).edit().putBoolean("show_system_apps", checked).apply();
+            for (MainActivity activity : activeThemeTargets()) {
+                if (activity.isFinishing() || activity.isDestroyed()) continue;
+                activity.showSystemApps = checked;
+                activity.quickPanelAppCache = null;
+                if (activity.mousePointerView != null) activity.mousePointerView.invalidate();
+                if (activity.appGrid != null) activity.rebuildAppsGrid();
+            }
+        });
+
+        LinearLayout help = settingsSection(body, "帮助");
+        Button guide = settingsAction(help, "离线操作图解", this::showOperationGuideDialog);
+        LinearLayout about = settingsSection(body, "关于与更新");
+        String version = installedVersion();
+        TextView versionText = text("已安装版本 " + version, 14, false, theme.textSecondary);
+        about.addView(versionText, margins(0, 4, 0, 6));
+        TextView status = text("", 13, false, theme.textSecondary);
+        about.addView(status, fullWidth());
+        Button check = button("检查更新");
+        about.addView(check, fullWidth());
+        check.setOnClickListener(v -> checkForRelease(dialog, check, status, version));
+        Button manual = settingsAction(about, "手动更新（GitHub Release）",
+                () -> openReleaseUrl(ReleaseUpdate.RELEASES));
+
+        applySettingsTheme = () -> {
+            SmartisanPalette palette = theme;
+            page.setBackground(pageBackground(palette));
+            applySystemBarTheme(dialog.getWindow(), palette);
+            title.setTextColor(palette.textPrimary);
+            for (LinearLayout section : new LinearLayout[]{appearance, apps, help, about}) {
+                section.setBackground(buildSmartisanCard(palette, 12));
+                ((TextView) section.getChildAt(0)).setTextColor(palette.textPrimary);
+                if (section == appearance) {
+                    ((TextView) section.getChildAt(1)).setTextColor(palette.textSecondary);
+                    ((TextView) section.getChildAt(3)).setTextColor(palette.textSecondary);
+                }
+            }
+            systemApps.setTextColor(palette.textPrimary);
+            systemApps.setTrackDrawable(buildSmartisanSwitchTrack(palette));
+            systemApps.setThumbDrawable(buildSmartisanSwitchThumb(palette));
+            versionText.setTextColor(palette.textSecondary);
+            status.setTextColor(palette.textSecondary);
+            for (Button action : new Button[]{back, guide, check, manual}) {
+                styleNeutralBevelButton(action, palette, 8);
+            }
+            for (int i = 0; i < styles.length; i++) {
+                styleSettingsChoice(styles[i], i == (glassStyle ? 1 : 0));
+            }
+            for (int i = 0; i < modes.length; i++) {
+                styleSettingsChoice(modes[i], i == themeMode);
+            }
+        };
+
+        dialog.setContentView(page);
+        dialog.setOnDismissListener(ignored -> {
+            settingsDialog = null;
+            applySettingsTheme = null;
+        });
+        dialog.show();
+        dialog.getWindow().setLayout(-1, -1);
+        applySettingsTheme.run();
+        page.requestApplyInsets();
+    }
+
+    private LinearLayout settingsSection(LinearLayout body, String label) {
+        LinearLayout section = new LinearLayout(this);
+        section.setOrientation(LinearLayout.VERTICAL);
+        section.setPadding(dp(12), dp(10), dp(12), dp(10));
+        section.addView(text(label, 15, true, theme.textPrimary), margins(0, 0, 0, 4));
+        body.addView(section, margins(0, 0, 0, 10));
+        return section;
+    }
+
+    private Button settingsAction(LinearLayout section, String label, Runnable action) {
+        Button button = button(label);
+        section.addView(button, margins(0, 4, 0, 0));
+        button.setOnClickListener(v -> action.run());
+        return button;
+    }
+
+    private Button[] settingsChoices(LinearLayout section, String label, String[] options,
+                                     java.util.function.IntConsumer onSelect) {
+        TextView caption = text(label, 12, false, theme.textSecondary);
+        section.addView(caption, margins(0, 6, 0, 2));
+        LinearLayout row = new LinearLayout(this);
+        section.addView(row, fullWidth());
+        Button[] buttons = new Button[options.length];
+        for (int i = 0; i < options.length; i++) {
+            int index = i;
+            Button option = button(options[i]);
+            option.setTextSize(13);
+            option.setMinimumWidth(0);
+            option.setMinWidth(0);
+            option.setPadding(0, 0, 0, 0);
+            LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(0, dp(48), 1f);
+            if (i > 0) params.setMarginStart(dp(6));
+            row.addView(option, params);
+            option.setOnClickListener(v -> onSelect.accept(index));
+            buttons[i] = option;
+        }
+        return buttons;
+    }
+
+    private void styleSettingsChoice(Button button, boolean selected) {
+        button.setSelected(selected);
+        styleNeutralBevelButton(button, theme, 8);
+        if (selected) {
+            button.setTextColor(theme.accentBlueText);
+            button.setBackground(roundedCard(theme.accentBlueSoftBg, theme.accentBlueSoftBorder, 8));
+        }
+    }
+
+    private String installedVersion() {
+        try {
+            return getPackageManager().getPackageInfo(getPackageName(), 0).versionName;
+        } catch (PackageManager.NameNotFoundException e) {
+            return "未知";
+        }
+    }
+
+    private void checkForRelease(android.app.Dialog dialog, Button button, TextView status, String current) {
+        if (updateCheckRunning) {
+            status.setText("正在检查更新，请稍后。");
+            return;
+        }
+        if (!ReleaseUpdate.isVersion(current)) {
+            status.setText("无法比较已安装版本，可手动查看 GitHub Release。");
+            return;
+        }
+        updateCheckRunning = true;
+        button.setEnabled(false);
+        status.setText("正在检查更新…");
+        new Thread(() -> {
+            ReleaseUpdate result;
+            try {
+                result = ReleaseUpdate.fetch();
+            } catch (Exception e) {
+                Log.w(TAG, "Unable to check GitHub release", e);
+                result = null;
+            }
+            ReleaseUpdate release = result;
+            runOnUiThread(() -> {
+                updateCheckRunning = false;
+                if (settingsDialog != dialog || !dialog.isShowing() || isDestroyed()) return;
+                button.setEnabled(true);
+                if (release == null) {
+                    status.setText("检查失败，请重试或手动打开 GitHub Release。");
+                    return;
+                }
+                if (!release.isNewerThan(current)) {
+                    status.setText("已是最新版（v" + current + "）。");
+                    return;
+                }
+                status.setText(release.downloadUrl == null
+                        ? "有新版，暂未找到唯一的正式 APK。" : "有新版 v" + release.version);
+                String notes = release.notes.length() > 6000
+                        ? release.notes.substring(0, 6000) + "…" : release.notes;
+                new android.app.AlertDialog.Builder(this, theme.isDark
+                        ? android.R.style.Theme_Material_Dialog_Alert
+                        : android.R.style.Theme_Material_Light_Dialog_Alert)
+                        .setTitle("BoxScreen v" + release.version)
+                        .setMessage(notes.isEmpty() ? "可在 GitHub 查看发布详情。" : notes)
+                        .setNegativeButton("关闭", null)
+                        .setPositiveButton(release.downloadUrl == null ? "查看发布页" : "用浏览器下载",
+                                (ignored, which) -> openReleaseUrl(release.downloadUrl == null
+                                        ? release.pageUrl : release.downloadUrl))
+                        .show();
+            });
+        }, "BoxScreen-release-check").start();
+    }
+
+    private void openReleaseUrl(String url) {
+        try {
+            startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(url)).addCategory(Intent.CATEGORY_BROWSABLE));
+        } catch (android.content.ActivityNotFoundException e) {
+            Toast.makeText(this, "未找到可以打开 GitHub 的浏览器", Toast.LENGTH_SHORT).show();
         }
     }
 
@@ -6352,7 +6521,21 @@ public final class MainActivity extends Activity {
         return d;
     }
 
+    private Drawable pageBackground(SmartisanPalette palette) {
+        if (!palette.glass) return new android.graphics.drawable.ColorDrawable(palette.pageBg);
+        return new GradientDrawable(GradientDrawable.Orientation.TL_BR,
+                new int[]{palette.isDark ? 0xff294263 : 0xfff3faff, palette.pageBg,
+                        palette.isDark ? 0xff20374c : 0xffc2d9ed});
+    }
+
     private Drawable buildSmartisanCard(SmartisanPalette t, int radiusDp) {
+        if (t.glass) {
+            GradientDrawable glass = new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,
+                    new int[]{t.isDark ? 0xf2445c7e : 0xfaffffff, t.cardBg});
+            glass.setCornerRadius(dp(radiusDp + 4));
+            glass.setStroke(Math.max(1, dp(1)), t.isDark ? 0x82bad2ef : 0xfffafcff);
+            return glass;
+        }
         return buildSmartisanCard(t.cardBg, t.cardBorder, t.cardShadow, radiusDp);
     }
 
