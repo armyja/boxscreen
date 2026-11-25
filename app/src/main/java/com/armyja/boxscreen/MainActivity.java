@@ -63,7 +63,6 @@ import android.widget.TextView;
 import android.text.Editable;
 import android.text.TextUtils;
 import android.text.TextWatcher;
-import android.content.res.ColorStateList;
 import android.graphics.drawable.Drawable;
 import android.graphics.drawable.GradientDrawable;
 import android.graphics.drawable.InsetDrawable;
@@ -76,23 +75,13 @@ import android.webkit.WebViewClient;
 import android.widget.ImageView;
 import android.widget.Toast;
 
-import java.io.BufferedReader;
-import java.io.BufferedWriter;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.io.InputStreamReader;
-import java.io.OutputStreamWriter;
 import java.nio.charset.StandardCharsets;
-import java.net.Inet4Address;
-import java.net.NetworkInterface;
-import java.net.ServerSocket;
-import java.net.Socket;
-import java.security.SecureRandom;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.Enumeration;
 import java.util.List;
 import java.util.HashSet;
 import java.util.Set;
@@ -120,6 +109,7 @@ public final class MainActivity extends Activity {
         final int titleBarBottom;
         final int titleBarBorder;
         final int titleBarShadowStart;
+        final int titleBarIcon;
         final int cardBg;
         final int appsCardBg;
         final int cardBorder;
@@ -172,7 +162,6 @@ public final class MainActivity extends Activity {
         final int sliderThumbTop;
         final int sliderThumbBottom;
         final int sliderThumbBorder;
-        final int sliderThumbGrip;
         final int switchOffTrack;
         final int switchOffBorder;
         final int switchOnTrack;
@@ -183,133 +172,133 @@ public final class MainActivity extends Activity {
             this.isDark = dark;
             this.glass = glass;
             if (dark) {
-                pageBg = glass ? 0xff132035 : 0xff25282d;
-                titleBarTop = glass ? 0xdd334b69 : 0xff2d3036;
-                titleBarBottom = glass ? 0xf21c304b : 0xff292c31;
-                titleBarBorder = 0xff1c1e22;
-                titleBarShadowStart = 0x44000000;
-                cardBg = glass ? 0xbd304765 : 0xff34373c;
-                appsCardBg = glass ? 0xbd304765 : 0xff34373c;
-                cardBorder = glass ? 0x77afcbef : 0xff23262b;
-                cardShadow = 0x40000000;
-                divider = 0xff404348;
-                textPrimary = 0xfff2f2f3;
-                textSecondary = 0xffc8cacd;
-                textMuted = 0xff85878a;
-                textSection = 0xff9fa1a4;
-                textDisabled = 0xff717377;
-                chipBg = 0xff2a2d32;
-                chipBorder = 0xff42464d;
+                pageBg = glass ? 0xff090c12 : 0xff25282d;
+                titleBarTop = glass ? 0xd4111620 : 0xff292c31;
+                titleBarBottom = glass ? 0xda0c1018 : 0xff292c31;
+                titleBarBorder = glass ? 0x30000000 : 0xff1c1e22;
+                titleBarShadowStart = glass ? 0x36000000 : 0x48000000;
+                titleBarIcon = glass ? 0xfff4f7fc : 0xffd2d3d5;
+                cardBg = glass ? 0x7c1d2430 : 0xff34373c;
+                appsCardBg = glass ? 0x7c1d2430 : 0xff34373c;
+                cardBorder = glass ? 0x34000000 : 0xff23262b;
+                cardShadow = glass ? 0x38000000 : 0x40000000;
+                divider = glass ? 0x26ffffff : 0xff404348;
+                textPrimary = glass ? 0xfff4f7fc : 0xfff2f2f3;
+                textSecondary = glass ? 0xffd6deea : 0xffd2d3d5;
+                textMuted = glass ? 0xffaeb9ca : 0xff9fa1a4;
+                textSection = glass ? 0xff98a4b8 : 0xffd2d3d5;
+                textDisabled = glass ? 0xff5f6b7d : 0xff717377;
+                chipBg = glass ? 0x2cffffff : 0xff2a2d32;
+                chipBorder = glass ? 0x36000000 : 0xff404348;
                 accentRedTop = 0xffe45c53;
                 accentRedBottom = 0xffcb433b;
-                accentRedBorder = 0xff962c26;
+                accentRedBorder = glass ? 0x48e45c53 : 0xff962c26;
                 accentRedPressedTop = 0xffb3362f;
                 accentRedPressedBottom = 0xffc44038;
                 accentRedPressedBorder = 0xff82241f;
-                softRedTop = 0xff463235;
-                softRedBottom = 0xff3d2b2e;
-                softRedBorder = 0xff6b4247;
-                softRedPressedTop = 0xff352427;
-                softRedPressedBottom = 0xff3a282b;
-                softRedText = 0xfff4908a;
-                accentBlue = 0xff5c83dc;
-                accentBlueSoftBg = 0xff2e3748;
-                accentBlueSoftBorder = 0xff465875;
-                accentBlueText = 0xff96b5f8;
-                amberSoftBg = 0xff3f3526;
-                amberSoftBorder = 0xff675334;
+                softRedTop = glass ? 0x4ce45c53 : 0xff463235;
+                softRedBottom = glass ? 0x38c44038 : 0xff3d2b2e;
+                softRedBorder = glass ? 0x60f07c74 : 0xff6b4247;
+                softRedPressedTop = glass ? 0x68c44038 : 0xff352427;
+                softRedPressedBottom = glass ? 0x52b3362f : 0xff3a282b;
+                softRedText = 0xfff6948e;
+                accentBlue = 0xff5e80d0;
+                accentBlueSoftBg = glass ? 0x583b82f6 : 0xff2e3748;
+                accentBlueSoftBorder = glass ? 0x8560a5fa : 0xff465875;
+                accentBlueText = glass ? 0xffbad6ff : 0xff8eaef6;
+                amberSoftBg = glass ? 0x44d97706 : 0xff3f3526;
+                amberSoftBorder = glass ? 0x68f59e0b : 0xff675334;
                 amberText = 0xfff5bc63;
-                btnTop = glass ? 0xe04a6485 : 0xff454a52;
-                btnBottom = glass ? 0xe52c425e : 0xff3b4048;
-                btnBorder = 0xff25282e;
-                btnPressedTop = 0xff31353c;
-                btnPressedBottom = 0xff373c43;
-                btnPressedBorder = 0xff1e2025;
-                btnShadow = 0x42000000;
-                btnDisabledBg = 0xff303338;
-                btnDisabledBorder = 0xff292c31;
-                searchBgTop = 0xff292c32;
-                searchBgBottom = 0xff2f3339;
-                searchBorder = 0xff1e2126;
-                tilePressedBg = 0xff41464e;
-                tileFavEditBg = 0xff453235;
-                tileFavEditBorder = 0xff7e484d;
-                sliderTrackTop = 0xff1e2126;
-                sliderTrackBottom = 0xff282c32;
-                sliderTrackBorder = 0xff15171b;
-                sliderThumbTop = 0xff555b65;
-                sliderThumbBottom = 0xff41464f;
-                sliderThumbBorder = 0xff202328;
-                sliderThumbGrip = 0xff7a818c;
-                switchOffTrack = 0xff292c32;
-                switchOffBorder = 0xff1c1e22;
-                switchOnTrack = 0xff5378ce;
-                switchOnBorder = 0xff3c5ca6;
-                webBg = 0xff25282d;
+                btnTop = glass ? 0x2effffff : 0xff41464d;
+                btnBottom = glass ? 0x1affffff : 0xff34373c;
+                btnBorder = glass ? 0x34000000 : 0xff23262b;
+                btnPressedTop = glass ? 0x42ffffff : 0xff484d54;
+                btnPressedBottom = glass ? 0x2cffffff : 0xff484d54;
+                btnPressedBorder = glass ? 0x42000000 : 0xff1e2025;
+                btnShadow = glass ? 0x34000000 : 0x42000000;
+                btnDisabledBg = glass ? 0x18ffffff : 0xff303338;
+                btnDisabledBorder = glass ? 0x22000000 : 0xff292c31;
+                searchBgTop = glass ? 0x24000000 : 0xff292c32;
+                searchBgBottom = glass ? 0x1a000000 : 0xff2f3339;
+                searchBorder = glass ? 0x28ffffff : 0xff404348;
+                tilePressedBg = glass ? 0x30ffffff : 0xff41464d;
+                tileFavEditBg = glass ? 0x42e45c53 : 0xff453235;
+                tileFavEditBorder = glass ? 0x68f07c74 : 0xff7e484d;
+                sliderTrackTop = glass ? 0x34ffffff : 0xff1e2126;
+                sliderTrackBottom = glass ? 0x22ffffff : 0xff282c32;
+                sliderTrackBorder = glass ? 0x28000000 : 0xff15171b;
+                sliderThumbTop = glass ? 0xf2ffffff : 0xff555b65;
+                sliderThumbBottom = glass ? 0xd2e4ecf8 : 0xff41464f;
+                sliderThumbBorder = glass ? 0x40000000 : 0xff202328;
+                switchOffTrack = glass ? 0x34ffffff : 0xff292c32;
+                switchOffBorder = glass ? 0x2c000000 : 0xff1c1e22;
+                switchOnTrack = glass ? 0xff2d7df6 : 0xff5378ce;
+                switchOnBorder = glass ? 0xff1e62d0 : 0xff3c5ca6;
+                webBg = glass ? 0xff090c12 : 0xff25282d;
             } else {
-                pageBg = 0xffeff0f2;
-                titleBarTop = glass ? 0xfaffffff : 0xffffffff;
-                titleBarBottom = 0xfff8f8f8;
-                titleBarBorder = 0xffdcdcdc;
-                titleBarShadowStart = 0x1c000000;
-                cardBg = glass ? 0xfaffffff : 0xffffffff;
-                appsCardBg = glass ? 0xffe7f1fc : 0xfff6f7f9;
-                cardBorder = 0xffdcdcdc;
-                cardShadow = 0x14000000;
-                divider = 0xffebebeb;
-                textPrimary = 0xff262626;
-                textSecondary = 0xff6d7075;
-                textMuted = 0xff909398;
-                textSection = 0xff787b80;
-                textDisabled = 0xffb3b5ba;
-                chipBg = 0xfff5f6f7;
-                chipBorder = 0xffdedfe2;
-                accentRedTop = 0xffe85e55;
-                accentRedBottom = 0xffd2463d;
-                accentRedBorder = 0xffb43830;
+                pageBg = glass ? 0xfff5f7fa : 0xfff5f5f5;
+                titleBarTop = glass ? 0xdcffffff : 0xffffffff;
+                titleBarBottom = glass ? 0xcef2f6fc : 0xffffffff;
+                titleBarBorder = glass ? 0x16000000 : 0xffe5e5e6;
+                titleBarShadowStart = glass ? 0x120a182c : 0x16000000;
+                titleBarIcon = glass ? 0xff18202c : 0xcc000000;
+                cardBg = glass ? 0xceffffff : 0xffffffff;
+                appsCardBg = glass ? 0xceffffff : 0xffffffff;
+                cardBorder = glass ? 0x16000000 : 0xffdedfe2;
+                cardShadow = glass ? 0x140a182c : 0x14000000;
+                divider = glass ? 0x1e0e1c30 : 0xffe5e5e6;
+                textPrimary = glass ? 0xff121720 : 0xcc000000;
+                textSecondary = glass ? 0xff495466 : 0x9a000000;
+                textMuted = glass ? 0xff6e788a : 0x62000000;
+                textSection = glass ? 0xff576274 : 0x66000000;
+                textDisabled = glass ? 0xff9aa5b6 : 0xffb3b5ba;
+                chipBg = glass ? 0x7affffff : 0xfff5f6f7;
+                chipBorder = glass ? 0x18000000 : 0xffdedfe2;
+                accentRedTop = 0xffe65c53;
+                accentRedBottom = 0xffd1483f;
+                accentRedBorder = glass ? 0x48c93d35 : 0xffb43830;
                 accentRedPressedTop = 0xffc33d34;
                 accentRedPressedBottom = 0xffd1473e;
                 accentRedPressedBorder = 0xff9e2e27;
-                softRedTop = 0xfffef4f3;
-                softRedBottom = 0xfffbe9e7;
-                softRedBorder = 0xffecc5c2;
-                softRedPressedTop = 0xfff2d7d4;
-                softRedPressedBottom = 0xfff7e2e0;
+                softRedTop = glass ? 0x2ce65c53 : 0xfffef4f3;
+                softRedBottom = glass ? 0x1fd1483f : 0xfffbe9e7;
+                softRedBorder = glass ? 0x4de65c53 : 0xffecc5c2;
+                softRedPressedTop = glass ? 0x44d1483f : 0xfff2d7d4;
+                softRedPressedBottom = glass ? 0x36e65c53 : 0xfff7e2e0;
                 softRedText = 0xffce453d;
-                accentBlue = 0xff4f73c7;
-                accentBlueSoftBg = 0xffedf3fc;
-                accentBlueSoftBorder = 0xffc7d7f4;
-                accentBlueText = 0xff3e60b0;
-                amberSoftBg = 0xfffef6e8;
-                amberSoftBorder = 0xffedd4a7;
+                accentBlue = glass ? 0xff2875ed : 0xff5e80d0;
+                accentBlueSoftBg = glass ? 0x90e4efff : 0xffedf3fc;
+                accentBlueSoftBorder = glass ? 0x662875ed : 0xffc7d7f4;
+                accentBlueText = glass ? 0xff1655bd : 0xff4a69b3;
+                amberSoftBg = glass ? 0x24d97706 : 0xfffef6e8;
+                amberSoftBorder = glass ? 0x48d97706 : 0xffedd4a7;
                 amberText = 0xffb46b14;
-                btnTop = glass ? 0xfaffffff : 0xffffffff;
-                btnBottom = glass ? 0xe1e0eefc : 0xfff3f4f6;
-                btnBorder = glass ? 0xffb1c8e2 : 0xffd2d4d8;
-                btnPressedTop = 0xffe4e6ea;
-                btnPressedBottom = 0xffededf0;
-                btnPressedBorder = 0xffc2c5ca;
-                btnShadow = 0x16000000;
-                btnDisabledBg = 0xfff4f4f5;
-                btnDisabledBorder = 0xffe3e4e6;
-                searchBgTop = 0xffe8eaed;
-                searchBgBottom = 0xfff2f3f5;
-                searchBorder = 0xffd4d6dc;
-                tilePressedBg = 0xffeaecef;
-                tileFavEditBg = 0xfffdf2f1;
-                tileFavEditBorder = 0xffe6a9a4;
-                sliderTrackTop = 0xffd2d5dc;
-                sliderTrackBottom = 0xffe7e9ed;
-                sliderTrackBorder = 0xffbec2ca;
-                sliderThumbTop = 0xffffffff;
-                sliderThumbBottom = 0xffeaedf0;
-                sliderThumbBorder = 0xffbcbfc6;
-                sliderThumbGrip = 0xffcfd2d8;
-                switchOffTrack = 0xffd7dade;
-                switchOffBorder = 0xffc1c4ca;
-                switchOnTrack = 0xff5378ce;
-                switchOnBorder = 0xff3e61b5;
-                webBg = 0xfff2f5f4;
+                btnTop = glass ? 0xc6ffffff : 0xffffffff;
+                btnBottom = glass ? 0x9ef2f6fc : 0xfff7f7f7;
+                btnBorder = glass ? 0x1c000000 : 0xffd7d7d7;
+                btnPressedTop = glass ? 0xd6e8f0fa : 0xffececec;
+                btnPressedBottom = glass ? 0xc0edf4fc : 0xffececec;
+                btnPressedBorder = glass ? 0x26000000 : 0xffc6c6c6;
+                btnShadow = glass ? 0x140a182c : 0x16000000;
+                btnDisabledBg = glass ? 0x62f2f5fa : 0xfff2f2f2;
+                btnDisabledBorder = glass ? 0x14000000 : 0xffe3e4e6;
+                searchBgTop = glass ? 0x52ffffff : 0xffeceeef;
+                searchBgBottom = glass ? 0x76ffffff : 0xfff4f5f7;
+                searchBorder = glass ? 0x18000000 : 0xffdadce0;
+                tilePressedBg = glass ? 0x402875ed : 0xffeaecef;
+                tileFavEditBg = glass ? 0x26e65c53 : 0xfffdf2f1;
+                tileFavEditBorder = glass ? 0x55e65c53 : 0xffe6a9a4;
+                sliderTrackTop = glass ? 0x280e1c30 : 0xffd2d5dc;
+                sliderTrackBottom = glass ? 0x1c0e1c30 : 0xffe7e9ed;
+                sliderTrackBorder = glass ? 0x1e0e1c30 : 0xffbec2ca;
+                sliderThumbTop = glass ? 0xfcffffff : 0xffffffff;
+                sliderThumbBottom = glass ? 0xe8eef4fc : 0xffeaedf0;
+                sliderThumbBorder = glass ? 0x24000000 : 0xffbcbfc6;
+                switchOffTrack = glass ? 0x2a0e1c30 : 0xffd7dade;
+                switchOffBorder = glass ? 0x1c0e1c30 : 0xffc1c4ca;
+                switchOnTrack = glass ? 0xff2875ed : 0xff5378ce;
+                switchOnBorder = glass ? 0xff1e5ec4 : 0xff3e61b5;
+                webBg = glass ? 0xfff5f7fa : 0xfff5f5f5;
             }
         }
 
@@ -403,17 +392,19 @@ public final class MainActivity extends Activity {
 
     private LinearLayout content;
     private FrameLayout rootLayout;
-    private LinearLayout rootShell;
+    private FrameLayout homeBackdropSource;
+    private FrameLayout topBarHost;
+    private LiquidGlassEngine.LiquidGlassBackdropView homeTopBarGlass;
     private LinearLayout topBarContainer;
     private TextView topBarTitle;
     private View topBarDivider;
     private View topBarShadow;
     private ScrollView mainScroll;
-    private Button settingsButton;
+    private ImageView settingsButton;
     private View blackScreenOverlay;
     private TextView statusView;
     private TextView sectionControlTitle;
-    private LinearLayout controlCard;
+    private LiquidGlassEngine.LiquidGlassCardLayout controlCard;
     private View cardDivider1;
     private View cardDivider2;
     private View monitorStatusDot;
@@ -429,7 +420,7 @@ public final class MainActivity extends Activity {
     private TextView appsSectionTitle;
     private LinearLayout searchContainer;
     private ImageView searchIconView;
-    private LinearLayout appsCard;
+    private LiquidGlassEngine.LiquidGlassCardLayout appsCard;
     private GridLayout appGrid;
     private EditText appSearch;
     private TextView searchClearButton;
@@ -440,7 +431,7 @@ public final class MainActivity extends Activity {
     private LinearLayout guideContainer;
     private LinearLayout guideTopBar;
     private TextView guideTitleView;
-    private Button guideCloseButton;
+    private ImageView guideCloseButton;
     private View guideTopDivider;
     private View guideTopShadow;
     /**
@@ -629,6 +620,8 @@ public final class MainActivity extends Activity {
         statusFilter.addAction(Intent.ACTION_TIME_CHANGED);
         statusFilter.addAction(Intent.ACTION_TIMEZONE_CHANGED);
         registerReceiver(statusInfoReceiver, statusFilter);
+        Intent stickyBattery = registerReceiver(null, new IntentFilter(Intent.ACTION_BATTERY_CHANGED));
+        if (stickyBattery != null) statusInfoReceiver.onReceive(this, stickyBattery);
         controlActivities.add(this);
         android.content.SharedPreferences preferences = getPreferences(MODE_PRIVATE);
         glassStyle = preferences.getBoolean(PREF_GLASS_STYLE, false);
@@ -686,13 +679,17 @@ public final class MainActivity extends Activity {
 
     @Override protected void onResume() {
         super.onResume();
+        statusClock = null;
         systemNightMode = isNightConfig(currentSystemConfiguration());
+        boolean savedGlass = getPreferences(MODE_PRIVATE).getBoolean(PREF_GLASS_STYLE, false);
         int savedMode = getPreferences(MODE_PRIVATE).getInt(PREF_THEME_MODE, THEME_MODE_SYSTEM);
         if (savedMode < THEME_MODE_SYSTEM || savedMode > THEME_MODE_DARK) savedMode = THEME_MODE_SYSTEM;
         int prevMode = themeMode;
+        boolean prevGlass = glassStyle;
         themeMode = savedMode;
+        glassStyle = savedGlass;
         boolean savedDark = resolveDarkMode();
-        if (savedMode != prevMode || savedDark != darkMode) {
+        if (savedMode != prevMode || savedGlass != prevGlass || savedDark != darkMode) {
             applyThemeModeState(savedMode);
         }
         applyPendingPrimaryBlackout();
@@ -745,7 +742,9 @@ public final class MainActivity extends Activity {
             virtualDisplayId = -1;
         }
         if (settingsDialog != null) settingsDialog.dismiss();
-        unregisterReceiver(statusInfoReceiver);
+        try {
+            unregisterReceiver(statusInfoReceiver);
+        } catch (IllegalArgumentException ignored) { }
         dismissGuideDialog();
         restorePhoneScreen();
         Shizuku.removeRequestPermissionResultListener(permissionListener);
@@ -763,8 +762,36 @@ public final class MainActivity extends Activity {
 
     private void showRoleScreen() {
         rootLayout = new FrameLayout(this);
-        rootShell = new LinearLayout(this);
-        rootShell.setOrientation(LinearLayout.VERTICAL);
+
+        homeBackdropSource = new FrameLayout(this);
+        mainScroll = new ScrollView(this);
+        mainScroll.setClipToPadding(false);
+        mainScroll.setVerticalScrollBarEnabled(false);
+        mainScroll.setHorizontalScrollBarEnabled(false);
+        content = new LinearLayout(this);
+        content.setOrientation(LinearLayout.VERTICAL);
+        content.setPadding(dp(14), dp(12), dp(14), dp(18));
+        mainScroll.addView(content, new FrameLayout.LayoutParams(-1, -2));
+        mainScroll.setOnApplyWindowInsetsListener((view, insets) -> {
+            int bottomInset;
+            if (Build.VERSION.SDK_INT >= 30) {
+                bottomInset = insets.getInsets(WindowInsets.Type.systemBars()).bottom;
+            } else {
+                bottomInset = insets.getSystemWindowInsetBottom();
+            }
+            content.setPadding(dp(14), dp(12), dp(14), dp(20) + bottomInset);
+            return insets;
+        });
+        mainScroll.setOnScrollChangeListener((v, sx, sy, osx, osy) -> {
+            if (homeTopBarGlass != null) homeTopBarGlass.invalidateBackdrop();
+        });
+        homeBackdropSource.addView(mainScroll, new FrameLayout.LayoutParams(-1, -1));
+        rootLayout.addView(homeBackdropSource, new FrameLayout.LayoutParams(-1, -1));
+
+        topBarHost = new FrameLayout(this);
+        homeTopBarGlass = new LiquidGlassEngine.LiquidGlassBackdropView(this);
+        homeTopBarGlass.bindBackdropSource(homeBackdropSource);
+        topBarHost.addView(homeTopBarGlass, new FrameLayout.LayoutParams(-1, 0, Gravity.TOP));
 
         topBarContainer = new LinearLayout(this);
         topBarContainer.setOrientation(LinearLayout.VERTICAL);
@@ -787,51 +814,36 @@ public final class MainActivity extends Activity {
         topBarTitle.setLetterSpacing(0.02f);
         barInner.addView(topBarTitle, new FrameLayout.LayoutParams(-2, -2, Gravity.CENTER));
 
-        settingsButton = new Button(this);
-        settingsButton.setText("设置");
-        settingsButton.setAllCaps(false);
-        settingsButton.setTextSize(11.5f);
-        settingsButton.setTypeface(null, android.graphics.Typeface.BOLD);
-        settingsButton.setStateListAnimator(null);
-        settingsButton.setElevation(0f);
-        settingsButton.setMinHeight(dp(32));
-        settingsButton.setMinimumHeight(dp(32));
-        settingsButton.setMinWidth(0);
-        settingsButton.setMinimumWidth(0);
-        settingsButton.setPadding(dp(10), 0, dp(11), 0);
-        barInner.addView(settingsButton, new FrameLayout.LayoutParams(-2, dp(32), Gravity.END | Gravity.CENTER_VERTICAL));
-        settingsButton.setOnClickListener(v -> showSettings());
+        settingsButton = createTitleBarIconButton(R.drawable.ic_settings, "设置", v -> showSettings());
+        barInner.addView(settingsButton, new FrameLayout.LayoutParams(dp(36), dp(36), Gravity.END | Gravity.CENTER_VERTICAL));
 
         topBarDivider = new View(this);
         topBarContainer.addView(topBarDivider, new LinearLayout.LayoutParams(-1, Math.max(1, dp(1))));
-        rootShell.addView(topBarContainer, new LinearLayout.LayoutParams(-1, -2));
-
-        FrameLayout bodyFrame = new FrameLayout(this);
-        mainScroll = new ScrollView(this);
-        mainScroll.setClipToPadding(false);
-        mainScroll.setVerticalScrollBarEnabled(false);
-        mainScroll.setHorizontalScrollBarEnabled(false);
-        content = new LinearLayout(this);
-        content.setOrientation(LinearLayout.VERTICAL);
-        content.setPadding(dp(14), dp(12), dp(14), dp(18));
-        mainScroll.addView(content, new FrameLayout.LayoutParams(-1, -2));
-        mainScroll.setOnApplyWindowInsetsListener((view, insets) -> {
-            int bottomInset;
-            if (Build.VERSION.SDK_INT >= 30) {
-                bottomInset = insets.getInsets(WindowInsets.Type.systemBars()).bottom;
-            } else {
-                bottomInset = insets.getSystemWindowInsetBottom();
-            }
-            content.setPadding(dp(14), dp(12), dp(14), dp(20) + bottomInset);
-            return insets;
-        });
-        bodyFrame.addView(mainScroll, new FrameLayout.LayoutParams(-1, -1));
+        topBarHost.addView(topBarContainer, new FrameLayout.LayoutParams(-1, -2));
+        rootLayout.addView(topBarHost, new FrameLayout.LayoutParams(-1, -2, Gravity.TOP));
 
         topBarShadow = new View(this);
-        bodyFrame.addView(topBarShadow, new FrameLayout.LayoutParams(-1, dp(4), Gravity.TOP));
+        FrameLayout.LayoutParams shadowParams = new FrameLayout.LayoutParams(-1, dp(4), Gravity.TOP);
+        rootLayout.addView(topBarShadow, shadowParams);
 
-        rootShell.addView(bodyFrame, new LinearLayout.LayoutParams(-1, 0, 1f));
-        rootLayout.addView(rootShell, new FrameLayout.LayoutParams(-1, -1));
+        topBarContainer.addOnLayoutChangeListener((v, l, t, r, b, ol, ot, or2, ob) -> {
+            int barH = Math.max(0, b - t);
+            if (homeTopBarGlass != null && homeTopBarGlass.getLayoutParams() instanceof FrameLayout.LayoutParams glp
+                    && glp.height != barH) {
+                glp.height = barH;
+                homeTopBarGlass.setLayoutParams(glp);
+            }
+            if (mainScroll != null && mainScroll.getPaddingTop() != barH) {
+                mainScroll.setPadding(0, barH, 0, 0);
+            }
+            if (topBarShadow != null && topBarShadow.getLayoutParams() instanceof FrameLayout.LayoutParams lp
+                    && lp.topMargin != barH) {
+                lp.topMargin = barH;
+                topBarShadow.setLayoutParams(lp);
+            }
+            if (homeTopBarGlass != null) homeTopBarGlass.invalidateBackdrop();
+        });
+
         setContentView(rootLayout);
 
         statusView = text("", 12, false, theme.accentBlueText);
@@ -847,7 +859,7 @@ public final class MainActivity extends Activity {
         sectionControlTitle = text("外接显示器与控制", 12, true, theme.textSection);
         content.addView(sectionControlTitle, margins(6, 0, 6, 6));
 
-        controlCard = new LinearLayout(this);
+        controlCard = new LiquidGlassEngine.LiquidGlassCardLayout(this);
         controlCard.setOrientation(LinearLayout.VERTICAL);
         controlCard.setPadding(dp(14), dp(13), dp(14), dp(12));
         content.addView(controlCard, margins(0, 0, 0, 14));
@@ -1023,7 +1035,7 @@ public final class MainActivity extends Activity {
             @Override public void afterTextChanged(Editable s) { }
         });
 
-        appsCard = new LinearLayout(this);
+        appsCard = new LiquidGlassEngine.LiquidGlassCardLayout(this);
         appsCard.setOrientation(LinearLayout.VERTICAL);
         appsCard.setPadding(dp(6), dp(8), dp(6), dp(10));
         content.addView(appsCard, margins(0, 0, 0, 4));
@@ -1516,7 +1528,10 @@ public final class MainActivity extends Activity {
         screenshotPreviewUri = null;
         screenshotPreviewExpanded = false;
         screenshotPreviewMessage = null;
-        if (mousePointerView != null) mousePointerView.invalidate();
+        if (mousePointerView != null) {
+            mousePointerView.screenshotPreviewPressedHit = MousePointerView.PREVIEW_HIT_NONE;
+            mousePointerView.invalidate();
+        }
     }
 
     private void openScreenshotInGallery() {
@@ -2070,6 +2085,8 @@ public final class MainActivity extends Activity {
         private OnSliderChangeListener listener;
         private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
         private final RectF rect = new RectF();
+        private final LiquidGlassEngine.DropletThumbRenderer dropletThumbRenderer =
+                new LiquidGlassEngine.DropletThumbRenderer();
 
         SmartisanSliderView(Context context) {
             super(context);
@@ -2126,6 +2143,36 @@ public final class MainActivity extends Activity {
             return Math.max(thumbTravelLeft() + 1f, grooveRight() - dp(10));
         }
 
+        private void drawGlassSliderTrackSegment(Canvas canvas, SmartisanPalette t,
+                float gLeft, float gRight, float cy, float gHalfH, boolean hasFill,
+                float thumbCx, float clipLeft, float clipRight) {
+            if (clipRight <= clipLeft) return;
+            canvas.save();
+            canvas.clipRect(clipLeft, cy - gHalfH - dp(2), clipRight, cy + gHalfH + dp(2));
+            rect.set(gLeft, cy - gHalfH, gRight, cy + gHalfH);
+            paint.setStyle(Paint.Style.FILL);
+            paint.setColor(0xffffffff);
+            paint.setShader(new LinearGradient(0, rect.top, 0, rect.bottom,
+                    t.sliderTrackTop, t.sliderTrackBottom, Shader.TileMode.CLAMP));
+            canvas.drawRoundRect(rect, gHalfH, gHalfH, paint);
+            paint.setShader(null);
+            paint.setStyle(Paint.Style.STROKE);
+            paint.setStrokeWidth(Math.max(1f, dp(0.75f)));
+            paint.setColor(t.sliderTrackBorder);
+            canvas.drawRoundRect(rect, gHalfH, gHalfH, paint);
+            if (hasFill && thumbCx > gLeft) {
+                rect.set(gLeft, cy - gHalfH, Math.min(gRight, thumbCx), cy + gHalfH);
+                paint.setStyle(Paint.Style.FILL);
+                paint.setColor(0xffffffff);
+                paint.setShader(new LinearGradient(0, rect.top, 0, rect.bottom,
+                        t.isDark ? 0xff4c96ff : 0xff4088f5,
+                        t.accentBlue, Shader.TileMode.CLAMP));
+                canvas.drawRoundRect(rect, gHalfH, gHalfH, paint);
+                paint.setShader(null);
+            }
+            canvas.restore();
+        }
+
         @Override
         protected void onDraw(Canvas canvas) {
             super.onDraw(canvas);
@@ -2133,6 +2180,33 @@ public final class MainActivity extends Activity {
             float w = getWidth();
             float cy = getHeight() / 2f;
             if (w <= dp(32)) return;
+
+            if (t.glass) {
+                float gLeft = grooveLeft();
+                float gRight = grooveRight();
+                float gHalfH = dp(3.8f);
+                float kHalfW = dp(dragging ? 17.5f : 16.5f);
+                float kHalfH = dp(dragging ? 11.2f : 10.5f);
+                float ratio = max <= 0 ? 0f : progress / (float) max;
+                float minX = thumbTravelLeft();
+                float maxX = thumbTravelRight();
+                float thumbCx = minX + (maxX - minX) * ratio;
+                float kLeft = thumbCx - kHalfW;
+                float kRight = thumbCx + kHalfW;
+                float tuck = Math.max(0.5f, kHalfH - (float) Math.sqrt(Math.max(0f, kHalfH * kHalfH - gHalfH * gHalfH)));
+                boolean hasFill = thumbCx > gLeft + dp(2);
+
+                drawGlassSliderTrackSegment(canvas, t, gLeft, gRight, cy, gHalfH,
+                        hasFill, thumbCx, gLeft - dp(2), kLeft + tuck);
+                drawGlassSliderTrackSegment(canvas, t, gLeft, gRight, cy, gHalfH,
+                        hasFill, thumbCx, kRight - tuck, gRight + dp(2));
+
+                dropletThumbRenderer.draw(
+                        canvas, thumbCx, cy, kHalfW, kHalfH,
+                        gLeft, gRight, gHalfH,
+                        hasFill, thumbCx, t.isDark, dragging, dp(1f));
+                return;
+            }
 
             // 1. Sculpted recessed outer housing tray (Smartisan Music bottom fader bezel)
             float trayHalfH = dp(14);
@@ -2327,16 +2401,162 @@ public final class MainActivity extends Activity {
         private float panelDownY;
         private int panelPressedControl;
         private PanelAppDrag panelAppDrag;
-        private boolean screenshotPreviewPointerDown;
+        private static final int PREVIEW_HIT_NONE = 0;
+        private static final int PREVIEW_HIT_THUMB_CARD = 1;
+        private static final int PREVIEW_HIT_THUMB_CLOSE = 2;
+        private static final int PREVIEW_HIT_MODAL_CLOSE = 3;
+        private static final int PREVIEW_HIT_MODAL_DELETE = 4;
+        private static final int PREVIEW_HIT_MODAL_GALLERY = 5;
+        private static final int PREVIEW_HIT_MODAL_BACKDROP = 6;
+        private int screenshotPreviewPressedHit = PREVIEW_HIT_NONE;
         private final Path statusClipPath = new Path();
         private final RectF statusIconRect = new RectF();
         private final Rect savedIconBounds = new Rect();
         private final RectF panelRect = new RectF();
         private final RectF thumbRect = new RectF();
+        private final Paint panelShadowPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        private final LiquidGlassEngine.CanvasGlassNode panelGlassNode =
+                new LiquidGlassEngine.CanvasGlassNode("boxscreen-panel");
+        private final LiquidGlassEngine.CanvasGlassNode thumbGlassNode =
+                new LiquidGlassEngine.CanvasGlassNode("boxscreen-thumb");
+        private final LiquidGlassEngine.CanvasGlassNode previewGlassNode =
+                new LiquidGlassEngine.CanvasGlassNode("boxscreen-shot-preview");
+        private final RectF previewBackdropRect = new RectF();
+        private final LiquidGlassEngine.LiquidAuroraBackdropDrawable splitAuroraLight =
+                new LiquidGlassEngine.LiquidAuroraBackdropDrawable(false);
+        private final LiquidGlassEngine.LiquidAuroraBackdropDrawable splitAuroraDark =
+                new LiquidGlassEngine.LiquidAuroraBackdropDrawable(true);
+        private final LiquidGlassEngine.DropletThumbRenderer dropletThumbRenderer =
+                new LiquidGlassEngine.DropletThumbRenderer();
+        private static final SmartisanPalette ADAPTIVE_DARK_GLASS_PALETTE =
+                new SmartisanPalette(true, true);
+        private Bitmap glassBackdropBitmap;
+        private boolean glassBackdropIsDark;
+        private boolean glassBackdropLumaReady;
+        private final RectF glassBackdropRect = new RectF();
+        private final Rect glassCopySrcRect = new Rect();
+        private boolean glassBackdropCaptureInFlight;
+        private long lastGlassBackdropCaptureAt;
+        private final Runnable refreshGlassBackdrop = new Runnable() {
+            @Override public void run() {
+                SmartisanPalette t = activePanelTheme();
+                if (!t.glass || (!statusBarVisible && !quickPanelVisible)) {
+                    clearGlassBackdrop();
+                    return;
+                }
+                requestGlassBackdropCapture(false);
+                handler.postDelayed(this, 85);
+            }
+        };
+
+        private void scheduleGlassBackdropRefresh(boolean immediate) {
+            SmartisanPalette t = activePanelTheme();
+            if (!t.glass || (!statusBarVisible && !quickPanelVisible)) {
+                clearGlassBackdrop();
+                return;
+            }
+            if (immediate) requestGlassBackdropCapture(true);
+            handler.removeCallbacks(refreshGlassBackdrop);
+            handler.postDelayed(refreshGlassBackdrop, 85);
+        }
+
+        private void clearGlassBackdrop() {
+            handler.removeCallbacks(refreshGlassBackdrop);
+            glassBackdropLumaReady = false;
+            if (glassBackdropBitmap != null) {
+                glassBackdropBitmap.recycle();
+                glassBackdropBitmap = null;
+            }
+        }
+
+        private void updateGlassBackdropLuminance(Bitmap bmp) {
+            if (bmp == null || bmp.isRecycled()) return;
+            int bw = bmp.getWidth();
+            int bh = bmp.getHeight();
+            if (bw <= 0 || bh <= 0) return;
+            int stepX = Math.max(1, bw / 24);
+            int stepY = Math.max(1, bh / 8);
+            float leftLimit = bw * 0.38f;
+            double totalSum = 0d;
+            int totalCount = 0;
+            double leftSum = 0d;
+            int leftCount = 0;
+            for (int y = stepY / 2; y < bh; y += stepY) {
+                for (int x = stepX / 2; x < bw; x += stepX) {
+                    int px = bmp.getPixel(x, y);
+                    int r = (px >> 16) & 0xff;
+                    int g = (px >> 8) & 0xff;
+                    int b = px & 0xff;
+                    double luma = (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255.0;
+                    totalSum += luma;
+                    totalCount++;
+                    if (x < leftLimit) {
+                        leftSum += luma;
+                        leftCount++;
+                    }
+                }
+            }
+            if (totalCount == 0) return;
+            float avgLuma = (float) (totalSum / totalCount);
+            float leftLuma = leftCount > 0 ? (float) (leftSum / leftCount) : avgLuma;
+            float effectiveLuma = avgLuma * 0.55f + leftLuma * 0.45f;
+            if (!glassBackdropLumaReady) {
+                glassBackdropIsDark = effectiveLuma < 0.48f;
+                glassBackdropLumaReady = true;
+            } else if (glassBackdropIsDark) {
+                if (effectiveLuma > 0.54f) glassBackdropIsDark = false;
+            } else {
+                if (effectiveLuma < 0.42f) glassBackdropIsDark = true;
+            }
+        }
+
+        private void requestGlassBackdropCapture(boolean force) {
+            if (!LiquidGlassEngine.isOpticalSupported()) return;
+            SmartisanPalette t = activePanelTheme();
+            if (!t.glass || (!statusBarVisible && !quickPanelVisible) || captureBlockedDisplay) return;
+            View output = outputSurface;
+            if (glassBackdropCaptureInFlight || !isOutputAvailable(output) || getWidth() <= 0 || getHeight() <= 0) return;
+            long now = android.os.SystemClock.uptimeMillis();
+            if (!force && now - lastGlassBackdropCaptureAt < 75) return;
+            int captureW = getWidth();
+            float panelBottom = quickPanelVisible ? (statusBarHeight() + quickPanelHeight()) : statusBarHeight();
+            int captureH = Math.min(getHeight(), Math.max(16, (int) Math.ceil(panelBottom + panelDp(18f))));
+            int dstW = Math.max(64, captureW / 3);
+            int dstH = Math.max(16, captureH / 3);
+            Bitmap dst = Bitmap.createBitmap(dstW, dstH, Bitmap.Config.ARGB_8888);
+            glassCopySrcRect.set(0, 0, captureW, captureH);
+            RectF fullBounds = new RectF(0f, 0f, captureW, captureH);
+            Surface source = captureSurface(output);
+            glassBackdropCaptureInFlight = true;
+            lastGlassBackdropCaptureAt = now;
+            try {
+                PixelCopy.request(source, glassCopySrcRect, dst, result -> {
+                    releaseOutputSurface(output, source);
+                    glassBackdropCaptureInFlight = false;
+                    if (result == PixelCopy.SUCCESS && mousePointerView == this
+                            && outputSurface == output && activePanelTheme().glass
+                            && (statusBarVisible || quickPanelVisible)) {
+                        Bitmap old = glassBackdropBitmap;
+                        glassBackdropBitmap = dst;
+                        glassBackdropRect.set(fullBounds);
+                        updateGlassBackdropLuminance(dst);
+                        if (old != null && old != dst) old.recycle();
+                        invalidate();
+                    } else {
+                        dst.recycle();
+                    }
+                }, handler);
+            } catch (RuntimeException e) {
+                releaseOutputSurface(output, source);
+                glassBackdropCaptureInFlight = false;
+                dst.recycle();
+            }
+        }
 
         private final Runnable revealStatusBar = () -> {
             if (forwarding && pointerY <= statusBarRevealZone()) {
                 statusBarVisible = true;
+                scheduleGlassBackdropRefresh(true);
                 invalidate();
             }
         };
@@ -2347,6 +2567,7 @@ public final class MainActivity extends Activity {
                 statusBarVisible = false;
                 quickPanelVisible = false;
                 pointerOutside = false;
+                clearGlassBackdrop();
                 invalidate();
             }
         };
@@ -2444,6 +2665,7 @@ public final class MainActivity extends Activity {
             statusBarVisible = false;
             quickPanelVisible = false;
             pointerOutside = false;
+            clearGlassBackdrop();
             panelPointerDown = false;
             hasRawPosition = false;
             preservePointerPositionWhenRebasing = false;
@@ -2787,6 +3009,10 @@ public final class MainActivity extends Activity {
         private static final float ACTION_BTN_WIDTH_DP = 44f;
         private static final float ACTION_BTN_GAP_DP = 8f;
         private static final float SPLIT_BTN_WIDTH_DP = 56f;
+        private static final float POWER_ICON_GAP_DP = 3.5f;
+        private static final float POWER_ICON_WIDTH_DP = 9.5f;
+        private static final float POWER_ICON_HEIGHT_DP = 14f;
+        private static final float STATUS_LEFT_GROUP_GAP_DP = PANEL_EDGE_MARGIN_DP;
 
         private float panelEdgeMargin() { return panelDp(PANEL_EDGE_MARGIN_DP); }
         private float screenshotBtnRight() { return getWidth() - panelEdgeMargin(); }
@@ -2894,6 +3120,7 @@ public final class MainActivity extends Activity {
                     panelPressedControl = PANEL_NONE;
                     quickPanelVisible = false;
                     statusBarVisible = false;
+                    clearGlassBackdrop();
                     invalidate();
                     return true;
                 }
@@ -2902,9 +3129,11 @@ public final class MainActivity extends Activity {
             if (!panelPointerDown) return false;
             if (action == MotionEvent.ACTION_MOVE) {
                 if (panelDragFromBar && y - panelDownY >= panelDp(56)) {
+                    boolean wasPanel = quickPanelVisible;
                     panelDragOpened = true;
                     quickPanelVisible = true;
                     statusBarVisible = true;
+                    if (!wasPanel) scheduleGlassBackdropRefresh(true);
                 }
                 if (panelPressedControl == PANEL_VOLUME_SLIDER) setStatusVolumeFromPointer(x);
                 else if (panelPressedControl == PANEL_DPI_SLIDER) setDensityFromPointer(x, false);
@@ -2921,6 +3150,7 @@ public final class MainActivity extends Activity {
                 if (panelDragFromBar && y - panelDownY >= panelDp(56)) {
                     quickPanelVisible = true;
                     statusBarVisible = true;
+                    scheduleGlassBackdropRefresh(true);
                 } else if (!appDropped && !panelDragOpened
                         && panelPressedControl != PANEL_DPI_SLIDER) {
                     int releasedControl = hitQuickControl(x, y);
@@ -3007,11 +3237,14 @@ public final class MainActivity extends Activity {
             else if (control == PANEL_DENSITY_COMPAT) toggleDensityCompat();
             else if (control == PANEL_SCREENSHOT) {
                 Log.i(TAG, "quick panel screenshot button activated x=" + x);
+                quickPanelVisible = false;
+                statusBarVisible = false;
+                clearGlassBackdrop();
                 captureVirtualScreen();
-            }
-            else if (control == PANEL_APPS) {
+            } else if (control == PANEL_APPS) {
                 quickPanelVisible = true;
                 statusBarVisible = true;
+                scheduleGlassBackdropRefresh(true);
             } else if (control == PANEL_CLOSE_APP) {
                 closeCurrentVirtualApp();
             } else if (control >= PANEL_RECENT_APP_BASE) {
@@ -3125,16 +3358,25 @@ public final class MainActivity extends Activity {
         }
 
         private final class StatusBarLayout {
-            final String label;
+            final String clockText;
+            final String batteryText;
+            final float clockX;
+            final float batteryX;
+            final float powerIconCenterX;
             final ArrayList<RecentVirtualTask> apps;
             final float sliderLeft;
             final float sliderRight;
             final float appsLeft;
             final float closeLeft;
 
-            StatusBarLayout(String label, ArrayList<RecentVirtualTask> apps, float sliderLeft,
-                            float sliderRight, float appsLeft, float closeLeft) {
-                this.label = label;
+            StatusBarLayout(String clockText, String batteryText, float clockX, float batteryX,
+                            float powerIconCenterX, ArrayList<RecentVirtualTask> apps,
+                            float sliderLeft, float sliderRight, float appsLeft, float closeLeft) {
+                this.clockText = clockText;
+                this.batteryText = batteryText;
+                this.clockX = clockX;
+                this.batteryX = batteryX;
+                this.powerIconCenterX = powerIconCenterX;
                 this.apps = apps;
                 this.sliderLeft = sliderLeft;
                 this.sliderRight = sliderRight;
@@ -3145,14 +3387,32 @@ public final class MainActivity extends Activity {
 
         private StatusBarLayout statusBarLayout() {
             setStatusTextSize();
-            String label = statusBarLabel();
-            ArrayList<RecentVirtualTask> apps = recentStatusTasks();
+            if (statusClock == null) {
+                statusClock = android.text.format.DateFormat.format("HH:mm", System.currentTimeMillis()).toString();
+            }
+            String clockText = statusClock;
+            String batteryText = batteryPercent < 0 ? null : batteryPercent + "%";
+            float leftGap = panelDp(STATUS_LEFT_GROUP_GAP_DP);
+            float clockX = panelEdgeMargin();
+            float clockRight = clockX + panelTextPaint.measureText(clockText);
+            float batteryX = clockRight + leftGap;
+            float powerIconCenterX = -1f;
+            float leftGroupRight = clockRight;
+            if (batteryText != null) {
+                leftGroupRight = batteryX + panelTextPaint.measureText(batteryText);
+                if (hasPowerIndicator()) {
+                    powerIconCenterX = leftGroupRight + panelDp(POWER_ICON_GAP_DP + POWER_ICON_WIDTH_DP / 2f);
+                    leftGroupRight += panelDp(POWER_ICON_GAP_DP + POWER_ICON_WIDTH_DP);
+                }
+            }
+            float sliderLeft = leftGroupRight + leftGap;
+            ArrayList<RecentVirtualTask> apps = recentStatusTasks(sliderLeft);
             float width = getWidth();
             float closeLeft = width - panelEdgeMargin() - panelDp(STATUS_ITEM_SIZE_DP);
             float appsLeft = closeLeft - apps.size() * panelDp(STATUS_ITEM_PITCH_DP);
-            float sliderLeft = panelEdgeMargin() + panelTextPaint.measureText(label) + panelDp(14f);
-            float sliderRight = Math.min(sliderLeft + panelDp(150f), appsLeft - panelDp(12f));
-            return new StatusBarLayout(label, apps, sliderLeft, sliderRight, appsLeft, closeLeft);
+            float sliderRight = Math.min(sliderLeft + panelDp(150f), appsLeft - leftGap);
+            return new StatusBarLayout(clockText, batteryText, clockX, batteryX, powerIconCenterX,
+                    apps, sliderLeft, sliderRight, appsLeft, closeLeft);
         }
 
         private PanelAppDrag capturePanelAppDrag(int control, float x, float y) {
@@ -3392,44 +3652,34 @@ public final class MainActivity extends Activity {
             panelTextPaint.setTextSize(panelDp(14.5f));
         }
 
-        private String statusBarLabel() {
+        private boolean hasPowerIndicator() {
+            return batteryPercent >= 0
+                    && (batteryStatus == BatteryManager.BATTERY_STATUS_CHARGING || batteryPlugged);
+        }
+
+        private float statusBarSliderLeft() {
+            setStatusTextSize();
             if (statusClock == null) {
                 statusClock = android.text.format.DateFormat.format("HH:mm", System.currentTimeMillis()).toString();
             }
-            return batteryPercent < 0 ? statusClock : statusClock + "   " + batteryPercent + "%";
-        }
-
-        private float statusInfoWidth() {
-            float digitWidth = 0f;
-            String digits = "0123456789";
-            for (int i = 0; i < digits.length(); i++) {
-                digitWidth = Math.max(digitWidth, panelTextPaint.measureText(digits, i, i + 1));
+            float leftGap = panelDp(STATUS_LEFT_GROUP_GAP_DP);
+            float leftEnd = panelEdgeMargin() + panelTextPaint.measureText(statusClock);
+            if (batteryPercent >= 0) {
+                leftEnd += leftGap + panelTextPaint.measureText(batteryPercent + "%");
+                if (hasPowerIndicator()) {
+                    leftEnd += panelDp(POWER_ICON_GAP_DP + POWER_ICON_WIDTH_DP);
+                }
             }
-            return 7 * digitWidth + panelTextPaint.measureText(":   %") + panelDp(17);
-        }
-
-        private void drawPowerIcon(Canvas canvas, float x, float y, int color) {
-            float unit = panelDp(1);
-            panelPaint.setColor(color);
-            panelPaint.setStrokeWidth(Math.max(1f, panelDp(1.3f)));
-            if (batteryStatus == BatteryManager.BATTERY_STATUS_CHARGING) {
-                canvas.drawLine(x + 2 * unit, y - 5 * unit, x - 2 * unit, y, panelPaint);
-                canvas.drawLine(x - 2 * unit, y, x + 2 * unit, y, panelPaint);
-                canvas.drawLine(x + 2 * unit, y, x - 2 * unit, y + 5 * unit, panelPaint);
-            } else {
-                canvas.drawLine(x - 2 * unit, y - 5 * unit, x - 2 * unit, y - unit, panelPaint);
-                canvas.drawLine(x + 2 * unit, y - 5 * unit, x + 2 * unit, y - unit, panelPaint);
-                canvas.drawRoundRect(x - 3 * unit, y - unit, x + 3 * unit, y + 3 * unit, unit, unit, panelPaint);
-                canvas.drawLine(x, y + 3 * unit, x, y + 5 * unit, panelPaint);
-            }
+            return leftEnd + leftGap;
         }
 
         private ArrayList<RecentVirtualTask> recentStatusTasks() {
+            return recentStatusTasks(statusBarSliderLeft());
+        }
+
+        private ArrayList<RecentVirtualTask> recentStatusTasks(float sliderLeft) {
             refreshRecentStatusTasks();
             if (recentVirtualTasks.isEmpty()) return new ArrayList<>();
-            setStatusTextSize();
-            float sliderLeft = panelEdgeMargin() + statusInfoWidth()
-                    + panelDp(14f);
             float closeLeft = getWidth() - panelEdgeMargin() - panelDp(STATUS_ITEM_SIZE_DP);
             float roomForIcons = closeLeft - sliderLeft - panelDp(12f + 72f);
             int slots = Math.max(0, (int) (roomForIcons / panelDp(STATUS_ITEM_PITCH_DP)));
@@ -3753,6 +4003,7 @@ public final class MainActivity extends Activity {
                         // their area, so mouse behaviour stays unchanged.
                         quickPanelVisible = true;
                         statusBarVisible = true;
+                        scheduleGlassBackdropRefresh(true);
                     }
                 } else {
                     status("虚拟屏上没有可关闭的应用任务");
@@ -3897,7 +4148,74 @@ public final class MainActivity extends Activity {
         }
 
         private SmartisanPalette activePanelTheme() {
-            return theme != null ? theme : SmartisanPalette.of(false);
+            SmartisanPalette base = theme != null ? theme : SmartisanPalette.of(false);
+            if (base.glass && !base.isDark && glassBackdropIsDark) {
+                return ADAPTIVE_DARK_GLASS_PALETTE;
+            }
+            return base;
+        }
+
+        private boolean isRegionDark(Bitmap bmp, RectF regionOnScreen) {
+            if (bmp == null || bmp.isRecycled() || regionOnScreen == null) return false;
+            int w = Math.max(1, getWidth());
+            int h = Math.max(1, getHeight());
+            int bw = bmp.getWidth();
+            int bh = bmp.getHeight();
+            if (bw <= 0 || bh <= 0) return false;
+            float leftRatio = Math.max(0f, Math.min(1f, regionOnScreen.left / w));
+            float topRatio = Math.max(0f, Math.min(1f, regionOnScreen.top / h));
+            float rightRatio = Math.max(leftRatio, Math.min(1f, regionOnScreen.right / w));
+            float bottomRatio = Math.max(topRatio, Math.min(1f, regionOnScreen.bottom / h));
+            int sx0 = Math.max(0, Math.min(bw - 1, Math.round(leftRatio * (bw - 1))));
+            int sy0 = Math.max(0, Math.min(bh - 1, Math.round(topRatio * (bh - 1))));
+            int sx1 = Math.max(sx0 + 1, Math.min(bw, Math.round(rightRatio * bw)));
+            int sy1 = Math.max(sy0 + 1, Math.min(bh, Math.round(bottomRatio * bh)));
+            int stepX = Math.max(1, (sx1 - sx0) / 8);
+            int stepY = Math.max(1, (sy1 - sy0) / 6);
+            double sum = 0d;
+            int count = 0;
+            for (int y = sy0 + stepY / 2; y < sy1; y += stepY) {
+                for (int x = sx0 + stepX / 2; x < sx1; x += stepX) {
+                    int px = bmp.getPixel(x, y);
+                    int r = (px >> 16) & 0xff;
+                    int g = (px >> 8) & 0xff;
+                    int b = px & 0xff;
+                    sum += (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255.0;
+                    count++;
+                }
+            }
+            return count > 0 && (sum / count) < 0.45d;
+        }
+
+        private SmartisanPalette previewThemeForRegion(Bitmap backdrop, RectF regionOnScreen) {
+            SmartisanPalette base = theme != null ? theme : SmartisanPalette.of(false);
+            if (!base.glass || base.isDark) return base;
+            return isRegionDark(backdrop, regionOnScreen) ? ADAPTIVE_DARK_GLASS_PALETTE : base;
+        }
+
+        private void drawSoftCardShadow(Canvas canvas, RectF bounds, float rx, boolean dark) {
+            panelShadowPaint.setShader(null);
+            panelShadowPaint.setStyle(Paint.Style.FILL);
+            panelShadowPaint.setColor(dark ? 0x26000000 : 0x10081426);
+            panelRect.set(bounds.left - panelDp(2.5f), bounds.top + panelDp(3f),
+                    bounds.right + panelDp(2.5f), bounds.bottom + panelDp(6.5f));
+            canvas.drawRoundRect(panelRect, rx + panelDp(2f), rx + panelDp(2f), panelShadowPaint);
+            panelShadowPaint.setColor(dark ? 0x3e000000 : 0x1a081426);
+            panelRect.set(bounds.left - panelDp(0.5f), bounds.top + panelDp(1f),
+                    bounds.right + panelDp(0.5f), bounds.bottom + panelDp(2.5f));
+            canvas.drawRoundRect(panelRect, rx + panelDp(0.5f), rx + panelDp(0.5f), panelShadowPaint);
+        }
+
+        private void applyGlassTextHalo(boolean glass, boolean dark) {
+            if (!glass) {
+                panelTextPaint.clearShadowLayer();
+                return;
+            }
+            if (dark) {
+                panelTextPaint.setShadowLayer(panelDp(2.0f), 0f, panelDp(0.5f), 0x44000000);
+            } else {
+                panelTextPaint.setShadowLayer(panelDp(1.6f), 0f, panelDp(0.4f), 0x44ffffff);
+            }
         }
 
         private void drawSmartisanRect(Canvas canvas, float left, float top, float right, float bottom,
@@ -3931,9 +4249,91 @@ public final class MainActivity extends Activity {
             }
         }
 
+        private void drawPanelElevationShadow(Canvas canvas, float width, float bottom,
+                SmartisanPalette t, boolean expandedPanel) {
+            float shadowH = panelDp(expandedPanel ? 10.5f : 6.5f);
+            float[] stops = new float[]{0.0f, 0.10f, 0.24f, 0.45f, 0.72f, 1.0f};
+            int[] colors;
+            if (t.isDark) {
+                colors = t.glass
+                        ? new int[]{0x4e000000, 0x34000000, 0x1d000000, 0x0b000000, 0x03000000, 0x00000000}
+                        : new int[]{0x54000000, 0x38000000, 0x20000000, 0x0d000000, 0x03000000, 0x00000000};
+            } else {
+                colors = t.glass
+                        ? new int[]{0x22081426, 0x16081426, 0x0c081426, 0x05081426, 0x01081426, 0x00081426}
+                        : new int[]{0x24000000, 0x18000000, 0x0d000000, 0x06000000, 0x02000000, 0x00000000};
+            }
+            panelShadowPaint.setStyle(Paint.Style.FILL);
+            panelShadowPaint.setColor(0xffffffff);
+            panelShadowPaint.setShader(new LinearGradient(0f, bottom, 0f, bottom + shadowH,
+                    colors, stops, Shader.TileMode.CLAMP));
+            canvas.drawRect(0f, bottom, width, bottom + shadowH, panelShadowPaint);
+            panelShadowPaint.setShader(null);
+        }
+
+        private void drawGlassControlRect(Canvas canvas, SmartisanPalette t, float left, float top,
+                float right, float bottom, float rx, int topColor, int bottomColor, int borderColor) {
+            panelShadowPaint.setShader(null);
+            panelShadowPaint.setStyle(Paint.Style.FILL);
+            panelShadowPaint.setColor(t.isDark ? 0x1a000000 : 0x0a081426);
+            panelRect.set(left, top + panelDp(0.9f), right, bottom + panelDp(0.9f));
+            canvas.drawRoundRect(panelRect, rx, rx, panelShadowPaint);
+
+            drawSmartisanRect(canvas, left, top, right, bottom, rx, topColor, bottomColor, 0, 0);
+            LiquidGlassEngine.drawCanvasSpecularOverlay(
+                    thumbGlassNode, canvas, left, top, right, bottom, rx,
+                    t.isDark ? 0x62ffffff : 0xb8ffffff, borderColor, panelDp(1f));
+        }
+
+        private void drawGlassCanvasTrackSegment(Canvas canvas, SmartisanPalette t,
+                float gLeft, float gRight, float centerY, float gHalfH, boolean hasFill,
+                float thumbCx, float clipLeft, float clipRight) {
+            if (clipRight <= clipLeft) return;
+            canvas.save();
+            canvas.clipRect(clipLeft, centerY - gHalfH - panelDp(2), clipRight, centerY + gHalfH + panelDp(2));
+            drawSmartisanRect(canvas, gLeft, centerY - gHalfH, gRight, centerY + gHalfH, gHalfH,
+                    t.sliderTrackTop, t.sliderTrackBottom, t.sliderTrackBorder, 0);
+            if (hasFill && thumbCx > gLeft) {
+                drawSmartisanRect(canvas, gLeft, centerY - gHalfH,
+                        Math.min(gRight, thumbCx), centerY + gHalfH, gHalfH,
+                        t.isDark ? 0xff4c96ff : 0xff4088f5, t.accentBlue, 0, 0);
+            }
+            canvas.restore();
+        }
+
         private void drawSmartisanCanvasSlider(Canvas canvas, SmartisanPalette t,
-                float left, float right, float centerY, float ratio, boolean compact) {
+                float left, float right, float centerY, float ratio, boolean compact, boolean active) {
             float clampedRatio = Math.max(0f, Math.min(1f, ratio));
+            if (t.glass) {
+                float gLeft = left;
+                float gRight = Math.max(gLeft + panelDp(12), right);
+                float gHalfH = compact ? panelDp(3.0f) : panelDp(3.6f);
+                float kHalfW = compact ? panelDp(11.5f) : panelDp(15.0f);
+                float kHalfH = compact ? panelDp(7.5f) : panelDp(9.5f);
+                if (active) {
+                    kHalfW += panelDp(1.2f);
+                    kHalfH += panelDp(0.8f);
+                }
+                float travelLeft = gLeft + kHalfW * 0.72f;
+                float travelRight = Math.max(travelLeft + 1f, gRight - kHalfW * 0.72f);
+                float thumbCx = travelLeft + (travelRight - travelLeft) * clampedRatio;
+                float kLeft = thumbCx - kHalfW;
+                float kRight = thumbCx + kHalfW;
+                float tuck = Math.max(0.5f, kHalfH - (float) Math.sqrt(Math.max(0f, kHalfH * kHalfH - gHalfH * gHalfH)));
+                boolean hasFill = thumbCx > gLeft + panelDp(2);
+
+                drawGlassCanvasTrackSegment(canvas, t, gLeft, gRight, centerY, gHalfH,
+                        hasFill, thumbCx, gLeft - panelDp(2), kLeft + tuck);
+                drawGlassCanvasTrackSegment(canvas, t, gLeft, gRight, centerY, gHalfH,
+                        hasFill, thumbCx, kRight - tuck, gRight + panelDp(2));
+
+                dropletThumbRenderer.draw(
+                        canvas, thumbCx, centerY, kHalfW, kHalfH,
+                        gLeft, gRight, gHalfH,
+                        hasFill, thumbCx, t.isDark, active, panelDp(1f));
+                return;
+            }
+
             float trayHalfH = compact ? panelDp(10) : panelDp(13);
             float trayRx = panelDp(5);
             drawSmartisanRect(canvas, left, centerY - trayHalfH, right, centerY + trayHalfH, trayRx,
@@ -3992,6 +4392,30 @@ public final class MainActivity extends Activity {
         private void drawSmartisanCanvasSwitch(Canvas canvas, SmartisanPalette t,
                 float left, float right, float centerY, boolean checked) {
             float halfH = panelDp(11);
+            if (t.glass) {
+                int trackColor = checked ? t.switchOnTrack : t.switchOffTrack;
+                int borderColor = checked ? t.switchOnBorder : t.switchOffBorder;
+                drawSmartisanRect(canvas, left, centerY - halfH, right, centerY + halfH, halfH,
+                        trackColor, trackColor, borderColor, 0);
+                float knobR = panelDp(8.5f);
+                float cx = checked ? right - panelDp(11) : left + panelDp(11);
+                panelShadowPaint.setShader(null);
+                panelShadowPaint.setStyle(Paint.Style.FILL);
+                panelShadowPaint.setColor(t.isDark ? 0x20000000 : 0x0e081426);
+                canvas.drawCircle(cx, centerY + panelDp(1.2f), knobR + panelDp(0.8f), panelShadowPaint);
+                panelShadowPaint.setColor(t.isDark ? 0x34000000 : 0x18081426);
+                canvas.drawCircle(cx, centerY + panelDp(0.6f), knobR + panelDp(0.2f), panelShadowPaint);
+
+                panelPaint.setColor(0xffffffff);
+                panelPaint.setShader(new LinearGradient(0, centerY - knobR, 0, centerY + knobR,
+                        t.sliderThumbTop, t.sliderThumbBottom, Shader.TileMode.CLAMP));
+                canvas.drawCircle(cx, centerY, knobR, panelPaint);
+                panelPaint.setShader(null);
+                LiquidGlassEngine.drawCanvasSpecularOverlay(
+                        thumbGlassNode, canvas, cx - knobR, centerY - knobR, cx + knobR, centerY + knobR,
+                        knobR, t.isDark ? 0x90ffffff : 0xf0ffffff, t.sliderThumbBorder, panelDp(1f));
+                return;
+            }
             drawSmartisanRect(canvas, left, centerY - halfH, right, centerY + halfH, halfH,
                     checked ? t.switchOnTrack : t.switchOffTrack,
                     checked ? t.switchOnTrack : t.switchOffTrack,
@@ -4020,19 +4444,34 @@ public final class MainActivity extends Activity {
             float barHeight = statusBarHeight();
             float oneDp = Math.max(1f, panelDp(1));
 
+            if (t.glass && glassBackdropBitmap == null && !glassBackdropCaptureInFlight) {
+                requestGlassBackdropCapture(true);
+            }
+
             if (quickPanelVisible) {
                 float bottom = barHeight + quickPanelHeight();
-                float radius = panelDp(8);
-                panelPaint.setShader(null);
-                panelPaint.setStyle(Paint.Style.FILL);
-                panelPaint.setColor(t.isDark ? 0x55000000 : 0x1c000000);
-                panelRect.set(0, -radius, width, bottom + panelDp(5));
-                canvas.drawRoundRect(panelRect, radius, radius, panelPaint);
+                drawPanelElevationShadow(canvas, width, bottom, t, true);
 
-                int panelFill = t.isDark ? 0xf525282d : 0xf7eff0f2;
-                drawSmartisanRect(canvas, 0, -radius, width, bottom, radius,
-                        t.glass ? (t.isDark ? 0xe02f4666 : 0xe5ffffff) : panelFill,
-                        t.glass ? (t.isDark ? 0xee17283f : 0xebdceafb) : panelFill, t.cardBorder, 0);
+                if (t.glass) {
+                    panelGlassNode.draw(
+                            canvas, glassBackdropBitmap, glassBackdropRect,
+                            0f, 0f, width, bottom,
+                            LiquidGlassEngine.sheetBottomRadii(0f),
+                            LiquidGlassEngine.LiquidGlassParams.externalPanel(t.isDark),
+                            panelDp(1f), pointerX, pointerY, pointerVisible && forwarding);
+                    panelPaint.setShader(null);
+                    panelPaint.setStyle(Paint.Style.FILL);
+                    panelPaint.setColor(t.titleBarBorder);
+                    canvas.drawRect(0f, bottom - oneDp, width, bottom, panelPaint);
+                } else {
+                    int panelColor = t.isDark ? 0xf525282d : 0xf7f5f5f5;
+                    drawSmartisanRect(canvas, 0f, 0f, width, bottom, 0f,
+                            panelColor, panelColor, 0, 0);
+                    panelPaint.setShader(null);
+                    panelPaint.setStyle(Paint.Style.FILL);
+                    panelPaint.setColor(t.cardBorder);
+                    canvas.drawRect(0f, bottom - oneDp, width, bottom, panelPaint);
+                }
 
                 ArrayList<ResolveInfo> apps = quickPanelApps();
                 float controlsTop = barHeight + panelDp(8);
@@ -4040,7 +4479,7 @@ public final class MainActivity extends Activity {
                 float controlsCenterY = barHeight + panelDp(36);
                 float btnTop = controlsTop + panelDp(8);
                 float btnBottom = controlsBottom - panelDp(8);
-                float btnRx = panelDp(8);
+                float btnRx = panelDp(t.glass ? 10 : 8);
                 boolean touchMode = inputSettingsPackage() == null || isTouchMode(inputSettingsPackage());
                 boolean pressInput = panelPointerDown && panelPressedControl == PANEL_INPUT_MODE;
                 boolean pressOrient = panelPointerDown && panelPressedControl == PANEL_ORIENTATION;
@@ -4050,55 +4489,88 @@ public final class MainActivity extends Activity {
                 panelTextPaint.setColor(t.textSecondary);
                 panelTextPaint.setTextSize(panelDp(13));
                 panelTextPaint.setTextAlign(Paint.Align.LEFT);
+                applyGlassTextHalo(t.glass, t.isDark);
                 canvas.drawText("DPI", panelEdgeMargin(), controlsCenterY + panelDp(5), panelTextPaint);
+                panelTextPaint.clearShadowLayer();
 
-                drawSmartisanRect(canvas, panelDp(42), controlsCenterY - panelDp(12),
-                        panelDp(100), controlsCenterY + panelDp(12), panelDp(7),
-                        t.accentBlueSoftBg, t.accentBlueSoftBg, t.accentBlueSoftBorder, 0);
+                if (t.glass) {
+                    drawGlassControlRect(canvas, t, panelDp(42), controlsCenterY - panelDp(12),
+                            panelDp(100), controlsCenterY + panelDp(12), panelDp(7),
+                            t.accentBlueSoftBg, t.accentBlueSoftBg, t.accentBlueSoftBorder);
+                } else {
+                    drawSmartisanRect(canvas, panelDp(42), controlsCenterY - panelDp(12),
+                            panelDp(100), controlsCenterY + panelDp(12), panelDp(7),
+                            t.accentBlueSoftBg, t.accentBlueSoftBg, t.accentBlueSoftBorder, 0);
+                }
                 panelTextPaint.setColor(t.accentBlueText);
                 panelTextPaint.setTextSize(panelDp(12));
                 panelTextPaint.setTextAlign(Paint.Align.CENTER);
                 canvas.drawText(String.valueOf(densityDpi), panelDp(71),
                         controlsCenterY + panelDp(4.5f), panelTextPaint);
 
-                // Mechanical DPI fader slider
+                // DPI slider
                 float sliderLeft = dpiSliderLeft();
                 float sliderRight = dpiSliderRight();
                 float densityRatio = (densityDpi - 140) / 460f;
                 drawSmartisanCanvasSlider(canvas, t, sliderLeft, sliderRight,
-                        controlsCenterY, densityRatio, false);
+                        controlsCenterY, densityRatio, false,
+                        panelPointerDown && panelPressedControl == PANEL_DPI_SLIDER);
 
                 // Uniform 44dp wide action buttons (touch/mouse, orientation, screenshot)
                 float inputLeft = inputModeBtnLeft();
                 float inputRight = inputModeBtnRight();
                 if (touchMode) {
-                    drawSmartisanRect(canvas, inputLeft, btnTop, inputRight, btnBottom, btnRx,
-                            pressInput ? t.btnPressedTop : t.accentBlueSoftBg,
-                            pressInput ? t.btnPressedBottom : t.accentBlueSoftBg,
-                            t.accentBlueSoftBorder, t.btnShadow);
+                    int bTop = pressInput ? t.btnPressedTop : t.accentBlueSoftBg;
+                    int bBot = pressInput ? t.btnPressedBottom : t.accentBlueSoftBg;
+                    if (t.glass) {
+                        drawGlassControlRect(canvas, t, inputLeft, btnTop, inputRight, btnBottom, btnRx,
+                                bTop, bBot, t.accentBlueSoftBorder);
+                    } else {
+                        drawSmartisanRect(canvas, inputLeft, btnTop, inputRight, btnBottom, btnRx,
+                                bTop, bBot, t.accentBlueSoftBorder, t.btnShadow);
+                    }
                     drawInputModeIcon(canvas, (inputLeft + inputRight) / 2f, controlsCenterY, true, t.accentBlueText);
                 } else {
-                    drawSmartisanRect(canvas, inputLeft, btnTop, inputRight, btnBottom, btnRx,
-                            pressInput ? t.softRedPressedTop : t.softRedTop,
-                            pressInput ? t.softRedPressedBottom : t.softRedBottom,
-                            t.softRedBorder, t.btnShadow);
+                    int bTop = pressInput ? t.softRedPressedTop : t.softRedTop;
+                    int bBot = pressInput ? t.softRedPressedBottom : t.softRedBottom;
+                    if (t.glass) {
+                        drawGlassControlRect(canvas, t, inputLeft, btnTop, inputRight, btnBottom, btnRx,
+                                bTop, bBot, t.softRedBorder);
+                    } else {
+                        drawSmartisanRect(canvas, inputLeft, btnTop, inputRight, btnBottom, btnRx,
+                                bTop, bBot, t.softRedBorder, t.btnShadow);
+                    }
                     drawInputModeIcon(canvas, (inputLeft + inputRight) / 2f, controlsCenterY, false, t.softRedText);
                 }
 
                 float orientLeft = orientationBtnLeft();
                 float orientRight = orientationBtnRight();
-                drawSmartisanRect(canvas, orientLeft, btnTop, orientRight, btnBottom, btnRx,
-                        pressOrient ? t.btnPressedTop : t.btnTop,
-                        pressOrient ? t.btnPressedBottom : t.btnBottom,
-                        pressOrient ? t.btnPressedBorder : t.btnBorder, t.btnShadow);
+                if (t.glass) {
+                    drawGlassControlRect(canvas, t, orientLeft, btnTop, orientRight, btnBottom, btnRx,
+                            pressOrient ? t.btnPressedTop : t.btnTop,
+                            pressOrient ? t.btnPressedBottom : t.btnBottom,
+                            pressOrient ? t.btnPressedBorder : t.btnBorder);
+                } else {
+                    drawSmartisanRect(canvas, orientLeft, btnTop, orientRight, btnBottom, btnRx,
+                            pressOrient ? t.btnPressedTop : t.btnTop,
+                            pressOrient ? t.btnPressedBottom : t.btnBottom,
+                            pressOrient ? t.btnPressedBorder : t.btnBorder, t.btnShadow);
+                }
                 drawOrientationIcon(canvas, (orientLeft + orientRight) / 2f, controlsCenterY, t.textPrimary);
 
                 float shotLeft = screenshotBtnLeft();
                 float shotRight = screenshotBtnRight();
-                drawSmartisanRect(canvas, shotLeft, btnTop, shotRight, btnBottom, btnRx,
-                        pressShot ? t.btnPressedTop : t.btnTop,
-                        pressShot ? t.btnPressedBottom : t.btnBottom,
-                        pressShot ? t.btnPressedBorder : t.btnBorder, t.btnShadow);
+                if (t.glass) {
+                    drawGlassControlRect(canvas, t, shotLeft, btnTop, shotRight, btnBottom, btnRx,
+                            pressShot ? t.btnPressedTop : t.btnTop,
+                            pressShot ? t.btnPressedBottom : t.btnBottom,
+                            pressShot ? t.btnPressedBorder : t.btnBorder);
+                } else {
+                    drawSmartisanRect(canvas, shotLeft, btnTop, shotRight, btnBottom, btnRx,
+                            pressShot ? t.btnPressedTop : t.btnTop,
+                            pressShot ? t.btnPressedBottom : t.btnBottom,
+                            pressShot ? t.btnPressedBorder : t.btnBorder, t.btnShadow);
+                }
                 drawPanelVectorIcon(canvas, R.drawable.ic_screenshot,
                         (shotLeft + shotRight) / 2f, controlsCenterY, panelDp(21), t.textPrimary);
 
@@ -4114,11 +4586,19 @@ public final class MainActivity extends Activity {
                     boolean pressSplit = panelPointerDown && panelPressedControl == PANEL_SPLIT;
                     float sLeft = splitBtnLeft();
                     float sRight = splitBtnRight();
-                    drawSmartisanRect(canvas, sLeft, compatY - panelDp(16),
-                            sRight, compatY + panelDp(16), panelDp(8),
-                            pressSplit ? t.accentRedPressedTop : t.accentRedTop,
-                            pressSplit ? t.accentRedPressedBottom : t.accentRedBottom,
-                            pressSplit ? t.accentRedPressedBorder : t.accentRedBorder, t.btnShadow);
+                    if (t.glass) {
+                        drawGlassControlRect(canvas, t, sLeft, compatY - panelDp(16),
+                                sRight, compatY + panelDp(16), panelDp(10),
+                                pressSplit ? t.accentRedPressedTop : t.accentRedTop,
+                                pressSplit ? t.accentRedPressedBottom : t.accentRedBottom,
+                                pressSplit ? t.accentRedPressedBorder : t.accentRedBorder);
+                    } else {
+                        drawSmartisanRect(canvas, sLeft, compatY - panelDp(16),
+                                sRight, compatY + panelDp(16), panelDp(8),
+                                pressSplit ? t.accentRedPressedTop : t.accentRedTop,
+                                pressSplit ? t.accentRedPressedBottom : t.accentRedBottom,
+                                pressSplit ? t.accentRedPressedBorder : t.accentRedBorder, t.btnShadow);
+                    }
                     panelTextPaint.setColor(0xffffffff);
                     panelTextPaint.setTextSize(panelDp(13));
                     panelTextPaint.setTextAlign(Paint.Align.CENTER);
@@ -4130,10 +4610,12 @@ public final class MainActivity extends Activity {
                 panelTextPaint.setTextAlign(Paint.Align.LEFT);
                 panelTextPaint.setColor(t.textPrimary);
                 String compatLabel = "主屏 DPI 同步 · 当前应用";
+                applyGlassTextHalo(t.glass, t.isDark);
                 canvas.drawText(compatLabel, panelEdgeMargin(), compatY - panelDp(2), panelTextPaint);
                 panelTextPaint.setTextSize(panelDp(10));
                 panelTextPaint.setColor(t.textMuted);
                 canvas.drawText("手机主屏显示大小会变化", panelEdgeMargin(), compatY + panelDp(12), panelTextPaint);
+                panelTextPaint.clearShadowLayer();
 
                 panelTextPaint.setTextSize(panelDp(13));
                 float compatLabelRight = panelEdgeMargin() + panelTextPaint.measureText(compatLabel);
@@ -4157,10 +4639,17 @@ public final class MainActivity extends Activity {
                     float left = horizontalPadding + column * (tileWidth + tileGap);
                     float top = tileTop + row * (tileHeight + gap);
                     boolean pressedTile = panelPointerDown && panelPressedControl == PANEL_APP_BASE + i;
-                    drawSmartisanRect(canvas, left, top, left + tileWidth, top + tileHeight, panelDp(8),
-                            pressedTile ? t.btnPressedTop : (t.isDark ? t.cardBg : 0xfff8f9fb),
-                            pressedTile ? t.btnPressedBottom : (t.isDark ? 0xff2f3237 : 0xfff1f3f6),
-                            t.cardBorder, t.cardShadow);
+                    int tileTopColor = pressedTile ? t.btnPressedTop
+                            : (t.glass ? (t.isDark ? 0x2affffff : 0xa8ffffff) : (t.isDark ? t.cardBg : 0xfffafafb));
+                    int tileBotColor = pressedTile ? t.btnPressedBottom
+                            : (t.glass ? (t.isDark ? 0x18ffffff : 0x80f0f5fc) : (t.isDark ? 0xff2f3237 : 0xfff4f5f7));
+                    if (t.glass) {
+                        drawGlassControlRect(canvas, t, left, top, left + tileWidth, top + tileHeight,
+                                panelDp(11), tileTopColor, tileBotColor, t.cardBorder);
+                    } else {
+                        drawSmartisanRect(canvas, left, top, left + tileWidth, top + tileHeight, panelDp(8),
+                                tileTopColor, tileBotColor, t.cardBorder, t.cardShadow);
+                    }
 
                     ResolveInfo app = apps.get(i);
                     float iLeft = left + panelDp(10);
@@ -4188,31 +4677,47 @@ public final class MainActivity extends Activity {
 
             if (statusBarVisible) {
                 if (!quickPanelVisible) {
-                    panelPaint.setStyle(Paint.Style.FILL);
-                    panelPaint.setColor(0xffffffff);
-                    panelPaint.setShader(new LinearGradient(0, barHeight, 0, barHeight + panelDp(4),
-                            t.titleBarShadowStart, 0x00000000, Shader.TileMode.CLAMP));
-                    canvas.drawRect(0, barHeight, width, barHeight + panelDp(4), panelPaint);
+                    drawPanelElevationShadow(canvas, width, barHeight, t, false);
+                    if (t.glass) {
+                        panelGlassNode.draw(
+                                canvas, glassBackdropBitmap, glassBackdropRect,
+                                0f, 0f, width, barHeight,
+                                LiquidGlassEngine.sheetBottomRadii(0f),
+                                LiquidGlassEngine.LiquidGlassParams.externalPanel(t.isDark),
+                                panelDp(1f), pointerX, pointerY, pointerVisible && forwarding);
+                    } else {
+                        drawSmartisanRect(canvas, 0, 0, width, barHeight, 0f,
+                                t.titleBarTop, t.titleBarBottom, 0, 0);
+                    }
                     panelPaint.setShader(null);
+                    panelPaint.setColor(t.titleBarBorder);
+                    canvas.drawRect(0, barHeight - oneDp, width, barHeight, panelPaint);
+                } else {
+                    panelPaint.setShader(null);
+                    panelPaint.setColor(t.divider);
+                    canvas.drawRect(t.glass ? panelEdgeMargin() : 0f, barHeight - oneDp,
+                            t.glass ? width - panelEdgeMargin() : width, barHeight, panelPaint);
                 }
-                int barTop = t.glass ? t.titleBarTop : (t.isDark ? 0xf52e3137 : 0xf7ffffff);
-                int barBot = t.glass ? t.titleBarBottom : (t.isDark ? 0xf5282b30 : 0xf7f7f8fa);
-                drawSmartisanRect(canvas, 0, 0, width, barHeight, 0f, barTop, barBot, 0, 0);
-                panelPaint.setShader(null);
-                panelPaint.setColor(t.titleBarBorder);
-                canvas.drawRect(0, barHeight - oneDp, width, barHeight, panelPaint);
 
                 StatusBarLayout layout = statusBarLayout();
                 panelTextPaint.setColor(t.textPrimary);
                 panelTextPaint.setTextAlign(Paint.Align.LEFT);
                 setStatusTextSize();
                 Paint.FontMetrics metrics = panelTextPaint.getFontMetrics();
-                float infoCenter = barHeight / 2f - panelDp(1);
+                float infoCenter = barHeight / 2f;
                 float baseline = infoCenter - (metrics.ascent + metrics.descent) / 2f;
-                canvas.drawText(layout.label, panelEdgeMargin(), baseline, panelTextPaint);
-                if (batteryStatus == BatteryManager.BATTERY_STATUS_CHARGING || batteryPlugged) {
-                    drawPowerIcon(canvas, panelEdgeMargin() + panelTextPaint.measureText(layout.label)
-                            + panelDp(8), infoCenter, t.textPrimary);
+                applyGlassTextHalo(t.glass, t.isDark);
+                canvas.drawText(layout.clockText, layout.clockX, baseline, panelTextPaint);
+                if (layout.batteryText != null) {
+                    canvas.drawText(layout.batteryText, layout.batteryX, baseline, panelTextPaint);
+                }
+                panelTextPaint.clearShadowLayer();
+                if (layout.powerIconCenterX >= 0f) {
+                    boolean charging = batteryStatus == BatteryManager.BATTERY_STATUS_CHARGING;
+                    int iconRes = charging ? R.drawable.ic_status_charging : R.drawable.ic_status_plugged;
+                    int iconTint = charging ? (t.isDark ? 0xff4ade80 : 0xff1f9d55) : t.textSecondary;
+                    drawPanelVectorIcon(canvas, iconRes, layout.powerIconCenterX, infoCenter,
+                            panelDp(POWER_ICON_WIDTH_DP), panelDp(POWER_ICON_HEIGHT_DP), iconTint);
                 }
 
                 AudioManager audio = (AudioManager) getSystemService(AUDIO_SERVICE);
@@ -4221,20 +4726,29 @@ public final class MainActivity extends Activity {
                     float ratio = audio.getStreamVolume(AudioManager.STREAM_MUSIC)
                             / (float) Math.max(1, audio.getStreamMaxVolume(AudioManager.STREAM_MUSIC));
                     drawSmartisanCanvasSlider(canvas, t, layout.sliderLeft, layout.sliderRight,
-                            center, ratio, true);
+                            center, ratio, true,
+                            panelPointerDown && panelPressedControl == PANEL_VOLUME_SLIDER);
                 }
 
                 float itemSize = panelDp(STATUS_ITEM_SIZE_DP);
                 float pitch = panelDp(STATUS_ITEM_PITCH_DP);
+                int pillTopColor = t.glass ? (t.isDark ? 0x2effffff : 0xa4ffffff) : t.cardBg;
+                int pillBotColor = t.glass ? (t.isDark ? 0x1affffff : 0x7cf0f5fc)
+                        : (t.isDark ? 0xff2d3035 : 0xfff5f6f8);
                 for (int i = 0; i < layout.apps.size(); i++) {
                     RecentVirtualTask task = layout.apps.get(i);
                     float pillLeft = layout.appsLeft + i * pitch;
                     float pillTop = (barHeight - itemSize) / 2f;
                     float pillRight = pillLeft + itemSize;
                     float pillBottom = pillTop + itemSize;
-                    drawSmartisanRect(canvas, pillLeft, pillTop, pillRight, pillBottom, panelDp(8),
-                            t.cardBg, t.isDark ? 0xff2d3035 : 0xfff5f6f8,
-                            task.isSplitPair() ? t.accentBlue : t.cardBorder, t.cardShadow);
+                    if (t.glass) {
+                        drawGlassControlRect(canvas, t, pillLeft, pillTop, pillRight, pillBottom, panelDp(9),
+                                pillTopColor, pillBotColor, task.isSplitPair() ? t.accentBlue : t.cardBorder);
+                    } else {
+                        drawSmartisanRect(canvas, pillLeft, pillTop, pillRight, pillBottom, panelDp(8),
+                                pillTopColor, pillBotColor,
+                                task.isSplitPair() ? t.accentBlue : t.cardBorder, t.cardShadow);
+                    }
                     float iconLeft = pillLeft + panelDp(2);
                     float iconTop = pillTop + panelDp(2);
                     float iconRight = pillRight - panelDp(2);
@@ -4254,11 +4768,19 @@ public final class MainActivity extends Activity {
                 float closeCenterX = layout.closeLeft + closeR;
                 float closeCenterY = barHeight / 2f;
                 boolean pressClose = panelPointerDown && panelPressedControl == PANEL_CLOSE_APP;
-                drawSmartisanRect(canvas, closeCenterX - closeR, closeCenterY - closeR,
-                        closeCenterX + closeR, closeCenterY + closeR, closeR,
-                        pressClose ? t.softRedPressedTop : t.softRedTop,
-                        pressClose ? t.softRedPressedBottom : t.softRedBottom,
-                        t.softRedBorder, t.btnShadow);
+                if (t.glass) {
+                    drawGlassControlRect(canvas, t, closeCenterX - closeR, closeCenterY - closeR,
+                            closeCenterX + closeR, closeCenterY + closeR, closeR,
+                            pressClose ? t.softRedPressedTop : t.softRedTop,
+                            pressClose ? t.softRedPressedBottom : t.softRedBottom,
+                            t.softRedBorder);
+                } else {
+                    drawSmartisanRect(canvas, closeCenterX - closeR, closeCenterY - closeR,
+                            closeCenterX + closeR, closeCenterY + closeR, closeR,
+                            pressClose ? t.softRedPressedTop : t.softRedTop,
+                            pressClose ? t.softRedPressedBottom : t.softRedBottom,
+                            t.softRedBorder, t.btnShadow);
+                }
                 float arm = panelDp(5.2f);
                 panelPaint.setStyle(Paint.Style.STROKE);
                 panelPaint.setStrokeCap(Paint.Cap.ROUND);
@@ -4333,13 +4855,18 @@ public final class MainActivity extends Activity {
 
         private void drawPanelVectorIcon(Canvas canvas, int resourceId, float cx, float cy,
                 float size, int tintColor) {
+            drawPanelVectorIcon(canvas, resourceId, cx, cy, size, size, tintColor);
+        }
+
+        private void drawPanelVectorIcon(Canvas canvas, int resourceId, float cx, float cy,
+                float width, float height, int tintColor) {
             android.graphics.drawable.Drawable icon = getContext().getDrawable(resourceId);
             if (icon == null) return;
             Drawable tinted = icon.mutate();
             int save = canvas.save();
-            int left = Math.round(cx - size / 2f);
-            int top = Math.round(cy - size / 2f);
-            tinted.setBounds(left, top, Math.round(cx + size / 2f), Math.round(cy + size / 2f));
+            int left = Math.round(cx - width / 2f);
+            int top = Math.round(cy - height / 2f);
+            tinted.setBounds(left, top, Math.round(cx + width / 2f), Math.round(cy + height / 2f));
             tinted.setTint(tintColor);
             tinted.draw(canvas);
             canvas.restoreToCount(save);
@@ -4356,12 +4883,6 @@ public final class MainActivity extends Activity {
                 handler.postDelayed(hidePointer, 1800);
                 lastHideRescheduleAt = now;
             }
-            invalidate();
-        }
-
-        void hideQuickPanel() {
-            quickPanelVisible = false;
-            statusBarVisible = false;
             invalidate();
         }
 
@@ -4402,15 +4923,58 @@ public final class MainActivity extends Activity {
         }
 
         private RectF screenshotThumbnailBounds() {
-            float width = panelDp(300);
-            float height = panelDp(176);
-            return new RectF(panelDp(18), getHeight() - height - panelDp(18),
-                    panelDp(18) + width, getHeight() - panelDp(18));
+            float width = Math.min(panelDp(264), Math.max(panelDp(180), getWidth() - panelDp(40)));
+            float height = panelDp(178);
+            float left = panelDp(20);
+            float bottom = getHeight() - panelDp(20);
+            return new RectF(left, bottom - height, left + width, bottom);
+        }
+
+        private RectF screenshotThumbnailCloseBounds(RectF card) {
+            float size = panelDp(24);
+            float cy = card.bottom - panelDp(19);
+            float right = card.right - panelDp(8);
+            return new RectF(right - size, cy - size / 2f, right, cy + size / 2f);
         }
 
         private RectF screenshotExpandedBounds() {
-            float margin = panelDp(24);
-            return new RectF(margin, margin, getWidth() - margin, getHeight() - margin);
+            float minW = Math.min(getWidth() - panelDp(24), panelDp(320));
+            float minH = Math.min(getHeight() - panelDp(24), panelDp(320));
+            float width = Math.max(minW, Math.min(getWidth() - panelDp(96), panelDp(1040)));
+            float height = Math.max(minH, Math.min(getHeight() - panelDp(72), panelDp(740)));
+            float cx = getWidth() / 2f;
+            float cy = getHeight() / 2f;
+            return new RectF(cx - width / 2f, cy - height / 2f, cx + width / 2f, cy + height / 2f);
+        }
+
+        private RectF screenshotModalCloseBounds(RectF bounds) {
+            float size = panelDp(30);
+            float right = bounds.right - panelDp(12);
+            float cy = bounds.top + panelDp(24);
+            return new RectF(right - size, cy - size / 2f, right, cy + size / 2f);
+        }
+
+        private RectF screenshotModalDeleteBounds(RectF bounds) {
+            float deleteW = panelDp(88);
+            float galleryW = panelDp(112);
+            float gap = panelDp(12);
+            float totalW = deleteW + gap + galleryW;
+            float clusterLeft = bounds.centerX() - totalW / 2f;
+            float cy = bounds.bottom - panelDp(30);
+            float halfH = panelDp(17);
+            return new RectF(clusterLeft, cy - halfH, clusterLeft + deleteW, cy + halfH);
+        }
+
+        private RectF screenshotModalGalleryBounds(RectF bounds) {
+            float deleteW = panelDp(88);
+            float galleryW = panelDp(112);
+            float gap = panelDp(12);
+            float totalW = deleteW + gap + galleryW;
+            float clusterLeft = bounds.centerX() - totalW / 2f;
+            float cy = bounds.bottom - panelDp(30);
+            float halfH = panelDp(17);
+            float left = clusterLeft + deleteW + gap;
+            return new RectF(left, cy - halfH, left + galleryW, cy + halfH);
         }
 
         private RectF fitBitmap(RectF bounds, Bitmap bitmap) {
@@ -4421,6 +4985,15 @@ public final class MainActivity extends Activity {
             float left = bounds.centerX() - width / 2f;
             float top = bounds.centerY() - height / 2f;
             return new RectF(left, top, left + width, top + height);
+        }
+
+        private int screenshotModalHitAt(float x, float y) {
+            RectF bounds = screenshotExpandedBounds();
+            if (screenshotModalCloseBounds(bounds).contains(x, y)) return PREVIEW_HIT_MODAL_CLOSE;
+            if (screenshotModalDeleteBounds(bounds).contains(x, y)) return PREVIEW_HIT_MODAL_DELETE;
+            if (screenshotModalGalleryBounds(bounds).contains(x, y)) return PREVIEW_HIT_MODAL_GALLERY;
+            if (!bounds.contains(x, y)) return PREVIEW_HIT_MODAL_BACKDROP;
+            return PREVIEW_HIT_NONE;
         }
 
         private boolean handleScreenshotPreviewTouch(MotionEvent event) {
@@ -4435,33 +5008,75 @@ public final class MainActivity extends Activity {
             }
             float x = virtualPointerX;
             float y = virtualPointerY;
+            if (!screenshotPreviewExpanded) {
+                RectF card = screenshotThumbnailBounds();
+                if (action == MotionEvent.ACTION_DOWN) {
+                    if (!card.contains(x, y)) {
+                        screenshotPreviewPressedHit = PREVIEW_HIT_NONE;
+                        return false;
+                    }
+                    screenshotPreviewPressedHit = screenshotThumbnailCloseBounds(card).contains(x, y)
+                            ? PREVIEW_HIT_THUMB_CLOSE : PREVIEW_HIT_THUMB_CARD;
+                    invalidate();
+                    return true;
+                }
+                if (screenshotPreviewPressedHit == PREVIEW_HIT_NONE) return false;
+                if (action == MotionEvent.ACTION_CANCEL) {
+                    screenshotPreviewPressedHit = PREVIEW_HIT_NONE;
+                    invalidate();
+                    return true;
+                }
+                if (action == MotionEvent.ACTION_MOVE) {
+                    invalidate();
+                    return true;
+                }
+                if (action == MotionEvent.ACTION_UP) {
+                    int hit = screenshotThumbnailCloseBounds(card).contains(x, y)
+                            ? PREVIEW_HIT_THUMB_CLOSE
+                            : (card.contains(x, y) ? PREVIEW_HIT_THUMB_CARD : PREVIEW_HIT_NONE);
+                    int pressed = screenshotPreviewPressedHit;
+                    screenshotPreviewPressedHit = PREVIEW_HIT_NONE;
+                    if (pressed == PREVIEW_HIT_THUMB_CLOSE && hit == PREVIEW_HIT_THUMB_CLOSE) {
+                        dismissScreenshotPreview();
+                    } else if (pressed == PREVIEW_HIT_THUMB_CARD && hit == PREVIEW_HIT_THUMB_CARD) {
+                        screenshotPreviewExpanded = true;
+                        screenshotPreviewHandler.removeCallbacks(hideScreenshotPreview);
+                        Log.i(TAG, "screenshot preview expanded");
+                    }
+                    invalidate();
+                    return true;
+                }
+                return true;
+            }
+
             if (action == MotionEvent.ACTION_DOWN) {
-                RectF bounds = screenshotPreviewExpanded
-                        ? screenshotExpandedBounds() : screenshotThumbnailBounds();
-                screenshotPreviewPointerDown = bounds.contains(x, y);
-                Log.d(TAG, "preview pointer down x=" + x + " y=" + y + " hit=" + screenshotPreviewPointerDown);
+                screenshotPreviewPressedHit = screenshotModalHitAt(x, y);
+                invalidate();
                 return true;
             }
             if (action == MotionEvent.ACTION_CANCEL) {
-                screenshotPreviewPointerDown = false;
+                screenshotPreviewPressedHit = PREVIEW_HIT_NONE;
+                invalidate();
+                return true;
+            }
+            if (action == MotionEvent.ACTION_MOVE) {
+                invalidate();
                 return true;
             }
             if (action == MotionEvent.ACTION_UP) {
-                boolean wasPressed = screenshotPreviewPointerDown;
-                screenshotPreviewPointerDown = false;
-                if (wasPressed && !screenshotPreviewExpanded) {
-                    screenshotPreviewExpanded = true;
-                    screenshotPreviewHandler.removeCallbacks(hideScreenshotPreview);
-                    Log.i(TAG, "screenshot preview expanded");
-                } else if (wasPressed) {
-                    float buttonY = getHeight() - panelDp(70);
-                    if (y >= buttonY && x < getWidth() * 0.36f) {
+                int hit = screenshotModalHitAt(x, y);
+                int pressed = screenshotPreviewPressedHit;
+                screenshotPreviewPressedHit = PREVIEW_HIT_NONE;
+                if (hit == pressed) {
+                    if (hit == PREVIEW_HIT_MODAL_DELETE) {
                         Uri uri = screenshotPreviewUri;
-                        if (uri != null) getContentResolver().delete(uri, null, null);
+                        if (uri != null) {
+                            try { getContentResolver().delete(uri, null, null); } catch (RuntimeException ignored) { }
+                        }
                         dismissScreenshotPreview();
-                    } else if (y >= buttonY && x > getWidth() * 0.64f) {
+                    } else if (hit == PREVIEW_HIT_MODAL_GALLERY) {
                         openScreenshotInGallery();
-                    } else {
+                    } else if (hit == PREVIEW_HIT_MODAL_CLOSE || hit == PREVIEW_HIT_MODAL_BACKDROP) {
                         dismissScreenshotPreview();
                     }
                 }
@@ -4471,83 +5086,270 @@ public final class MainActivity extends Activity {
             return true;
         }
 
+        private void drawCloseCross(Canvas canvas, float cx, float cy, float arm, float strokePx, int color) {
+            panelPaint.setShader(null);
+            panelPaint.setColor(color);
+            panelPaint.setStyle(Paint.Style.STROKE);
+            panelPaint.setStrokeCap(Paint.Cap.ROUND);
+            panelPaint.setStrokeWidth(strokePx);
+            canvas.drawLine(cx - arm, cy - arm, cx + arm, cy + arm, panelPaint);
+            canvas.drawLine(cx + arm, cy - arm, cx - arm, cy + arm, panelPaint);
+            panelPaint.setStyle(Paint.Style.FILL);
+        }
+
         private void drawScreenshotPreview(Canvas canvas) {
             Bitmap bitmap = screenshotPreviewBitmap;
             if (bitmap == null || bitmap.isRecycled()) return;
-            SmartisanPalette t = activePanelTheme();
-            panelTextPaint.setColor(t.textPrimary);
-            panelTextPaint.setTextAlign(Paint.Align.CENTER);
+            float oneDp = Math.max(1f, panelDp(1));
+            previewBackdropRect.set(0f, 0f, getWidth(), getHeight());
             if (screenshotPreviewExpanded) {
-                RectF bounds = screenshotExpandedBounds();
+                SmartisanPalette t = theme != null ? theme : SmartisanPalette.of(false);
                 panelPaint.setShader(null);
                 panelPaint.setStyle(Paint.Style.FILL);
-                panelPaint.setColor(t.isDark ? 0xee1c1f24 : 0xebedeeef);
-                canvas.drawRect(0, 0, getWidth(), getHeight(), panelPaint);
-                drawSmartisanRect(canvas, bounds.left, bounds.top, bounds.right, bounds.bottom, panelDp(14),
-                        t.cardBg, t.cardBg, t.cardBorder, t.cardShadow);
-                RectF imageBounds = fitBitmap(new RectF(bounds.left + panelDp(14), bounds.top + panelDp(14),
-                        bounds.right - panelDp(14), bounds.bottom - panelDp(84)), bitmap);
+                panelPaint.setColor(t.glass
+                        ? (t.isDark ? 0x88060910 : 0x480c1424)
+                        : (t.isDark ? 0x990c0e12 : 0x6616181d));
+                canvas.drawRect(0f, 0f, getWidth(), getHeight(), panelPaint);
+
+                RectF bounds = screenshotExpandedBounds();
+                float cardRx = panelDp(t.glass ? 16 : 12);
+                float headerH = panelDp(48);
+                float footerH = panelDp(60);
+                drawSoftCardShadow(canvas, bounds, cardRx, t.isDark);
+
+                if (t.glass) {
+                    previewGlassNode.draw(
+                            canvas, bitmap, previewBackdropRect,
+                            bounds.left, bounds.top, bounds.right, bounds.bottom,
+                            LiquidGlassEngine.uniformShaderRadii(cardRx),
+                            LiquidGlassEngine.LiquidGlassParams.floatingCard(t.isDark, true),
+                            oneDp, pointerX, pointerY, pointerVisible && forwarding);
+                } else {
+                    statusClipPath.reset();
+                    statusClipPath.addRoundRect(bounds, cardRx, cardRx, Path.Direction.CW);
+                    canvas.save();
+                    canvas.clipPath(statusClipPath);
+                    panelPaint.setShader(null);
+                    panelPaint.setStyle(Paint.Style.FILL);
+                    panelPaint.setColor(t.pageBg);
+                    canvas.drawRect(bounds, panelPaint);
+                    drawSmartisanRect(canvas, bounds.left, bounds.top, bounds.right, bounds.top + headerH, 0f,
+                            t.titleBarTop, t.titleBarBottom, 0, 0);
+                    drawSmartisanRect(canvas, bounds.left, bounds.bottom - footerH, bounds.right, bounds.bottom, 0f,
+                            t.titleBarTop, t.titleBarBottom, 0, 0);
+                    canvas.restore();
+                    panelPaint.setShader(null);
+                    panelPaint.setStyle(Paint.Style.STROKE);
+                    panelPaint.setStrokeWidth(oneDp);
+                    panelPaint.setColor(t.cardBorder);
+                    canvas.drawRoundRect(bounds, cardRx, cardRx, panelPaint);
+                    panelPaint.setStyle(Paint.Style.FILL);
+                }
+
+                // Modal header: title + resolution + close button
+                float divInset = t.glass ? panelDp(14) : oneDp;
+                panelPaint.setShader(null);
+                panelPaint.setColor(t.divider);
+                canvas.drawRect(bounds.left + divInset, bounds.top + headerH - oneDp,
+                        bounds.right - divInset, bounds.top + headerH, panelPaint);
+                canvas.drawRect(bounds.left + divInset, bounds.bottom - footerH,
+                        bounds.right - divInset, bounds.bottom - footerH + oneDp, panelPaint);
+
+                panelTextPaint.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
+                panelTextPaint.setColor(t.textPrimary);
+                panelTextPaint.setTextSize(panelDp(14.5f));
+                panelTextPaint.setTextAlign(Paint.Align.LEFT);
+                Paint.FontMetrics hm = panelTextPaint.getFontMetrics();
+                float headerCy = bounds.top + headerH / 2f;
+                float headerBase = headerCy - (hm.ascent + hm.descent) / 2f;
+                String modalTitle = "截图预览";
+                canvas.drawText(modalTitle, bounds.left + panelDp(16), headerBase, panelTextPaint);
+                float titleW = panelTextPaint.measureText(modalTitle);
+
+                panelTextPaint.setTypeface(android.graphics.Typeface.DEFAULT);
+                panelTextPaint.setColor(t.textMuted);
+                panelTextPaint.setTextSize(panelDp(11.5f));
+                canvas.drawText(bitmap.getWidth() + " × " + bitmap.getHeight(),
+                        bounds.left + panelDp(16) + titleW + panelDp(10), headerBase, panelTextPaint);
+
+                RectF closeRect = screenshotModalCloseBounds(bounds);
+                boolean pressClose = screenshotPreviewPressedHit == PREVIEW_HIT_MODAL_CLOSE
+                        && closeRect.contains(virtualPointerX, virtualPointerY);
+                if (t.glass) {
+                    float cr = closeRect.width() / 2f;
+                    drawGlassControlRect(canvas, t, closeRect.left, closeRect.top,
+                            closeRect.right, closeRect.bottom, cr,
+                            pressClose ? t.btnPressedTop : t.btnTop,
+                            pressClose ? t.btnPressedBottom : t.btnBottom,
+                            pressClose ? t.btnPressedBorder : t.btnBorder);
+                    drawCloseCross(canvas, closeRect.centerX(), closeRect.centerY(),
+                            panelDp(5.2f), Math.max(1.5f, panelDp(1.7f)), t.textPrimary);
+                } else {
+                    int iconColor = t.titleBarIcon;
+                    if (pressClose) {
+                        int normalA = (iconColor >>> 24) & 0xff;
+                        iconColor = (iconColor & 0x00ffffff) | (Math.max(48, Math.round(normalA * 0.55f)) << 24);
+                    }
+                    drawCloseCross(canvas, closeRect.centerX(), closeRect.centerY(),
+                            panelDp(5.6f), Math.max(1.6f, panelDp(1.8f)), iconColor);
+                }
+
+                // Image preview stage
+                RectF stageBounds = new RectF(bounds.left + panelDp(16), bounds.top + headerH + panelDp(12),
+                        bounds.right - panelDp(16), bounds.bottom - footerH - panelDp(12));
+                RectF imageBounds = fitBitmap(stageBounds, bitmap);
+                float imgRx = panelDp(8);
+                drawSoftCardShadow(canvas, imageBounds, imgRx, t.isDark);
                 canvas.save();
                 statusClipPath.reset();
-                statusClipPath.addRoundRect(imageBounds, panelDp(8), panelDp(8), Path.Direction.CW);
+                statusClipPath.addRoundRect(imageBounds, imgRx, imgRx, Path.Direction.CW);
                 canvas.clipPath(statusClipPath);
                 canvas.drawBitmap(bitmap, null, imageBounds, screenshotImagePaint);
                 canvas.restore();
-
-                float buttonY = getHeight() - panelDp(72);
-                drawSmartisanRect(canvas, panelDp(24), buttonY, getWidth() * 0.36f,
-                        buttonY + panelDp(44), panelDp(9),
-                        t.softRedTop, t.softRedBottom, t.softRedBorder, t.btnShadow);
-                drawSmartisanRect(canvas, getWidth() * 0.64f, buttonY, getWidth() - panelDp(24),
-                        buttonY + panelDp(44), panelDp(9),
-                        t.btnTop, t.btnBottom, t.btnBorder, t.btnShadow);
-                panelTextPaint.setTextSize(panelDp(15));
-                panelTextPaint.setColor(t.softRedText);
-                canvas.drawText("删除", (panelDp(24) + getWidth() * 0.36f) / 2f,
-                        buttonY + panelDp(28), panelTextPaint);
-                panelTextPaint.setColor(t.textPrimary);
-                canvas.drawText("图库打开", (getWidth() * 0.64f + getWidth() - panelDp(24)) / 2f,
-                        buttonY + panelDp(28), panelTextPaint);
-                float closeX = getWidth() / 2f;
-                float closeY = buttonY + panelDp(22);
-                float cr = panelDp(19);
-                drawSmartisanRect(canvas, closeX - cr, closeY - cr, closeX + cr, closeY + cr, cr,
-                        t.btnTop, t.btnBottom, t.btnBorder, t.btnShadow);
-                panelPaint.setColor(t.textPrimary);
+                panelPaint.setShader(null);
                 panelPaint.setStyle(Paint.Style.STROKE);
-                panelPaint.setStrokeCap(Paint.Cap.ROUND);
-                panelPaint.setStrokeWidth(panelDp(2));
-                canvas.drawLine(closeX - panelDp(6), closeY - panelDp(6),
-                        closeX + panelDp(6), closeY + panelDp(6), panelPaint);
-                canvas.drawLine(closeX + panelDp(6), closeY - panelDp(6),
-                        closeX - panelDp(6), closeY + panelDp(6), panelPaint);
+                panelPaint.setStrokeWidth(oneDp);
+                panelPaint.setColor(t.isDark ? 0x26ffffff : 0x1e000000);
+                canvas.drawRoundRect(imageBounds, imgRx, imgRx, panelPaint);
                 panelPaint.setStyle(Paint.Style.FILL);
+
+                // Bottom footer centered compact button cluster
+                RectF deleteRect = screenshotModalDeleteBounds(bounds);
+                RectF galleryRect = screenshotModalGalleryBounds(bounds);
+                boolean pressDelete = screenshotPreviewPressedHit == PREVIEW_HIT_MODAL_DELETE
+                        && deleteRect.contains(virtualPointerX, virtualPointerY);
+                boolean pressGallery = screenshotPreviewPressedHit == PREVIEW_HIT_MODAL_GALLERY
+                        && galleryRect.contains(virtualPointerX, virtualPointerY);
+                float actionRx = panelDp(t.glass ? 10 : 7);
+
+                if (t.glass) {
+                    drawGlassControlRect(canvas, t, deleteRect.left, deleteRect.top,
+                            deleteRect.right, deleteRect.bottom, actionRx,
+                            pressDelete ? t.softRedPressedTop : t.softRedTop,
+                            pressDelete ? t.softRedPressedBottom : t.softRedBottom,
+                            t.softRedBorder);
+                    drawGlassControlRect(canvas, t, galleryRect.left, galleryRect.top,
+                            galleryRect.right, galleryRect.bottom, actionRx,
+                            pressGallery ? t.btnPressedTop : t.accentBlueSoftBg,
+                            pressGallery ? t.btnPressedBottom : t.accentBlueSoftBg,
+                            t.accentBlueSoftBorder);
+                } else {
+                    drawSmartisanRect(canvas, deleteRect.left, deleteRect.top,
+                            deleteRect.right, deleteRect.bottom, actionRx,
+                            pressDelete ? t.softRedPressedTop : t.softRedTop,
+                            pressDelete ? t.softRedPressedBottom : t.softRedBottom,
+                            t.softRedBorder, t.btnShadow);
+                    drawSmartisanRect(canvas, galleryRect.left, galleryRect.top,
+                            galleryRect.right, galleryRect.bottom, actionRx,
+                            pressGallery ? t.btnPressedTop : t.btnTop,
+                            pressGallery ? t.btnPressedBottom : t.btnBottom,
+                            pressGallery ? t.btnPressedBorder : t.btnBorder, t.btnShadow);
+                }
+
+                panelTextPaint.setTextSize(panelDp(13));
+                panelTextPaint.setTextAlign(Paint.Align.CENTER);
+                Paint.FontMetrics bm = panelTextPaint.getFontMetrics();
+                float btnTextBase = deleteRect.centerY() - (bm.ascent + bm.descent) / 2f;
+                panelTextPaint.setColor(t.softRedText);
+                canvas.drawText("删除", deleteRect.centerX(), btnTextBase, panelTextPaint);
+                panelTextPaint.setColor(t.glass ? t.accentBlueText : t.textPrimary);
+                canvas.drawText("图库打开", galleryRect.centerX(), btnTextBase, panelTextPaint);
+
+                if (screenshotPreviewMessage != null) {
+                    panelTextPaint.setTextSize(panelDp(12.5f));
+                    panelTextPaint.setTextAlign(Paint.Align.CENTER);
+                    float msgW = Math.min(bounds.width() - panelDp(32),
+                            panelTextPaint.measureText(screenshotPreviewMessage) + panelDp(32));
+                    float msgH = panelDp(36);
+                    float msgCy = bounds.bottom - footerH - panelDp(30);
+                    RectF msgRect = new RectF(bounds.centerX() - msgW / 2f, msgCy - msgH / 2f,
+                            bounds.centerX() + msgW / 2f, msgCy + msgH / 2f);
+                    float msgRx = msgH / 2f;
+                    drawSoftCardShadow(canvas, msgRect, msgRx, t.isDark);
+                    if (t.glass) {
+                        drawGlassControlRect(canvas, t, msgRect.left, msgRect.top,
+                                msgRect.right, msgRect.bottom, msgRx,
+                                t.isDark ? 0xd818202c : 0xe8ffffff,
+                                t.isDark ? 0xcc111722 : 0xdaf2f6fc,
+                                t.cardBorder);
+                    } else {
+                        drawSmartisanRect(canvas, msgRect.left, msgRect.top,
+                                msgRect.right, msgRect.bottom, msgRx,
+                                t.cardBg, t.cardBg, t.cardBorder, t.cardShadow);
+                    }
+                    Paint.FontMetrics mm = panelTextPaint.getFontMetrics();
+                    panelTextPaint.setColor(t.textPrimary);
+                    canvas.drawText(screenshotPreviewMessage, msgRect.centerX(),
+                            msgRect.centerY() - (mm.ascent + mm.descent) / 2f, panelTextPaint);
+                }
             } else {
                 RectF card = screenshotThumbnailBounds();
-                drawSmartisanRect(canvas, card.left, card.top, card.right, card.bottom, panelDp(12),
-                        t.cardBg, t.cardBg, t.cardBorder, t.cardShadow);
+                SmartisanPalette ct = previewThemeForRegion(bitmap, card);
+                float cardRx = panelDp(ct.glass ? 14 : 10);
+                drawSoftCardShadow(canvas, card, cardRx, ct.isDark);
+                if (ct.glass) {
+                    previewGlassNode.draw(
+                            canvas, bitmap, previewBackdropRect,
+                            card.left, card.top, card.right, card.bottom,
+                            LiquidGlassEngine.uniformShaderRadii(cardRx),
+                            LiquidGlassEngine.LiquidGlassParams.floatingCard(ct.isDark, false),
+                            oneDp, pointerX, pointerY, pointerVisible && forwarding);
+                } else {
+                    drawSmartisanRect(canvas, card.left, card.top, card.right, card.bottom, cardRx,
+                            ct.cardBg, ct.isDark ? 0xff2f3237 : 0xfffafafb, ct.cardBorder, ct.cardShadow);
+                }
+
                 RectF imageBounds = fitBitmap(new RectF(card.left + panelDp(8), card.top + panelDp(8),
-                        card.right - panelDp(8), card.bottom - panelDp(34)), bitmap);
+                        card.right - panelDp(8), card.bottom - panelDp(38)), bitmap);
+                float imgRx = panelDp(8);
                 canvas.save();
                 statusClipPath.reset();
-                statusClipPath.addRoundRect(imageBounds, panelDp(6), panelDp(6), Path.Direction.CW);
+                statusClipPath.addRoundRect(imageBounds, imgRx, imgRx, Path.Direction.CW);
                 canvas.clipPath(statusClipPath);
                 canvas.drawBitmap(bitmap, null, imageBounds, screenshotImagePaint);
                 canvas.restore();
-                panelTextPaint.setColor(t.textSecondary);
+                panelPaint.setShader(null);
+                panelPaint.setStyle(Paint.Style.STROKE);
+                panelPaint.setStrokeWidth(oneDp);
+                panelPaint.setColor(ct.isDark ? 0x24ffffff : 0x1c000000);
+                canvas.drawRoundRect(imageBounds, imgRx, imgRx, panelPaint);
+                panelPaint.setStyle(Paint.Style.FILL);
+
+                float barCy = card.bottom - panelDp(19);
+                float dotX = card.left + panelDp(14);
+                panelPaint.setColor(ct.isDark ? 0xff4ade80 : 0xff1f9d55);
+                canvas.drawCircle(dotX, barCy, panelDp(3.5f), panelPaint);
+
+                panelTextPaint.setColor(ct.textPrimary);
                 panelTextPaint.setTextSize(panelDp(12));
-                canvas.drawText("截图已保存 · 点击预览", card.centerX(),
-                        card.bottom - panelDp(11), panelTextPaint);
-            }
-            if (screenshotPreviewMessage != null) {
-                RectF message = new RectF(panelDp(24), getHeight() - panelDp(116),
-                        getWidth() - panelDp(24), getHeight() - panelDp(24));
-                drawSmartisanRect(canvas, message.left, message.top, message.right, message.bottom, panelDp(12),
-                        t.cardBg, t.cardBg, t.cardBorder, t.cardShadow);
-                panelTextPaint.setColor(t.textPrimary);
-                panelTextPaint.setTextSize(panelDp(14));
-                panelTextPaint.setTextAlign(Paint.Align.CENTER);
-                canvas.drawText(screenshotPreviewMessage, message.centerX(), message.centerY(), panelTextPaint);
+                panelTextPaint.setTextAlign(Paint.Align.LEFT);
+                Paint.FontMetrics tm = panelTextPaint.getFontMetrics();
+                applyGlassTextHalo(ct.glass, ct.isDark);
+                canvas.drawText("已保存 · 点击预览", dotX + panelDp(8),
+                        barCy - (tm.ascent + tm.descent) / 2f, panelTextPaint);
+                panelTextPaint.clearShadowLayer();
+
+                RectF closeRect = screenshotThumbnailCloseBounds(card);
+                boolean pressClose = screenshotPreviewPressedHit == PREVIEW_HIT_THUMB_CLOSE
+                        && closeRect.contains(virtualPointerX, virtualPointerY);
+                if (ct.glass) {
+                    float cr = closeRect.width() / 2f;
+                    drawGlassControlRect(canvas, ct, closeRect.left, closeRect.top,
+                            closeRect.right, closeRect.bottom, cr,
+                            pressClose ? ct.btnPressedTop : ct.btnTop,
+                            pressClose ? ct.btnPressedBottom : ct.btnBottom,
+                            pressClose ? ct.btnPressedBorder : ct.btnBorder);
+                    drawCloseCross(canvas, closeRect.centerX(), closeRect.centerY(),
+                            panelDp(4.2f), Math.max(1.3f, panelDp(1.5f)), ct.textSecondary);
+                } else {
+                    int iconColor = ct.textSecondary;
+                    if (pressClose) {
+                        int normalA = (iconColor >>> 24) & 0xff;
+                        iconColor = (iconColor & 0x00ffffff) | (Math.max(48, Math.round(normalA * 0.55f)) << 24);
+                    }
+                    drawCloseCross(canvas, closeRect.centerX(), closeRect.centerY(),
+                            panelDp(4.4f), Math.max(1.4f, panelDp(1.5f)), iconColor);
+                }
             }
         }
 
@@ -4763,6 +5565,7 @@ public final class MainActivity extends Activity {
         @Override
         protected void onDetachedFromWindow() {
             handler.removeCallbacks(delayedRecentTaskRefresh);
+            clearGlassBackdrop();
             finishSplitLayoutChange();
             super.onDetachedFromWindow();
         }
@@ -4801,29 +5604,32 @@ public final class MainActivity extends Activity {
             return new RectF[]{first, second};
         }
 
-        private static final String[] SPLIT_KILL_ACTIONS = {"最小化", "最大化", "关闭"};
-
         private void drawSplitKillMenu(Canvas canvas) {
             SmartisanPalette t = activePanelTheme();
             RectF[] clusters = splitKillClusters();
             panelTextPaint.setTextAlign(Paint.Align.CENTER);
             float oneDp = Math.max(1f, panelDp(1));
+            float clusterRx = panelDp(t.glass ? 13 : 10);
             for (int side = 0; side < 2; side++) {
                 RectF cluster = clusters[side];
                 // getSplitPackages() already returns visual order: 0 = left/top pane.
                 String packageName = side == 0 ? splitFirstPackage : splitSecondPackage;
-                panelPaint.setShader(null);
-                panelPaint.setStyle(Paint.Style.FILL);
-                panelPaint.setColor(t.isDark ? 0x55000000 : 0x22000000);
-                panelRect.set(cluster.left, cluster.top + panelDp(2),
-                        cluster.right, cluster.bottom + panelDp(3));
-                canvas.drawRoundRect(panelRect, panelDp(11), panelDp(11), panelPaint);
+                drawSoftCardShadow(canvas, cluster, clusterRx, t.isDark);
 
-                drawSmartisanRect(canvas, cluster.left, cluster.top, cluster.right, cluster.bottom,
-                        panelDp(11), t.btnTop, t.btnBottom, t.btnBorder, 0);
+                if (t.glass) {
+                    drawGlassControlRect(canvas, t, cluster.left, cluster.top, cluster.right, cluster.bottom,
+                            clusterRx,
+                            t.isDark ? 0xbc18202c : 0xdcffffff,
+                            t.isDark ? 0xaa111722 : 0xc4f2f6fc,
+                            t.isDark ? 0x3c000000 : 0x1e000000);
+                } else {
+                    drawSmartisanRect(canvas, cluster.left, cluster.top, cluster.right, cluster.bottom,
+                            clusterRx, t.btnTop, t.btnBottom, t.btnBorder, 0);
+                }
                 float cellWidth = cluster.width() / 3f;
                 for (int col = 1; col < 3; col++) {
                     float sepX = cluster.left + col * cellWidth;
+                    panelPaint.setShader(null);
                     panelPaint.setColor(t.divider);
                     canvas.drawRect(sepX, cluster.top + panelDp(8),
                             sepX + oneDp, cluster.bottom - panelDp(8), panelPaint);
@@ -4833,9 +5639,15 @@ public final class MainActivity extends Activity {
                     boolean enabled = packageName != null;
                     float cellLeft = cluster.left + col * cellWidth;
                     if (splitKillMenuPressed == index && enabled) {
-                        drawSmartisanRect(canvas, cellLeft + panelDp(3), cluster.top + panelDp(3),
-                                cellLeft + cellWidth - panelDp(3), cluster.bottom - panelDp(3),
-                                panelDp(8), t.btnPressedTop, t.btnPressedBottom, t.btnPressedBorder, 0);
+                        if (t.glass) {
+                            drawGlassControlRect(canvas, t, cellLeft + panelDp(3), cluster.top + panelDp(3),
+                                    cellLeft + cellWidth - panelDp(3), cluster.bottom - panelDp(3),
+                                    panelDp(10), t.btnPressedTop, t.btnPressedBottom, t.btnPressedBorder);
+                        } else {
+                            drawSmartisanRect(canvas, cellLeft + panelDp(3), cluster.top + panelDp(3),
+                                    cellLeft + cellWidth - panelDp(3), cluster.bottom - panelDp(3),
+                                    panelDp(8), t.btnPressedTop, t.btnPressedBottom, t.btnPressedBorder, 0);
+                        }
                     }
                     float cx = cellLeft + cellWidth / 2f;
                     float cy = cluster.centerY();
@@ -4971,45 +5783,70 @@ public final class MainActivity extends Activity {
             // black band here only covered system windows (share sheet, floating IME) that span
             // the split. Keep the gap as-is and draw just the handle below.
             if (splitChoosing) {
-                SmartisanPalette t = activePanelTheme();
+                SmartisanPalette t = theme != null ? theme : SmartisanPalette.of(false);
                 RectF area = splitPickerBounds();
-                panelPaint.setShader(null);
-                panelPaint.setStyle(Paint.Style.FILL);
-                panelPaint.setColor(t.pageBg);
-                canvas.drawRect(area, panelPaint);
-
                 float headerHeight = panelDp(46);
-                drawSmartisanRect(canvas, area.left, area.top, area.right, area.top + headerHeight, 0f,
-                        t.titleBarTop, t.titleBarBottom, 0, 0);
-                panelPaint.setColor(t.titleBarBorder);
-                canvas.drawRect(area.left, area.top + headerHeight - Math.max(1f, panelDp(1)),
-                        area.right, area.top + headerHeight, panelPaint);
+                float oneDp = Math.max(1f, panelDp(1));
 
-                panelTextPaint.setColor(t.textPrimary);
-                panelTextPaint.setTextAlign(Paint.Align.CENTER);
-                panelTextPaint.setTextSize(panelDp(15));
-                String side = portraitMode ? (splitPickerFirst ? "上方" : "下方")
-                        : (splitPickerFirst ? "左侧" : "右侧");
-                canvas.drawText("选择" + side + "应用", area.centerX(),
-                        area.top + panelDp(29), panelTextPaint);
+                canvas.save();
+                canvas.clipRect(area);
+                if (t.glass) {
+                    LiquidGlassEngine.LiquidAuroraBackdropDrawable aurora =
+                            t.isDark ? splitAuroraDark : splitAuroraLight;
+                    aurora.setBounds(Math.round(area.left), Math.round(area.top),
+                            Math.round(area.right), Math.round(area.bottom));
+                    aurora.draw(canvas);
+                } else {
+                    panelPaint.setShader(null);
+                    panelPaint.setStyle(Paint.Style.FILL);
+                    panelPaint.setColor(t.pageBg);
+                    canvas.drawRect(area, panelPaint);
+                }
 
                 ArrayList<ResolveInfo> apps = splitPickerApps();
                 int columns = splitPickerColumns();
                 float cellWidth = area.width() / columns;
                 float rowHeight = panelDp(74);
                 float top = area.top + panelDp(52);
+                int hoverIdx = -1;
+                if (forwarding && pointerVisible && overSplitPicker()) {
+                    int col = (int) ((virtualPointerX - area.left) / cellWidth);
+                    int row = (int) Math.floor((virtualPointerY - top) / rowHeight);
+                    if (row >= 0 && col >= 0 && col < columns) hoverIdx = splitPickerOffset + row * columns + col;
+                }
+
                 canvas.save();
-                canvas.clipRect(area);
+                canvas.clipRect(area.left, area.top + headerHeight, area.right, area.bottom);
                 float iconHalf = Math.round(panelDp(17));
                 float iconRx = panelDp(7);
+                panelTextPaint.setTypeface(android.graphics.Typeface.DEFAULT);
+                panelTextPaint.setTextAlign(Paint.Align.CENTER);
+                panelTextPaint.setTextSize(panelDp(11.5f));
                 for (int i = splitPickerOffset; i < apps.size(); i++) {
                     int slot = i - splitPickerOffset;
                     float cellLeft = area.left + (slot % columns) * cellWidth;
                     float y = top + slot / columns * rowHeight;
                     if (y >= area.bottom) break;
-                    drawSmartisanRect(canvas, cellLeft + panelDp(4), y - panelDp(2),
-                            cellLeft + cellWidth - panelDp(4), y + rowHeight - panelDp(6), panelDp(10),
-                            t.cardBg, t.isDark ? 0xff2f3237 : 0xfff8f9fa, t.cardBorder, t.cardShadow);
+                    float tileL = cellLeft + panelDp(4);
+                    float tileT = y - panelDp(2);
+                    float tileR = cellLeft + cellWidth - panelDp(4);
+                    float tileB = y + rowHeight - panelDp(6);
+                    boolean hovered = i == hoverIdx;
+                    if (t.glass) {
+                        int tileTopC = t.isDark
+                                ? (hovered ? 0x4cffffff : 0x34ffffff)
+                                : (hovered ? 0xe4ffffff : 0xccffffff);
+                        int tileBotC = t.isDark
+                                ? (hovered ? 0x32ffffff : 0x1effffff)
+                                : (hovered ? 0xc8e8f1fc : 0xa8f2f6fc);
+                        drawGlassControlRect(canvas, t, tileL, tileT, tileR, tileB, panelDp(12),
+                                tileTopC, tileBotC, hovered ? t.accentBlueSoftBorder : t.cardBorder);
+                    } else {
+                        int tileTopC = hovered ? t.tilePressedBg : t.cardBg;
+                        int tileBotC = hovered ? t.tilePressedBg : (t.isDark ? 0xff2f3237 : 0xfff8f9fa);
+                        drawSmartisanRect(canvas, tileL, tileT, tileR, tileB, panelDp(10),
+                                tileTopC, tileBotC, t.cardBorder, t.cardShadow);
+                    }
                     float x = cellLeft + cellWidth * 0.5f;
                     ResolveInfo app = apps.get(i);
                     try {
@@ -5018,10 +5855,49 @@ public final class MainActivity extends Activity {
                                 x + iconHalf, y + panelDp(4) + 2 * iconHalf, iconRx);
                     } catch (RuntimeException ignored) { }
                     panelTextPaint.setColor(t.textPrimary);
-                    panelTextPaint.setTextSize(panelDp(11.5f));
                     canvas.drawText(panelDisplayLabel(app, cellWidth - panelDp(8)),
                             x, y + panelDp(56), panelTextPaint);
                 }
+                canvas.restore();
+
+                // Header bar + downward shadow + split boundary hairline
+                if (t.glass) {
+                    drawSmartisanRect(canvas, area.left, area.top, area.right, area.top + headerHeight, 0f,
+                            t.isDark ? 0xb8141c28 : 0xdcffffff,
+                            t.isDark ? 0xa40e141e : 0xc4f2f6fc, 0, 0);
+                } else {
+                    drawSmartisanRect(canvas, area.left, area.top, area.right, area.top + headerHeight, 0f,
+                            t.titleBarTop, t.titleBarBottom, 0, 0);
+                }
+                panelPaint.setShader(null);
+                panelPaint.setStyle(Paint.Style.FILL);
+                panelPaint.setColor(t.titleBarBorder);
+                canvas.drawRect(area.left, area.top + headerHeight - oneDp,
+                        area.right, area.top + headerHeight, panelPaint);
+
+                panelPaint.setShader(new LinearGradient(0f, area.top + headerHeight,
+                        0f, area.top + headerHeight + panelDp(4),
+                        t.titleBarShadowStart, 0x00000000, Shader.TileMode.CLAMP));
+                canvas.drawRect(area.left, area.top + headerHeight,
+                        area.right, area.top + headerHeight + panelDp(4), panelPaint);
+                panelPaint.setShader(null);
+
+                panelPaint.setColor(t.titleBarBorder);
+                if (splitPickerFirst) {
+                    canvas.drawRect(area.right - oneDp, area.top, area.right, area.bottom, panelPaint);
+                } else {
+                    canvas.drawRect(area.left, area.top, area.left + oneDp, area.bottom, panelPaint);
+                }
+
+                panelTextPaint.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
+                panelTextPaint.setColor(t.textPrimary);
+                panelTextPaint.setTextAlign(Paint.Align.CENTER);
+                panelTextPaint.setTextSize(panelDp(15));
+                String side = portraitMode ? (splitPickerFirst ? "上方" : "下方")
+                        : (splitPickerFirst ? "左侧" : "右侧");
+                canvas.drawText("选择" + side + "应用", area.centerX(),
+                        area.top + panelDp(29), panelTextPaint);
+                panelTextPaint.setTypeface(android.graphics.Typeface.DEFAULT);
                 canvas.restore();
                 return;
             }
@@ -5328,6 +6204,7 @@ public final class MainActivity extends Activity {
                 tile.setOnClickListener(v -> launchPackage(packageName, app.activityInfo.name));
             }
         }
+        if (homeTopBarGlass != null) homeTopBarGlass.invalidateBackdrop();
     }
 
     private void updateSplit(ResolveInfo second) {
@@ -5899,33 +6776,54 @@ public final class MainActivity extends Activity {
         if (t == null) return;
         applySystemBarTheme(getWindow(), t);
         if (applySettingsTheme != null) applySettingsTheme.run();
-        if (rootLayout != null) rootLayout.setBackground(pageBackground(t));
-        int innerColor = t.glass ? android.graphics.Color.TRANSPARENT : t.pageBg;
-        if (rootShell != null) rootShell.setBackgroundColor(innerColor);
+        if (homeBackdropSource != null) {
+            homeBackdropSource.setBackground(t.glass
+                    ? new LiquidGlassEngine.LiquidAuroraBackdropDrawable(t.isDark)
+                    : pageBackground(t));
+        } else if (rootLayout != null) {
+            rootLayout.setBackground(pageBackground(t));
+        }
+        int innerColor = android.graphics.Color.TRANSPARENT;
         if (mainScroll != null) mainScroll.setBackgroundColor(innerColor);
         if (content != null) content.setBackgroundColor(innerColor);
+        if (homeTopBarGlass != null) {
+            homeTopBarGlass.setGlassStyle(t.glass, t.isDark);
+        }
         if (topBarContainer != null) {
-            GradientDrawable barBg = new GradientDrawable(
-                    GradientDrawable.Orientation.TOP_BOTTOM,
-                    new int[]{t.titleBarTop, t.titleBarBottom});
-            topBarContainer.setBackground(barBg);
+            if (t.glass) {
+                topBarContainer.setBackground(null);
+            } else {
+                topBarContainer.setBackground(new GradientDrawable(
+                        GradientDrawable.Orientation.TOP_BOTTOM,
+                        new int[]{t.titleBarTop, t.titleBarBottom}));
+            }
         }
         if (topBarTitle != null) topBarTitle.setTextColor(t.textPrimary);
-        if (topBarDivider != null) topBarDivider.setBackgroundColor(t.titleBarBorder);
+        if (topBarDivider != null) {
+            topBarDivider.setVisibility(t.glass ? View.GONE : View.VISIBLE);
+            topBarDivider.setBackgroundColor(t.titleBarBorder);
+        }
         if (topBarShadow != null) {
             topBarShadow.setBackground(new GradientDrawable(
                     GradientDrawable.Orientation.TOP_BOTTOM,
                     new int[]{t.titleBarShadowStart, 0x00000000}));
         }
         if (settingsButton != null) {
-            styleNeutralBevelButton(settingsButton, t, 8);
+            styleTitleBarIconButton(settingsButton, R.drawable.ic_settings, t);
         }
         if (statusView != null) {
             statusView.setTextColor(t.accentBlueText);
             statusView.setBackground(roundedCard(t.accentBlueSoftBg, t.accentBlueSoftBorder, 9));
         }
         if (sectionControlTitle != null) sectionControlTitle.setTextColor(t.textSection);
-        if (controlCard != null) controlCard.setBackground(buildSmartisanCard(t, 12));
+        if (controlCard != null) {
+            if (t.glass) {
+                controlCard.configureGlass(true, t.isDark, 15f);
+            } else {
+                controlCard.configureGlass(false, t.isDark, 12f);
+                controlCard.setBackground(buildSmartisanCard(t, 12));
+            }
+        }
         if (cardDivider1 != null) cardDivider1.setBackgroundColor(t.divider);
         if (cardDivider2 != null) cardDivider2.setBackgroundColor(t.divider);
         if (monitorView != null) monitorView.setTextColor(t.textPrimary);
@@ -5934,8 +6832,8 @@ public final class MainActivity extends Activity {
         updateShizukuBadge();
         updateMouseRouteButton();
         updateModeButtonStyle();
-        if (blackoutButton != null) styleNeutralBevelButton(blackoutButton, t, 9);
-        if (stopButton != null) styleSoftRedButton(stopButton, t, 9);
+        if (blackoutButton != null) styleNeutralBevelButton(blackoutButton, t, 8);
+        if (stopButton != null) styleSoftRedButton(stopButton, t, 8);
         if (densityTitleView != null) densityTitleView.setTextColor(t.textPrimary);
         if (densityView != null) {
             densityView.setTextColor(t.accentBlueText);
@@ -5950,12 +6848,18 @@ public final class MainActivity extends Activity {
         }
         updateEditFavoritesButtonStyle();
         if (searchContainer != null) {
-            GradientDrawable searchBg = new GradientDrawable(
-                    GradientDrawable.Orientation.TOP_BOTTOM,
-                    new int[]{t.searchBgTop, t.searchBgBottom});
-            searchBg.setCornerRadius(dp(10));
-            searchBg.setStroke(Math.max(1, dp(1)), t.searchBorder);
-            searchContainer.setBackground(searchBg);
+            if (t.glass) {
+                searchContainer.setBackground(new LiquidGlassEngine.LiquidGlassSurfaceDrawable(
+                        t.isDark, dp(12), t.searchBgTop, t.searchBgBottom, t.searchBorder,
+                        t.isDark ? 0x38ffffff : 0x90ffffff, Math.max(1f, dp(1))));
+            } else {
+                GradientDrawable searchBg = new GradientDrawable(
+                        GradientDrawable.Orientation.TOP_BOTTOM,
+                        new int[]{t.searchBgTop, t.searchBgBottom});
+                searchBg.setCornerRadius(dp(8));
+                searchBg.setStroke(Math.max(1, dp(1)), t.searchBorder);
+                searchContainer.setBackground(searchBg);
+            }
         }
         if (searchIconView != null) {
             Drawable searchDrawable = getDrawable(R.drawable.ic_search);
@@ -5974,11 +6878,21 @@ public final class MainActivity extends Activity {
             searchClearButton.setBackground(buildTileBackground(t, false));
         }
         if (appsCard != null) {
-            appsCard.setBackground(buildSmartisanCard(t.appsCardBg, t.cardBorder, t.cardShadow, 12));
+            if (t.glass) {
+                appsCard.configureGlass(true, t.isDark, 15f);
+            } else {
+                appsCard.configureGlass(false, t.isDark, 12f);
+                appsCard.setBackground(buildSmartisanCard(t.appsCardBg, t.cardBorder, t.cardShadow, 12));
+            }
         }
         if (appsEmptyView != null) appsEmptyView.setTextColor(t.textMuted);
         if (appGrid != null && appGrid.getWidth() > 0 && appColumns > 0) rebuildAppsGrid();
-        if (mousePointerView != null) mousePointerView.invalidate();
+        if (homeTopBarGlass != null) homeTopBarGlass.invalidateBackdrop();
+        if (mousePointerView != null) {
+            if (!t.glass) mousePointerView.clearGlassBackdrop();
+            else mousePointerView.scheduleGlassBackdropRefresh(true);
+            mousePointerView.invalidate();
+        }
         applyGuideDialogTheme();
     }
 
@@ -5986,14 +6900,17 @@ public final class MainActivity extends Activity {
         SmartisanPalette t = theme;
         if (guideDialog == null || t == null) return;
         applySystemBarTheme(guideDialog.getWindow(), t);
-        if (guideContainer != null) guideContainer.setBackgroundColor(t.pageBg);
+        if (guideContainer != null) {
+            guideContainer.setBackground(t.glass
+                    ? new LiquidGlassEngine.LiquidAuroraBackdropDrawable(t.isDark) : pageBackground(t));
+        }
         if (guideTopBar != null) {
             guideTopBar.setBackground(new GradientDrawable(
                     GradientDrawable.Orientation.TOP_BOTTOM,
                     new int[]{t.titleBarTop, t.titleBarBottom}));
         }
         if (guideTitleView != null) guideTitleView.setTextColor(t.textPrimary);
-        if (guideCloseButton != null) styleNeutralBevelButton(guideCloseButton, t, 8);
+        if (guideCloseButton != null) styleTitleBarIconButton(guideCloseButton, R.drawable.ic_smartisan_back, t);
         if (guideTopDivider != null) guideTopDivider.setBackgroundColor(t.titleBarBorder);
         if (guideTopShadow != null) {
             guideTopShadow.setBackground(new GradientDrawable(
@@ -6108,48 +7025,147 @@ public final class MainActivity extends Activity {
 
     private void showSettings() {
         if (settingsDialog != null) return;
-        android.app.Dialog dialog = new android.app.Dialog(this, android.R.style.Theme_Material_NoActionBar);
+        int dialogTheme = theme != null && theme.isDark
+                ? android.R.style.Theme_Material_NoActionBar
+                : android.R.style.Theme_Material_Light_NoActionBar;
+        android.app.Dialog dialog = new android.app.Dialog(this, dialogTheme);
         settingsDialog = dialog;
 
-        LinearLayout page = new LinearLayout(this);
-        page.setOrientation(LinearLayout.VERTICAL);
-        page.setOnApplyWindowInsetsListener((view, insets) -> {
+        FrameLayout dialogRoot = new FrameLayout(this);
+        FrameLayout settingsBackdropSource = new FrameLayout(this);
+
+        ScrollView scroll = new ScrollView(this);
+        scroll.setClipToPadding(false);
+        scroll.setVerticalScrollBarEnabled(false);
+        scroll.setHorizontalScrollBarEnabled(false);
+        LinearLayout body = new LinearLayout(this);
+        body.setOrientation(LinearLayout.VERTICAL);
+        body.setPadding(dp(14), dp(12), dp(14), dp(22));
+        scroll.addView(body, new FrameLayout.LayoutParams(-1, -2));
+        settingsBackdropSource.addView(scroll, new FrameLayout.LayoutParams(-1, -1));
+        dialogRoot.addView(settingsBackdropSource, new FrameLayout.LayoutParams(-1, -1));
+
+        FrameLayout settingsTopBarHost = new FrameLayout(this);
+        LiquidGlassEngine.LiquidGlassBackdropView settingsTopBarGlass =
+                new LiquidGlassEngine.LiquidGlassBackdropView(this);
+        settingsTopBarGlass.bindBackdropSource(settingsBackdropSource);
+        settingsTopBarHost.addView(settingsTopBarGlass, new FrameLayout.LayoutParams(-1, 0, Gravity.TOP));
+
+        LinearLayout topBar = new LinearLayout(this);
+        topBar.setOrientation(LinearLayout.VERTICAL);
+        FrameLayout topBarInner = new FrameLayout(this);
+        topBarInner.setPadding(dp(14), 0, dp(14), 0);
+        topBar.addView(topBarInner, new LinearLayout.LayoutParams(-1, dp(52)));
+
+        ImageView back = createTitleBarIconButton(R.drawable.ic_smartisan_back, "返回", v -> dialog.dismiss());
+        topBarInner.addView(back, new FrameLayout.LayoutParams(dp(36), dp(36), Gravity.START | Gravity.CENTER_VERTICAL));
+
+        TextView title = text("设置", 17.5f, true, theme.textPrimary);
+        title.setLetterSpacing(0.02f);
+        topBarInner.addView(title, new FrameLayout.LayoutParams(-2, -2, Gravity.CENTER));
+
+        View topDivider = new View(this);
+        topBar.addView(topDivider, new LinearLayout.LayoutParams(-1, Math.max(1, dp(1))));
+        settingsTopBarHost.addView(topBar, new FrameLayout.LayoutParams(-1, -2));
+        dialogRoot.addView(settingsTopBarHost, new FrameLayout.LayoutParams(-1, -2, Gravity.TOP));
+
+        View topShadow = new View(this);
+        dialogRoot.addView(topShadow, new FrameLayout.LayoutParams(-1, dp(4), Gravity.TOP));
+
+        scroll.setOnScrollChangeListener((v, sx, sy, osx, osy) -> settingsTopBarGlass.invalidateBackdrop());
+        topBar.addOnLayoutChangeListener((v, l, t, r, b, ol, ot, or2, ob) -> {
+            int barH = Math.max(0, b - t);
+            if (settingsTopBarGlass.getLayoutParams() instanceof FrameLayout.LayoutParams glp
+                    && glp.height != barH) {
+                glp.height = barH;
+                settingsTopBarGlass.setLayoutParams(glp);
+            }
+            if (scroll.getPaddingTop() != barH) scroll.setPadding(0, barH, 0, 0);
+            if (topShadow.getLayoutParams() instanceof FrameLayout.LayoutParams lp && lp.topMargin != barH) {
+                lp.topMargin = barH;
+                topShadow.setLayoutParams(lp);
+            }
+            settingsTopBarGlass.invalidateBackdrop();
+        });
+
+        topBar.setOnApplyWindowInsetsListener((view, insets) -> {
             if (Build.VERSION.SDK_INT >= 30) {
                 android.graphics.Insets bars = insets.getInsets(
                         WindowInsets.Type.systemBars() | WindowInsets.Type.displayCutout());
-                view.setPadding(bars.left, bars.top, bars.right, bars.bottom);
+                view.setPadding(0, bars.top, 0, 0);
+                topBarInner.setPadding(dp(14) + bars.left, 0, dp(14) + bars.right, 0);
             } else {
-                view.setPadding(insets.getSystemWindowInsetLeft(), insets.getSystemWindowInsetTop(),
-                        insets.getSystemWindowInsetRight(), insets.getSystemWindowInsetBottom());
+                view.setPadding(0, insets.getSystemWindowInsetTop(), 0, 0);
+                topBarInner.setPadding(dp(14) + insets.getSystemWindowInsetLeft(), 0,
+                        dp(14) + insets.getSystemWindowInsetRight(), 0);
+            }
+            return insets;
+        });
+        scroll.setOnApplyWindowInsetsListener((view, insets) -> {
+            if (Build.VERSION.SDK_INT >= 30) {
+                android.graphics.Insets bars = insets.getInsets(
+                        WindowInsets.Type.systemBars() | WindowInsets.Type.displayCutout());
+                body.setPadding(dp(14) + bars.left, dp(12), dp(14) + bars.right, dp(22) + bars.bottom);
+            } else {
+                body.setPadding(dp(14) + insets.getSystemWindowInsetLeft(), dp(12),
+                        dp(14) + insets.getSystemWindowInsetRight(),
+                        dp(22) + insets.getSystemWindowInsetBottom());
             }
             return insets;
         });
 
-        ScrollView scroll = new ScrollView(this);
-        page.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1));
-        LinearLayout body = new LinearLayout(this);
-        body.setOrientation(LinearLayout.VERTICAL);
-        body.setPadding(dp(16), dp(12), dp(16), dp(20));
-        scroll.addView(body);
-
-        Button back = button("返回");
-        body.addView(back, new LinearLayout.LayoutParams(-2, -2));
-        back.setOnClickListener(v -> dialog.dismiss());
-        TextView title = text("设置", 24, true, theme.textPrimary);
-        body.addView(title, margins(0, 8, 0, 12));
-
-        LinearLayout appearance = settingsSection(body, "外观");
-        Button[] styles = settingsChoices(appearance, "主题风格", new String[]{"锤子", "液态玻璃"},
+        TextView appearanceHeader = settingsHeader(body, "外观");
+        LiquidGlassEngine.LiquidGlassCardLayout appearanceCard = settingsGlassCard(body, 14);
+        LinearLayout styleRow = new LinearLayout(this);
+        styleRow.setOrientation(LinearLayout.HORIZONTAL);
+        styleRow.setGravity(Gravity.CENTER_VERTICAL);
+        TextView styleLabel = text("主题风格", 13.5f, true, theme.textPrimary);
+        styleRow.addView(styleLabel, new LinearLayout.LayoutParams(0, -2, 1f));
+        LinearLayout styleTray = buildSegmentTray();
+        TextView[] styleTabs = addSegmentOptions(styleTray, new String[]{"锤子", "液态玻璃"},
                 index -> setGlassStyle(index == 1));
-        Button[] modes = settingsChoices(appearance, "明暗模式", new String[]{"跟随系统", "浅色", "暗色"},
-                this::setThemeMode);
+        styleRow.addView(styleTray, new LinearLayout.LayoutParams(-2, dp(32)));
+        appearanceCard.addView(styleRow, fullWidth());
 
-        LinearLayout apps = settingsSection(body, "应用列表");
+        View appearanceDivider = new View(this);
+        LinearLayout.LayoutParams appDivParams = new LinearLayout.LayoutParams(-1, Math.max(1, dp(1)));
+        appDivParams.setMargins(0, dp(11), 0, dp(11));
+        appearanceCard.addView(appearanceDivider, appDivParams);
+
+        LinearLayout modeRow = new LinearLayout(this);
+        modeRow.setOrientation(LinearLayout.HORIZONTAL);
+        modeRow.setGravity(Gravity.CENTER_VERTICAL);
+        TextView modeLabel = text("明暗模式", 13.5f, true, theme.textPrimary);
+        modeRow.addView(modeLabel, new LinearLayout.LayoutParams(0, -2, 1f));
+        LinearLayout modeTray = buildSegmentTray();
+        TextView[] modeTabs = addSegmentOptions(modeTray, new String[]{"跟随系统", "浅色", "暗色"},
+                this::setThemeMode);
+        modeRow.addView(modeTray, new LinearLayout.LayoutParams(-2, dp(32)));
+        appearanceCard.addView(modeRow, fullWidth());
+
+        TextView appsHeader = settingsHeader(body, "应用列表");
+        LiquidGlassEngine.LiquidGlassCardLayout appsCardView = settingsGlassCard(body, 14);
+        LinearLayout appsRow = new LinearLayout(this);
+        appsRow.setOrientation(LinearLayout.HORIZONTAL);
+        appsRow.setGravity(Gravity.CENTER_VERTICAL);
+        appsRow.setClickable(true);
+        appsRow.setFocusable(true);
+        LinearLayout appsTextCol = new LinearLayout(this);
+        appsTextCol.setOrientation(LinearLayout.VERTICAL);
+        TextView sysAppsTitle = text("显示系统应用", 13.5f, true, theme.textPrimary);
+        TextView sysAppsSub = text("在主页与外接屏快捷面板中列出系统应用", 11f, false, theme.textMuted);
+        appsTextCol.addView(sysAppsTitle, fullWidth());
+        appsTextCol.addView(sysAppsSub, margins(0, 2, 0, 0));
+        LinearLayout.LayoutParams appsColParams = new LinearLayout.LayoutParams(0, -2, 1f);
+        appsColParams.setMargins(0, 0, dp(12), 0);
+        appsRow.addView(appsTextCol, appsColParams);
+
         Switch systemApps = new Switch(this);
-        systemApps.setText("显示系统应用");
-        systemApps.setMinHeight(dp(48));
+        systemApps.setShowText(false);
         systemApps.setChecked(showSystemApps);
-        apps.addView(systemApps, fullWidth());
+        appsRow.addView(systemApps, new LinearLayout.LayoutParams(-2, -2));
+        appsCardView.addView(appsRow, fullWidth());
+        appsRow.setOnClickListener(v -> systemApps.toggle());
         systemApps.setOnCheckedChangeListener((view, checked) -> {
             getPreferences(MODE_PRIVATE).edit().putBoolean("show_system_apps", checked).apply();
             for (MainActivity activity : activeThemeTargets()) {
@@ -6161,105 +7177,325 @@ public final class MainActivity extends Activity {
             }
         });
 
-        LinearLayout help = settingsSection(body, "帮助");
-        Button guide = settingsAction(help, "帮助文档", this::showOperationGuideDialog);
-        LinearLayout about = settingsSection(body, "关于与更新");
+        TextView helpHeader = settingsHeader(body, "帮助");
+        LiquidGlassEngine.LiquidGlassCardLayout helpCardView = settingsGlassCard(body, 14);
+        LinearLayout helpRow = new LinearLayout(this);
+        helpRow.setOrientation(LinearLayout.HORIZONTAL);
+        helpRow.setGravity(Gravity.CENTER_VERTICAL);
+        helpRow.setClickable(true);
+        helpRow.setFocusable(true);
+        ImageView helpIcon = new ImageView(this);
+        LinearLayout.LayoutParams helpIconParams = new LinearLayout.LayoutParams(dp(18), dp(18));
+        helpIconParams.setMargins(0, 0, dp(10), 0);
+        helpRow.addView(helpIcon, helpIconParams);
+        LinearLayout helpTextCol = new LinearLayout(this);
+        helpTextCol.setOrientation(LinearLayout.VERTICAL);
+        TextView helpTitle = text("帮助文档", 13.5f, true, theme.textPrimary);
+        TextView helpSub = text("查看连接、分屏、鼠标与快捷手势说明", 11f, false, theme.textMuted);
+        helpTextCol.addView(helpTitle, fullWidth());
+        helpTextCol.addView(helpSub, margins(0, 2, 0, 0));
+        helpRow.addView(helpTextCol, new LinearLayout.LayoutParams(0, -2, 1f));
+        ImageView helpChevron = settingsRowChevron();
+        helpRow.addView(helpChevron, new LinearLayout.LayoutParams(dp(16), dp(16)));
+        helpCardView.addView(helpRow, fullWidth());
+        helpRow.setOnClickListener(v -> showOperationGuideDialog());
+
+        TextView aboutHeader = settingsHeader(body, "关于");
+        LiquidGlassEngine.LiquidGlassCardLayout aboutCardView = settingsGlassCard(body, 6);
         String version = installedVersion();
-        TextView versionText = text("已安装版本 " + version, 14, false, theme.textSecondary);
-        about.addView(versionText, margins(0, 4, 0, 6));
-        TextView status = text("", 13, false, theme.textSecondary);
-        about.addView(status, fullWidth());
-        Button check = button("检查更新");
-        about.addView(check, fullWidth());
-        check.setOnClickListener(v -> checkForRelease(dialog, check, status, version));
-        Button manual = settingsAction(about, "手动更新（GitHub Release）",
-                () -> openReleaseUrl(ReleaseUpdate.RELEASES));
+
+        LinearLayout checkUpdateRow = new LinearLayout(this);
+        checkUpdateRow.setOrientation(LinearLayout.HORIZONTAL);
+        checkUpdateRow.setGravity(Gravity.CENTER_VERTICAL);
+        checkUpdateRow.setClickable(true);
+        checkUpdateRow.setFocusable(true);
+        LinearLayout checkTextCol = new LinearLayout(this);
+        checkTextCol.setOrientation(LinearLayout.VERTICAL);
+        TextView checkUpdateTitle = text("检查更新", 13.5f, true, theme.textPrimary);
+        TextView updateStatusSub = text("当前版本 v" + version, 11f, false, theme.textMuted);
+        checkTextCol.addView(checkUpdateTitle, fullWidth());
+        checkTextCol.addView(updateStatusSub, margins(0, 2, 0, 0));
+        checkUpdateRow.addView(checkTextCol, new LinearLayout.LayoutParams(0, -2, 1f));
+
+        TextView versionChip = text("v" + version, 11f, true, theme.textSecondary);
+        versionChip.setPadding(dp(8), dp(3), dp(8), dp(3));
+        LinearLayout.LayoutParams verParams = new LinearLayout.LayoutParams(-2, -2);
+        verParams.setMargins(dp(8), 0, dp(6), 0);
+        checkUpdateRow.addView(versionChip, verParams);
+
+        ImageView checkChevron = settingsRowChevron();
+        checkUpdateRow.addView(checkChevron, new LinearLayout.LayoutParams(dp(16), dp(16)));
+        aboutCardView.addView(checkUpdateRow, fullWidth());
+
+        View aboutDivider = new View(this);
+        LinearLayout.LayoutParams aboutDivParams = new LinearLayout.LayoutParams(-1, Math.max(1, dp(1)));
+        aboutDivParams.setMargins(0, dp(11), 0, dp(11));
+        aboutCardView.addView(aboutDivider, aboutDivParams);
+
+        LinearLayout releasesRow = new LinearLayout(this);
+        releasesRow.setOrientation(LinearLayout.HORIZONTAL);
+        releasesRow.setGravity(Gravity.CENTER_VERTICAL);
+        releasesRow.setClickable(true);
+        releasesRow.setFocusable(true);
+        LinearLayout relTextCol = new LinearLayout(this);
+        relTextCol.setOrientation(LinearLayout.VERTICAL);
+        TextView releasesTitle = text("发行说明与历史版本", 13.5f, true, theme.textPrimary);
+        TextView releasesSub = text("在 GitHub 查看更新日志与历史发布", 11f, false, theme.textMuted);
+        relTextCol.addView(releasesTitle, fullWidth());
+        relTextCol.addView(releasesSub, margins(0, 2, 0, 0));
+        releasesRow.addView(relTextCol, new LinearLayout.LayoutParams(0, -2, 1f));
+        ImageView releasesChevron = settingsRowChevron();
+        releasesRow.addView(releasesChevron, new LinearLayout.LayoutParams(dp(16), dp(16)));
+        aboutCardView.addView(releasesRow, fullWidth());
+
+        checkUpdateRow.setOnClickListener(v -> checkForRelease(dialog, checkUpdateRow, updateStatusSub, version));
+        releasesRow.setOnClickListener(v -> openReleaseUrl(ReleaseUpdate.RELEASES));
 
         applySettingsTheme = () -> {
             SmartisanPalette palette = theme;
-            page.setBackground(pageBackground(palette));
+            LiquidGlassEngine.LiquidAuroraBackdropDrawable settingsBackdrop = palette.glass
+                    ? new LiquidGlassEngine.LiquidAuroraBackdropDrawable(palette.isDark) : null;
+            settingsBackdropSource.setBackground(palette.glass ? settingsBackdrop : pageBackground(palette));
+            scroll.setBackgroundColor(android.graphics.Color.TRANSPARENT);
+            body.setBackgroundColor(android.graphics.Color.TRANSPARENT);
             applySystemBarTheme(dialog.getWindow(), palette);
+            settingsTopBarGlass.setGlassStyle(palette.glass, palette.isDark);
+            if (palette.glass) {
+                topBar.setBackground(null);
+            } else {
+                topBar.setBackground(new GradientDrawable(
+                        GradientDrawable.Orientation.TOP_BOTTOM,
+                        new int[]{palette.titleBarTop, palette.titleBarBottom}));
+            }
+            topDivider.setVisibility(palette.glass ? View.GONE : View.VISIBLE);
+            topDivider.setBackgroundColor(palette.titleBarBorder);
+            topShadow.setBackground(new GradientDrawable(
+                    GradientDrawable.Orientation.TOP_BOTTOM,
+                    new int[]{palette.titleBarShadowStart, 0x00000000}));
             title.setTextColor(palette.textPrimary);
-            for (LinearLayout section : new LinearLayout[]{appearance, apps, help, about}) {
-                section.setBackground(buildSmartisanCard(palette, 12));
-                ((TextView) section.getChildAt(0)).setTextColor(palette.textPrimary);
-                if (section == appearance) {
-                    ((TextView) section.getChildAt(1)).setTextColor(palette.textSecondary);
-                    ((TextView) section.getChildAt(3)).setTextColor(palette.textSecondary);
+            styleTitleBarIconButton(back, R.drawable.ic_smartisan_back, palette);
+
+            for (TextView header : new TextView[]{appearanceHeader, appsHeader, helpHeader, aboutHeader}) {
+                header.setTextColor(palette.textSection);
+            }
+            for (LiquidGlassEngine.LiquidGlassCardLayout card : new LiquidGlassEngine.LiquidGlassCardLayout[]{
+                    appearanceCard, appsCardView, helpCardView, aboutCardView}) {
+                if (palette.glass) {
+                    card.configureGlass(true, palette.isDark, 15f);
+                } else {
+                    card.configureGlass(false, palette.isDark, 12f);
+                    card.setBackground(buildSmartisanCard(palette, 12));
                 }
             }
-            systemApps.setTextColor(palette.textPrimary);
+            styleLabel.setTextColor(palette.textPrimary);
+            modeLabel.setTextColor(palette.textPrimary);
+            appearanceDivider.setBackgroundColor(palette.divider);
+            styleSegmentTray(styleTray, styleTabs, glassStyle ? 1 : 0, palette);
+            styleSegmentTray(modeTray, modeTabs, themeMode, palette);
+
+            sysAppsTitle.setTextColor(palette.textPrimary);
+            sysAppsSub.setTextColor(palette.textMuted);
+            systemApps.setTrackTintList(null);
+            systemApps.setThumbTintList(null);
             systemApps.setTrackDrawable(buildSmartisanSwitchTrack(palette));
             systemApps.setThumbDrawable(buildSmartisanSwitchThumb(palette));
-            versionText.setTextColor(palette.textSecondary);
-            status.setTextColor(palette.textSecondary);
-            for (Button action : new Button[]{back, guide, check, manual}) {
-                styleNeutralBevelButton(action, palette, 8);
+
+            helpTitle.setTextColor(palette.textPrimary);
+            helpSub.setTextColor(palette.textMuted);
+            Drawable guideDrawable = getDrawable(R.drawable.ic_help_guide);
+            if (guideDrawable != null) {
+                Drawable tintedGuide = guideDrawable.mutate();
+                tintedGuide.setTint(palette.textSecondary);
+                helpIcon.setImageDrawable(tintedGuide);
             }
-            for (int i = 0; i < styles.length; i++) {
-                styleSettingsChoice(styles[i], i == (glassStyle ? 1 : 0));
+            styleSettingsChevron(helpChevron, palette);
+            styleSettingsChevron(checkChevron, palette);
+            styleSettingsChevron(releasesChevron, palette);
+
+            checkUpdateTitle.setTextColor(palette.textPrimary);
+            if (!updateCheckRunning && ("当前版本 v" + version).contentEquals(updateStatusSub.getText())) {
+                updateStatusSub.setTextColor(palette.textMuted);
             }
-            for (int i = 0; i < modes.length; i++) {
-                styleSettingsChoice(modes[i], i == themeMode);
-            }
+            versionChip.setTextColor(palette.textSecondary);
+            versionChip.setBackground(roundedCard(palette.chipBg, palette.chipBorder, 7));
+            versionChip.setPadding(dp(8), dp(3), dp(8), dp(3));
+            aboutDivider.setBackgroundColor(palette.divider);
+            releasesTitle.setTextColor(palette.textPrimary);
+            releasesSub.setTextColor(palette.textMuted);
+            helpRow.setBackground(buildTileBackground(palette, false));
+            checkUpdateRow.setBackground(buildTileBackground(palette, false));
+            releasesRow.setBackground(buildTileBackground(palette, false));
+            settingsTopBarGlass.invalidateBackdrop();
         };
 
-        dialog.setContentView(page);
+        dialog.setContentView(dialogRoot);
         dialog.setOnDismissListener(ignored -> {
             settingsDialog = null;
             applySettingsTheme = null;
         });
         dialog.show();
-        dialog.getWindow().setLayout(-1, -1);
+        if (dialog.getWindow() != null) dialog.getWindow().setLayout(-1, -1);
         applySettingsTheme.run();
-        page.requestApplyInsets();
+        dialogRoot.requestApplyInsets();
     }
 
-    private LinearLayout settingsSection(LinearLayout body, String label) {
-        LinearLayout section = new LinearLayout(this);
-        section.setOrientation(LinearLayout.VERTICAL);
-        section.setPadding(dp(12), dp(10), dp(12), dp(10));
-        section.addView(text(label, 15, true, theme.textPrimary), margins(0, 0, 0, 4));
-        body.addView(section, margins(0, 0, 0, 10));
-        return section;
+    private TextView settingsHeader(LinearLayout body, String label) {
+        TextView header = text(label, 12.5f, true, theme.textSection);
+        body.addView(header, margins(6, 0, 6, 6));
+        return header;
     }
 
-    private Button settingsAction(LinearLayout section, String label, Runnable action) {
-        Button button = button(label);
-        section.addView(button, margins(0, 4, 0, 0));
-        button.setOnClickListener(v -> action.run());
-        return button;
+    private LiquidGlassEngine.LiquidGlassCardLayout settingsGlassCard(LinearLayout body, int bottomMarginDp) {
+        LiquidGlassEngine.LiquidGlassCardLayout card = new LiquidGlassEngine.LiquidGlassCardLayout(this);
+        card.setOrientation(LinearLayout.VERTICAL);
+        card.setPadding(dp(14), dp(12), dp(14), dp(12));
+        body.addView(card, margins(0, 0, 0, bottomMarginDp));
+        return card;
     }
 
-    private Button[] settingsChoices(LinearLayout section, String label, String[] options,
-                                     java.util.function.IntConsumer onSelect) {
-        TextView caption = text(label, 12, false, theme.textSecondary);
-        section.addView(caption, margins(0, 6, 0, 2));
-        LinearLayout row = new LinearLayout(this);
-        section.addView(row, fullWidth());
-        Button[] buttons = new Button[options.length];
-        for (int i = 0; i < options.length; i++) {
-            int index = i;
-            Button option = button(options[i]);
-            option.setTextSize(13);
-            option.setMinimumWidth(0);
-            option.setMinWidth(0);
-            option.setPadding(0, 0, 0, 0);
-            LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(0, dp(48), 1f);
-            if (i > 0) params.setMarginStart(dp(6));
-            row.addView(option, params);
-            option.setOnClickListener(v -> onSelect.accept(index));
-            buttons[i] = option;
+    private ImageView createTitleBarIconButton(int drawableRes, String contentDesc, View.OnClickListener onClick) {
+        ImageView iv = new ImageView(this);
+        iv.setContentDescription(contentDesc);
+        iv.setScaleType(ImageView.ScaleType.CENTER_INSIDE);
+        iv.setPadding(dp(7), dp(7), dp(7), dp(7));
+        iv.setClickable(true);
+        iv.setFocusable(true);
+        iv.setOnClickListener(onClick);
+        if (theme != null) styleTitleBarIconButton(iv, drawableRes, theme);
+        return iv;
+    }
+
+    private void styleTitleBarIconButton(ImageView iv, int drawableRes, SmartisanPalette palette) {
+        if (iv == null || palette == null) return;
+        if (palette.glass) {
+            Drawable d = getDrawable(drawableRes);
+            if (d != null) {
+                Drawable tinted = d.mutate();
+                tinted.setTint(palette.titleBarIcon);
+                iv.setImageDrawable(tinted);
+            }
+            StateListDrawable states = new StateListDrawable();
+            states.addState(new int[]{android.R.attr.state_pressed},
+                    new LiquidGlassEngine.LiquidGlassSurfaceDrawable(
+                            palette.isDark, dp(18), palette.btnPressedTop, palette.btnPressedBottom,
+                            palette.btnPressedBorder, palette.isDark ? 0x60ffffff : 0xd8ffffff, Math.max(1f, dp(1))));
+            states.addState(new int[0],
+                    new LiquidGlassEngine.LiquidGlassSurfaceDrawable(
+                            palette.isDark, dp(18), palette.btnTop, palette.btnBottom,
+                            palette.btnBorder, palette.isDark ? 0x52ffffff : 0xc0ffffff, Math.max(1f, dp(1))));
+            iv.setBackground(states);
+            iv.setPadding(dp(8), dp(8), dp(8), dp(8));
+        } else {
+            Drawable normal = getDrawable(drawableRes);
+            Drawable pressed = normal != null && normal.getConstantState() != null
+                    ? normal.getConstantState().newDrawable(getResources()).mutate()
+                    : getDrawable(drawableRes);
+            if (normal != null) {
+                normal = normal.mutate();
+                normal.setTint(palette.titleBarIcon);
+            }
+            if (pressed != null) {
+                pressed = pressed.mutate();
+                int normalAlpha = (palette.titleBarIcon >>> 24) & 0xff;
+                int pressedAlpha = Math.max(48, Math.round(normalAlpha * 0.55f));
+                pressed.setTint((palette.titleBarIcon & 0x00ffffff) | (pressedAlpha << 24));
+            }
+            if (normal != null && pressed != null) {
+                StateListDrawable iconStates = new StateListDrawable();
+                iconStates.addState(new int[]{android.R.attr.state_pressed}, pressed);
+                iconStates.addState(new int[0], normal);
+                iv.setImageDrawable(iconStates);
+            } else if (normal != null) {
+                iv.setImageDrawable(normal);
+            }
+            iv.setBackground(null);
+            iv.setPadding(dp(7), dp(7), dp(7), dp(7));
         }
-        return buttons;
     }
 
-    private void styleSettingsChoice(Button button, boolean selected) {
-        button.setSelected(selected);
-        styleNeutralBevelButton(button, theme, 8);
-        if (selected) {
-            button.setTextColor(theme.accentBlueText);
-            button.setBackground(roundedCard(theme.accentBlueSoftBg, theme.accentBlueSoftBorder, 8));
+    private ImageView settingsRowChevron() {
+        ImageView chevron = new ImageView(this);
+        chevron.setScaleType(ImageView.ScaleType.CENTER_INSIDE);
+        if (theme != null) styleSettingsChevron(chevron, theme);
+        return chevron;
+    }
+
+    private void styleSettingsChevron(ImageView chevron, SmartisanPalette palette) {
+        if (chevron == null || palette == null) return;
+        Drawable d = getDrawable(R.drawable.ic_chevron_right);
+        if (d != null) {
+            Drawable tinted = d.mutate();
+            tinted.setTint(palette.textMuted);
+            chevron.setImageDrawable(tinted);
+        }
+    }
+
+    private LinearLayout buildSegmentTray() {
+        LinearLayout tray = new LinearLayout(this);
+        tray.setOrientation(LinearLayout.HORIZONTAL);
+        tray.setGravity(Gravity.CENTER_VERTICAL);
+        tray.setPadding(dp(2), dp(2), dp(2), dp(2));
+        return tray;
+    }
+
+    private TextView[] addSegmentOptions(LinearLayout tray, String[] labels,
+                                         java.util.function.IntConsumer onSelect) {
+        TextView[] tabs = new TextView[labels.length];
+        for (int i = 0; i < labels.length; i++) {
+            int index = i;
+            TextView tab = text(labels[i], 11.5f, false, theme.textSecondary);
+            tab.setGravity(Gravity.CENTER);
+            tab.setMinHeight(dp(28));
+            tab.setPadding(dp(9), 0, dp(9), 0);
+            tab.setClickable(true);
+            tab.setFocusable(true);
+            tab.setOnClickListener(v -> onSelect.accept(index));
+            tray.addView(tab, new LinearLayout.LayoutParams(-2, -1));
+            tabs[i] = tab;
+        }
+        return tabs;
+    }
+
+    private void styleSegmentTray(LinearLayout tray, TextView[] tabs, int selectedIndex,
+                                  SmartisanPalette palette) {
+        if (palette.glass) {
+            tray.setBackground(new LiquidGlassEngine.LiquidGlassSurfaceDrawable(
+                    palette.isDark, dp(12), palette.searchBgTop, palette.searchBgBottom,
+                    palette.searchBorder, palette.isDark ? 0x24ffffff : 0x60ffffff, Math.max(1f, dp(1))));
+        } else {
+            GradientDrawable trayBg = new GradientDrawable(
+                    GradientDrawable.Orientation.TOP_BOTTOM,
+                    new int[]{palette.searchBgTop, palette.searchBgBottom});
+            trayBg.setCornerRadius(dp(8));
+            trayBg.setStroke(Math.max(1, dp(1)), palette.searchBorder);
+            tray.setBackground(trayBg);
+        }
+        tray.setPadding(dp(2), dp(2), dp(2), dp(2));
+        for (int i = 0; i < tabs.length; i++) {
+            TextView tab = tabs[i];
+            int pl = tab.getPaddingLeft();
+            int pt = tab.getPaddingTop();
+            int pr = tab.getPaddingRight();
+            int pb = tab.getPaddingBottom();
+            if (i == selectedIndex) {
+                if (palette.glass) {
+                    tab.setBackground(new LiquidGlassEngine.LiquidGlassSurfaceDrawable(
+                            palette.isDark, dp(10), palette.btnTop, palette.btnBottom,
+                            palette.btnBorder, palette.isDark ? 0x66ffffff : 0xe0ffffff, Math.max(1f, dp(1))));
+                } else {
+                    int top = palette.isDark ? 0xff4c525c : palette.btnTop;
+                    int bot = palette.isDark ? 0xff3f444d : palette.btnBottom;
+                    int border = palette.isDark ? 0xff262930 : palette.btnBorder;
+                    tab.setBackground(buildBeveledFace(top, bot, border, palette.btnShadow, 6, false));
+                }
+                tab.setTextColor(palette.textPrimary);
+                tab.setTypeface(null, android.graphics.Typeface.BOLD);
+            } else {
+                tab.setBackground(null);
+                tab.setTextColor(palette.textSecondary);
+                tab.setTypeface(null, android.graphics.Typeface.NORMAL);
+            }
+            tab.setPadding(pl, pt, pr, pb);
         }
     }
 
@@ -6271,17 +7507,21 @@ public final class MainActivity extends Activity {
         }
     }
 
-    private void checkForRelease(android.app.Dialog dialog, Button button, TextView status, String current) {
+    private void checkForRelease(android.app.Dialog dialog, View triggerRow, TextView status, String current) {
         if (updateCheckRunning) {
-            status.setText("正在检查更新，请稍后。");
+            status.setTextColor(theme.accentBlueText);
+            status.setText("正在检查更新，请稍候…");
             return;
         }
         if (!ReleaseUpdate.isVersion(current)) {
-            status.setText("无法比较已安装版本，可手动查看 GitHub Release。");
+            status.setTextColor(theme.amberText);
+            status.setText("无法比较版本号，可在下方发布页查看");
             return;
         }
         updateCheckRunning = true;
-        button.setEnabled(false);
+        triggerRow.setEnabled(false);
+        triggerRow.setAlpha(0.65f);
+        status.setTextColor(theme.accentBlueText);
         status.setText("正在检查更新…");
         new Thread(() -> {
             ReleaseUpdate result;
@@ -6295,17 +7535,22 @@ public final class MainActivity extends Activity {
             runOnUiThread(() -> {
                 updateCheckRunning = false;
                 if (settingsDialog != dialog || !dialog.isShowing() || isDestroyed()) return;
-                button.setEnabled(true);
+                triggerRow.setEnabled(true);
+                triggerRow.setAlpha(1f);
                 if (release == null) {
-                    status.setText("检查失败，请重试或手动打开 GitHub Release。");
+                    status.setTextColor(theme.amberText);
+                    status.setText("检查失败，点击重试");
                     return;
                 }
                 if (!release.isNewerThan(current)) {
-                    status.setText("已是最新版（v" + current + "）。");
+                    status.setTextColor(theme.accentBlueText);
+                    status.setText("已是最新版本");
                     return;
                 }
+                status.setTextColor(theme.accentBlueText);
                 status.setText(release.downloadUrl == null
-                        ? "有新版，暂未找到唯一的正式 APK。" : "有新版 v" + release.version);
+                        ? "发现新版本 v" + release.version + " · 点击查看"
+                        : "发现新版本 v" + release.version + " · 点击下载");
                 String notes = release.notes.length() > 6000
                         ? release.notes.substring(0, 6000) + "…" : release.notes;
                 new android.app.AlertDialog.Builder(this, theme.isDark
@@ -6313,8 +7558,8 @@ public final class MainActivity extends Activity {
                         : android.R.style.Theme_Material_Light_Dialog_Alert)
                         .setTitle("BoxScreen v" + release.version)
                         .setMessage(notes.isEmpty() ? "可在 GitHub 查看发布详情。" : notes)
-                        .setNegativeButton("关闭", null)
-                        .setPositiveButton(release.downloadUrl == null ? "查看发布页" : "用浏览器下载",
+                        .setNegativeButton("稍后", null)
+                        .setPositiveButton(release.downloadUrl == null ? "查看发布页" : "下载更新",
                                 (ignored, which) -> openReleaseUrl(release.downloadUrl == null
                                         ? release.pageUrl : release.downloadUrl))
                         .show();
@@ -6371,15 +7616,8 @@ public final class MainActivity extends Activity {
         guideTitleView.setLetterSpacing(0.02f);
         topBarInner.addView(guideTitleView, new FrameLayout.LayoutParams(-2, -2, Gravity.CENTER));
 
-        guideCloseButton = button("关闭");
-        guideCloseButton.setTextSize(12);
-        guideCloseButton.setMinHeight(dp(32));
-        guideCloseButton.setMinimumHeight(dp(32));
-        guideCloseButton.setMinWidth(0);
-        guideCloseButton.setMinimumWidth(0);
-        guideCloseButton.setPadding(dp(13), 0, dp(13), 0);
-        guideCloseButton.setOnClickListener(v -> dialog.dismiss());
-        topBarInner.addView(guideCloseButton, new FrameLayout.LayoutParams(-2, dp(32), Gravity.END | Gravity.CENTER_VERTICAL));
+        guideCloseButton = createTitleBarIconButton(R.drawable.ic_smartisan_back, "返回", v -> dialog.dismiss());
+        topBarInner.addView(guideCloseButton, new FrameLayout.LayoutParams(dp(36), dp(36), Gravity.START | Gravity.CENTER_VERTICAL));
 
         guideTopDivider = new View(this);
         guideTopBar.addView(guideTopDivider, new LinearLayout.LayoutParams(-1, Math.max(1, dp(1))));
@@ -6473,11 +7711,6 @@ public final class MainActivity extends Activity {
         }
     }
 
-    private boolean hasShizukuPackage() {
-        try { getPackageManager().getPackageInfo("moe.shizuku.privileged.api", 0); return true; }
-        catch (PackageManager.NameNotFoundException e) { return false; }
-    }
-
     private void status(String text) {
         if (statusView == null) return;
         if (text == null || text.isEmpty()) {
@@ -6487,6 +7720,7 @@ public final class MainActivity extends Activity {
             statusView.setText(text);
             statusView.setVisibility(View.VISIBLE);
         }
+        if (homeTopBarGlass != null) homeTopBarGlass.invalidateBackdrop();
     }
 
     private TextView text(String value, int size, boolean bold) {
@@ -6513,17 +7747,28 @@ public final class MainActivity extends Activity {
     private Drawable pageBackground(SmartisanPalette palette) {
         if (!palette.glass) return new android.graphics.drawable.ColorDrawable(palette.pageBg);
         return new GradientDrawable(GradientDrawable.Orientation.TL_BR,
-                new int[]{palette.isDark ? 0xff294263 : 0xfff3faff, palette.pageBg,
-                        palette.isDark ? 0xff20374c : 0xffc2d9ed});
+                new int[]{palette.isDark ? 0xff1b2b44 : 0xfff6faff, palette.pageBg,
+                        palette.isDark ? 0xff0b1322 : 0xffdbe7f6});
     }
 
     private Drawable buildSmartisanCard(SmartisanPalette t, int radiusDp) {
         if (t.glass) {
+            int radius = dp(radiusDp + 2);
+            GradientDrawable shadow = new GradientDrawable();
+            shadow.setColor(t.cardShadow);
+            shadow.setCornerRadius(radius);
+
             GradientDrawable glass = new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,
-                    new int[]{t.isDark ? 0xf2445c7e : 0xfaffffff, t.cardBg});
-            glass.setCornerRadius(dp(radiusDp + 4));
-            glass.setStroke(Math.max(1, dp(1)), t.isDark ? 0x82bad2ef : 0xfffafcff);
-            return glass;
+                    new int[]{t.isDark ? 0xb5253b59 : 0xe2ffffff,
+                            t.isDark ? 0x9c16263d : 0xc4f2f7fe});
+            glass.setCornerRadius(radius);
+            glass.setStroke(Math.max(1, dp(1)), t.isDark ? 0x689ec4ef : 0xd8ffffff);
+
+            LayerDrawable layer = new LayerDrawable(new Drawable[]{shadow, glass});
+            int lip = Math.max(1, dp(1));
+            layer.setLayerInset(0, 0, lip, 0, 0);
+            layer.setLayerInset(1, 0, 0, 0, lip);
+            return layer;
         }
         return buildSmartisanCard(t.cardBg, t.cardBorder, t.cardShadow, radiusDp);
     }
@@ -6549,16 +7794,22 @@ public final class MainActivity extends Activity {
     }
 
     private Drawable buildBeveledFace(int top, int bottom, int border, int shadowColor, int radiusDp, boolean pressed) {
+        if (theme != null && theme.glass) {
+            return new LiquidGlassEngine.LiquidGlassSurfaceDrawable(
+                    theme.isDark, dp(radiusDp + 2), top, bottom, border,
+                    theme.isDark ? 0x58ffffff : 0xd0ffffff, Math.max(1f, dp(1)));
+        }
+        int effectiveRadius = dp(Math.min(radiusDp, 7));
         GradientDrawable face = new GradientDrawable(
                 GradientDrawable.Orientation.TOP_BOTTOM, new int[]{top, bottom});
-        face.setCornerRadius(dp(radiusDp));
+        face.setCornerRadius(effectiveRadius);
         face.setStroke(Math.max(1, dp(1)), border);
         if (pressed || (shadowColor >>> 24) == 0) {
             return new InsetDrawable(face, 0, dp(1), 0, Math.max(1, dp(1)));
         }
         GradientDrawable shadow = new GradientDrawable();
         shadow.setColor(shadowColor);
-        shadow.setCornerRadius(dp(radiusDp));
+        shadow.setCornerRadius(effectiveRadius);
         LayerDrawable layer = new LayerDrawable(new Drawable[]{shadow, face});
         int lip = Math.max(1, dp(1));
         layer.setLayerInset(0, 0, lip, 0, 0);

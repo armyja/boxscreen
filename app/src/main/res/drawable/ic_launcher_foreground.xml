@@ -1,0 +1,206 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Grounded layered desk contact shadow beneath stand foot (centered at x=54) -->
+    <path
+        android:fillColor="#4A0E1014"
+        android:pathData="M40.5,74.2h27a1.7,1.7 0,0 1,0 3.4h-27a1.7,1.7 0,0 1,0 -3.4z" />
+    <path
+        android:fillColor="#620A0C10"
+        android:pathData="M43.0,74.4h22a1.3,1.3 0,0 1,0 2.6h-22a1.3,1.3 0,0 1,0 -2.6z" />
+
+    <!-- Tapered brushed anodized aluminum stand neck -->
+    <path android:pathData="M50.2,65.2h7.6l0.7,8.4h-9.0z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:type="linear"
+                android:startX="54"
+                android:startY="65.2"
+                android:endX="54"
+                android:endY="73.6">
+                <item android:offset="0" android:color="#FF8F96A0" />
+                <item android:offset="0.45" android:color="#FFD4D8DF" />
+                <item android:offset="1" android:color="#FFBCC2CB" />
+            </gradient>
+        </aapt:attr>
+    </path>
+    <!-- Precision beveled aluminum footplate -->
+    <path android:pathData="M42.5,73.2h23a1.3,1.3 0,0 1,0 2.6h-23a1.3,1.3 0,0 1,0 -2.6z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:type="linear"
+                android:startX="42.5"
+                android:startY="73.2"
+                android:endX="65.5"
+                android:endY="75.8">
+                <item android:offset="0" android:color="#FFF7F8FA" />
+                <item android:offset="0.55" android:color="#FFD9DEE6" />
+                <item android:offset="1" android:color="#FFB4BBC5" />
+            </gradient>
+        </aapt:attr>
+    </path>
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#CCFFFFFF"
+        android:strokeWidth="0.5"
+        android:strokeLineCap="round"
+        android:pathData="M43.8,73.45h20.4" />
+
+    <!-- Soft ambient drop shadow beneath monitor chassis -->
+    <path
+        android:fillColor="#420C0E12"
+        android:pathData="M34.6,33.6h38.8a5.6,5.6 0,0 1,5.6 5.6v22.6a5.6,5.6 0,0 1,-5.6 5.6H34.6a5.6,5.6 0,0 1,-5.6 -5.6V39.2a5.6,5.6 0,0 1,5.6 -5.6z" />
+
+    <!-- Precision anodized silver-aluminum monitor chassis (exact x-center 54, safe radius <= 30.8) -->
+    <path android:pathData="M34.5,32h39a5.5,5.5 0,0 1,5.5 5.5v23a5.5,5.5 0,0 1,-5.5 5.5h-39A5.5,5.5 0,0 1,29 60.5v-23A5.5,5.5 0,0 1,34.5 32z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:type="linear"
+                android:startX="32"
+                android:startY="32"
+                android:endX="76"
+                android:endY="66">
+                <item android:offset="0" android:color="#FFFFFFFF" />
+                <item android:offset="0.5" android:color="#FFE5E8EE" />
+                <item android:offset="1" android:color="#FFCDD3DC" />
+            </gradient>
+        </aapt:attr>
+    </path>
+    <!-- Crisp metallic outer edge highlight & shade -->
+    <path
+        android:fillColor="#00000000"
+        android:strokeWidth="0.6"
+        android:pathData="M34.5,32.3h39a5.2,5.2 0,0 1,5.2 5.2v23a5.2,5.2 0,0 1,-5.2 5.2h-39a5.2,5.2 0,0 1,-5.2 -5.2v-23a5.2,5.2 0,0 1,5.2 -5.2z">
+        <aapt:attr name="android:strokeColor">
+            <gradient
+                android:type="linear"
+                android:startX="34"
+                android:startY="32"
+                android:endX="74"
+                android:endY="66">
+                <item android:offset="0" android:color="#E6FFFFFF" />
+                <item android:offset="1" android:color="#8878808C" />
+            </gradient>
+        </aapt:attr>
+    </path>
+
+    <!-- Iconic Smartisan crimson red status jewel on lower aluminum chin -->
+    <path android:pathData="M54,62.05a1.35,1.35 0,1 0,0 2.7a1.35,1.35 0,1 0,0 -2.7z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:type="linear"
+                android:startX="54"
+                android:startY="62.05"
+                android:endX="54"
+                android:endY="64.75">
+                <item android:offset="0" android:color="#FFEE5C54" />
+                <item android:offset="1" android:color="#FFC93A32" />
+            </gradient>
+        </aapt:attr>
+    </path>
+    <path
+        android:fillColor="#99FFFFFF"
+        android:pathData="M53.55,62.6a0.45,0.45 0,1 0,0 0.9a0.45,0.45 0,1 0,0 -0.9z" />
+
+    <!-- Deep obsidian optical glass display recess -->
+    <path android:pathData="M34.4,34.4h39.2a2.8,2.8 0,0 1,2.8 2.8v20.4a2.8,2.8 0,0 1,-2.8 2.8H34.4a2.8,2.8 0,0 1,-2.8 -2.8V37.2a2.8,2.8 0,0 1,2.8 -2.8z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:type="linear"
+                android:startX="32"
+                android:startY="34.4"
+                android:endX="76"
+                android:endY="60.4">
+                <item android:offset="0" android:color="#FF2D3440" />
+                <item android:offset="0.52" android:color="#FF1D222B" />
+                <item android:offset="1" android:color="#FF151920" />
+            </gradient>
+        </aapt:attr>
+    </path>
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#FF0E1116"
+        android:strokeWidth="0.5"
+        android:pathData="M34.4,34.65h39.2a2.55,2.55 0,0 1,2.55 2.55v20.4a2.55,2.55 0,0 1,-2.55 2.55H34.4a2.55,2.55 0,0 1,-2.55 -2.55V37.2a2.55,2.55 0,0 1,2.55 -2.55z" />
+
+    <!-- Minimalist top virtual status strip with Smartisan crimson indicator dot -->
+    <path
+        android:fillColor="#26FFFFFF"
+        android:pathData="M34.8,36.4h38.4a1,1 0,0 1,0 2.0H34.8a1,1 0,0 1,0 -2.0z" />
+    <path
+        android:fillColor="#FFE85B53"
+        android:pathData="M71.9,36.55a0.85,0.85 0,1 0,0 1.7a0.85,0.85 0,1 0,0 -1.7z" />
+
+    <!-- Balanced Dual-Pane Virtual Workspace Cards -->
+    <!-- Left tactile warm-ivory window with Smartisan crimson header bar -->
+    <path android:pathData="M36.0,40.4h14.6a2.2,2.2 0,0 1,2.2 2.2v13.2a2.2,2.2 0,0 1,-2.2 2.2H36.0a2.2,2.2 0,0 1,-2.2 -2.2V42.6a2.2,2.2 0,0 1,2.2 -2.2z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:type="linear"
+                android:startX="33.8"
+                android:startY="40.4"
+                android:endX="52.8"
+                android:endY="58.0">
+                <item android:offset="0" android:color="#FFFAFBFD" />
+                <item android:offset="1" android:color="#FFE6EBF2" />
+            </gradient>
+        </aapt:attr>
+    </path>
+    <path android:pathData="M36.0,40.4h14.6a2.2,2.2 0,0 1,2.2 2.2v1.6h-19.0v-1.6a2.2,2.2 0,0 1,2.2 -2.2z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:type="linear"
+                android:startX="33.8"
+                android:startY="40.4"
+                android:endX="52.8"
+                android:endY="44.2">
+                <item android:offset="0" android:color="#FFE4544B" />
+                <item android:offset="1" android:color="#FFCE4038" />
+            </gradient>
+        </aapt:attr>
+    </path>
+    <path
+        android:fillColor="#FF98A6B8"
+        android:pathData="M36.6,47.2h10.8a0.9,0.9 0,0 1,0 1.8h-10.8a0.9,0.9 0,0 1,0 -1.8z" />
+    <path
+        android:fillColor="#FFB9C4D2"
+        android:pathData="M36.6,51.2h7.6a0.9,0.9 0,0 1,0 1.8h-7.6a0.9,0.9 0,0 1,0 -1.8z" />
+
+    <!-- Right smoked frosted-slate window with azure accent pill & desktop pointer -->
+    <path android:pathData="M57.4,40.4h14.6a2.2,2.2 0,0 1,2.2 2.2v13.2a2.2,2.2 0,0 1,-2.2 2.2H57.4a2.2,2.2 0,0 1,-2.2 -2.2V42.6a2.2,2.2 0,0 1,2.2 -2.2z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:type="linear"
+                android:startX="55.2"
+                android:startY="40.4"
+                android:endX="74.2"
+                android:endY="58.0">
+                <item android:offset="0" android:color="#FF3B4657" />
+                <item android:offset="1" android:color="#FF2C3544" />
+            </gradient>
+        </aapt:attr>
+    </path>
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#42FFFFFF"
+        android:strokeWidth="0.5"
+        android:pathData="M57.4,40.65h14.6a1.95,1.95 0,0 1,1.95 1.95v13.2a1.95,1.95 0,0 1,-1.95 1.95H57.4a1.95,1.95 0,0 1,-1.95 -1.95V42.6a1.95,1.95 0,0 1,1.95 -1.95z" />
+    <path
+        android:fillColor="#FF5C8AE6"
+        android:pathData="M58.3,43.0h8.4a1.1,1.1 0,0 1,0 2.2h-8.4a1.1,1.1 0,0 1,0 -2.2z" />
+    <!-- Crisp miniature desktop mouse pointer -->
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:strokeColor="#500C121C"
+        android:strokeWidth="0.55"
+        android:strokeLineJoin="round"
+        android:pathData="M62.4,47.6L62.4,54.8L64.1,53.1L65.4,55.8L66.8,55.1L65.5,52.4L67.9,52.4Z" />
+
+    <!-- Subtle optical diagonal glass sheen across the entire monitor display -->
+    <path
+        android:fillColor="#14FFFFFF"
+        android:pathData="M34.4,34.4H56.5L41.5,60.4H34.4a2.8,2.8 0,0 1,-2.8 -2.8V37.2a2.8,2.8 0,0 1,2.8 -2.8z" />
+</vector>
