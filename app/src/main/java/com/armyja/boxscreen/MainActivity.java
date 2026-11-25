@@ -6173,7 +6173,7 @@ public final class MainActivity extends Activity {
         });
 
         LinearLayout help = settingsSection(body, "帮助");
-        Button guide = settingsAction(help, "离线操作图解", this::showOperationGuideDialog);
+        Button guide = settingsAction(help, "帮助文档", this::showOperationGuideDialog);
         LinearLayout about = settingsSection(body, "关于与更新");
         String version = installedVersion();
         TextView versionText = text("已安装版本 " + version, 14, false, theme.textSecondary);
@@ -6346,7 +6346,7 @@ public final class MainActivity extends Activity {
         if (guideDialog != null && guideDialog.isShowing()) return;
         String html = readGuideAssetHtml();
         if (html == null) {
-            Toast.makeText(this, "无法读取内置操作图解", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, "无法打开帮助文档", Toast.LENGTH_SHORT).show();
             return;
         }
         int dialogTheme = theme != null && theme.isDark
@@ -6378,7 +6378,7 @@ public final class MainActivity extends Activity {
         topBarInner.setPadding(dp(14), 0, dp(14), 0);
         guideTopBar.addView(topBarInner, new LinearLayout.LayoutParams(-1, dp(52)));
 
-        guideTitleView = text("BoxScreen 操作图解", 17, true, theme.textPrimary);
+        guideTitleView = text("帮助文档", 17, true, theme.textPrimary);
         guideTitleView.setLetterSpacing(0.02f);
         topBarInner.addView(guideTitleView, new FrameLayout.LayoutParams(-2, -2, Gravity.CENTER));
 

@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>BoxScreen 操作图解 · v1.0.21</title>
+<title>帮助文档</title>
 <style>
 :root{
   --bg:#f2f5f4;
@@ -45,14 +45,6 @@ body{
   box-shadow:var(--shadow);
   min-width:0;
 }
-.hero-top{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px}
-.brand-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
-.logo-badge{
-  display:inline-flex;align-items:center;gap:8px;
-  background:var(--brand);color:#fff;font-weight:700;font-size:14px;
-  padding:5px 12px;border-radius:999px;letter-spacing:.3px;
-}
-.ver-pill{font-size:12px;font-weight:600;color:var(--brand-dark);background:var(--soft);padding:4px 10px;border-radius:999px}
 .hero h1{margin:0 0 6px;font-size:clamp(20px,3.6vw,30px);line-height:1.25;letter-spacing:-.2px;overflow-wrap:anywhere}
 .hero-sub{margin:0;color:var(--muted);font-size:14.5px;max-width:78ch}
 .hero-diagram{
@@ -133,7 +125,6 @@ body{
 /* Section Headers */
 .sec-head{margin:24px 0 12px;display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:8px}
 .sec-head h2{margin:0;font-size:19px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
-.sec-pill{font-size:12px;font-weight:700;padding:3px 9px;border-radius:999px;background:var(--soft);color:var(--brand-dark)}
 .sec-head p{margin:0;font-size:13.5px;color:var(--muted)}
 
 /* Cheat Sheet Grid */
@@ -219,9 +210,6 @@ body{
   border-radius:16px;color:var(--muted);display:none;
 }
 .empty-state.show{display:block}
-.footer-note{
-  margin-top:24px;text-align:center;color:var(--muted);font-size:12.5px;
-}
 
 @media (max-width:860px){
   .cheat-grid{grid-template-columns:1fr}
@@ -326,15 +314,8 @@ html.dark .hero-diagram,html.dark .cheat-svg,html.dark .pane svg{background:#fff
 <body>
 <div class="wrap">
   <section class="hero" id="heroSection">
-    <div class="hero-top">
-      <div class="brand-row">
-        <span class="logo-badge">BoxScreen</span>
-        <span class="ver-pill">v1.0.21 · 新手到进阶一图通</span>
-      </div>
-      <span style="font-size:12.5px;color:var(--muted)">所有图示支持手机触屏 &amp; 电脑浏览</span>
-    </div>
-    <h1>3 秒看懂 BoxScreen：把手机变成「外接大屏安卓盒子」</h1>
-    <p class="hero-sub">不是把手机画面镜像投屏，而是<strong>让应用独立运行在外接显示器上</strong>；手机退居幕后当控制中心（连接鼠标后自动黑屏省电）。所有日常切换与分屏都靠外接屏顶部的<strong>快捷条</strong>完成。</p>
+    <h1>帮助文档</h1>
+    <p class="hero-sub">在 BoxScreen 中选择应用，即可在外接屏上独立运行。用外接屏顶部的快捷条切换应用或开启分屏。</p>
     <div class="hero-diagram" id="heroDiagram"></div>
     <div class="quick-facts">
       <div class="fact"><span class="fact-num">1</span><div class="fact-body"><strong>授权一次即可开屏</strong><span>先打开 Shizuku 并开启服务，再点 BoxScreen 里的应用图标即可点亮外接屏。</span></div></div>
@@ -363,16 +344,15 @@ html.dark .hero-diagram,html.dark .cheat-svg,html.dark .pane svg{background:#fff
 
   <section id="cheatSection">
     <div class="sec-head">
-      <h2><span class="sec-pill">核心速查</span>一眼记牢 4 组关键手势与判定边界</h2>
-      <p>特别放大展示「图标边缘判定线」——拖出虚线框边界才有不同效果</p>
+      <h2>常用手势</h2>
+      <p>图中的虚线标出拖动手势的判定边界。</p>
     </div>
     <div class="cheat-grid" id="cheatGrid"></div>
   </section>
 
   <section id="stepsSection">
     <div class="sec-head">
-      <h2><span class="sec-pill" id="stepsCountPill">共 18 步</span><span id="stepsHeading">分步实操图解</span></h2>
-      <p id="stepsHint">每一步左图看「操作轨迹」，右图看「立即结果」</p>
+      <h2 id="stepsHeading">操作步骤</h2>
     </div>
     <div class="steps-list" id="stepsList"></div>
     <div class="empty-state" id="emptyState">没有找到包含该关键词的操作步骤，换个词（如“分屏”“重启”“右键”“截图”）试试，或点右上角清空搜索。</div>
@@ -383,7 +363,6 @@ html.dark .hero-diagram,html.dark .cheat-svg,html.dark .pane svg{background:#fff
     </div>
   </section>
 
-  <p class="footer-note">适用于 BoxScreen v1.0.21 · 独立离线单页图解，支持保存本地随时查阅。</p>
 </div>
 
 <script>
@@ -1296,7 +1275,6 @@ function renderSteps(){
   const listEl = document.getElementById("stepsList");
   const emptyEl = document.getElementById("emptyState");
   const pagerBar = document.getElementById("pagerBar");
-  const countPill = document.getElementById("stepsCountPill");
   const heading = document.getElementById("stepsHeading");
 
   if(state.tab==="cheat" && !state.q.trim() && state.mode!=="pager"){
@@ -1307,20 +1285,18 @@ function renderSteps(){
 
   if(state.mode==="pager"){
     const item = steps[state.step];
-    countPill.textContent = `逐页 ${state.step+1} / ${steps.length}`;
-    heading.textContent = "逐页演示模式（支持键盘 ← → 或左右滑动）";
+    heading.textContent = "逐页演示";
     listEl.innerHTML = stepCardHtml(item);
     emptyEl.classList.remove("show");
     pagerBar.classList.add("show");
-    document.getElementById("pagerStatus").textContent = `${state.step+1} / ${steps.length} · 步骤 ${item.n}`;
+    document.getElementById("pagerStatus").textContent = `${state.step+1} / ${steps.length}`;
     document.getElementById("prevBtn").disabled = state.step <= 0;
     document.getElementById("nextBtn").disabled = state.step >= steps.length - 1;
   } else {
     pagerBar.classList.remove("show");
     const items = getFilteredSteps();
-    countPill.textContent = `显示 ${items.length} / ${steps.length} 步`;
     const tabObj = tabsDef.find(t=>t.id===state.tab);
-    heading.textContent = state.q.trim() ? `包含“${state.q.trim()}”的操作` : (state.tab==="all" ? "全部 18 步完整操作图解" : tabObj.label + " · 分步图解");
+    heading.textContent = state.q.trim() ? `包含“${state.q.trim()}”的操作` : (state.tab==="all" ? "操作步骤" : tabObj.label);
     if(items.length===0){
       listEl.innerHTML = "";
       emptyEl.classList.add("show");
