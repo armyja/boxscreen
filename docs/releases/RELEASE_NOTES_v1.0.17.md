@@ -18,4 +18,4 @@
 - 版本：`versionName 1.0.17`，`versionCode 20`
 - SHA-256：`22f1c976e3243922e0de32f7cbacc2637794d03097b2de6479351c20a41ed368`
 
-安装与操作见 [README](../README.md) 和[中文使用手册](USER_GUIDE_zh-CN.md)。
+安装与操作见 [README](../../README.md) 和[中文使用手册](../guides/USER_GUIDE_zh-CN.md)。

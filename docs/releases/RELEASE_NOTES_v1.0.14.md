@@ -10,4 +10,4 @@
 - 版本：`versionName 1.0.14`，`versionCode 17`
 - SHA-256：`a3436e7330c4e0b9545ec21620775613d2ff5672ec53ec25f8b98de938febf06`
 
-安装与操作见 [README](../README.md) 和[中文使用手册](USER_GUIDE_zh-CN.md)。
+安装与操作见 [README](../../README.md) 和[中文使用手册](../guides/USER_GUIDE_zh-CN.md)。

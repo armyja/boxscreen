@@ -4,14 +4,14 @@ BoxScreen 把手机变成一台「安卓盒子」：外接显示器上独立运�
 
 > **当前公开版本：v1.0.21。** 本版调整了手机端和外接屏控制面板的布局及配置变化处理；未修改 OnePlus 16/OnePlus 8 的虚拟屏创建、分屏后端或机型适配接口。
 
-v1.0.21 统一了快捷面板按钮与最近任务图标的尺寸、间距和点击区域，优化触摸/鼠标、旋转和截图图标；同时避免无关配置变化触发不必要的显示布局刷新。详见[本次发布说明](docs/RELEASE_NOTES_v1.0.21.md)。
+v1.0.21 统一了快捷面板按钮与最近任务图标的尺寸、间距和点击区域，优化触摸/鼠标、旋转和截图图标；同时避免无关配置变化触发不必要的显示布局刷新。详见[本次发布说明](docs/releases/RELEASE_NOTES_v1.0.21.md)。
 
 ## 操作图解
 
-![BoxScreen 双屏运行架构图解](docs/images/overview-dual-screen.svg)
+![BoxScreen 双屏运行架构图解](docs/guides/images/overview-dual-screen.svg)
 
-- **在线阅读完整手势图解**：见 [BoxScreen 使用手册（含全部矢量示意图）](docs/USER_GUIDE_zh-CN.md) — 在 GitHub 仓库页面可直接浏览全部 5 张矢量图解（状态栏 5 向手势、组合图标手势、分界滑块、触摸/鼠标按键对照）。
-- **App 内离线交互手册**：打开 BoxScreen 主界面点击右上角 **「操作图解」**，即可零流量离线浏览 18 步动态交互图解（也保存在 [`docs/OPERATION_GUIDE_zh-CN.html`](docs/OPERATION_GUIDE_zh-CN.html)，下载后可用浏览器直接打开）。
+- **在线阅读完整手势图解**：见 [BoxScreen 使用手册（含全部矢量示意图）](docs/guides/USER_GUIDE_zh-CN.md) — 在 GitHub 仓库页面可直接浏览全部 5 张矢量图解（状态栏 5 向手势、组合图标手势、分界滑块、触摸/鼠标按键对照）。
+- **App 内离线交互手册**：打开 BoxScreen 主界面点击右上角 **「操作图解」**，即可零流量离线浏览 18 步动态交互图解（也保存在 [`docs/guides/OPERATION_GUIDE_zh-CN.html`](docs/guides/OPERATION_GUIDE_zh-CN.html)，下载后可用浏览器直接打开）。
 
 ## 功能
 
@@ -62,7 +62,7 @@ v1.0.21 统一了快捷面板按钮与最近任务图标的尺寸、间距和点
 4. 若连接了鼠标，点击应用启动后会自动启用鼠标转发；手机随后进入黑屏。触摸手机即可恢复显示和原来的亮度。
 5. 需要同时看两个应用时，在外接屏快捷面板点“分屏”，再从选择器里挑第二个应用。
 
-更完整的界面说明、操作方法和故障处理见[使用手册](docs/USER_GUIDE_zh-CN.md)。
+更完整的界面说明、操作方法和故障处理见[使用手册](docs/guides/USER_GUIDE_zh-CN.md)。
 
 ## 下载与安装
 
@@ -82,7 +82,7 @@ APK 输出路径：`app/build/outputs/apk/debug/app-debug.apk`。
 
 正式发布构建需要在 `~/.gradle/boxscreen-release.properties` 配置 `storeFile`、`storePassword`、`keyAlias`、`keyPassword`。签名密钥和配置不在仓库中；私钥丢失后，已安装官方 Release 的用户将无法通过新签名 APK 原地更新。普通开发和调试不需要发布签名文件。
 
-如需在连接外接显示器的真机上做端到端自动化验证（含自绘鼠标注入、状态栏交互与分屏任务栈核对），见[真机自动化测试指南](docs/TESTING_GUIDE_zh-CN.md)。
+如需在连接外接显示器的真机上做端到端自动化验证（含自绘鼠标注入、状态栏交互与分屏任务栈核对），见[真机自动化测试指南](docs/testing/TESTING_GUIDE_zh-CN.md)。
 
 ## 兼容性说明
 

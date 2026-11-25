@@ -9,7 +9,7 @@
 
 OnePlus 8 的支持针对上表中的第三方系统构建，不代表原厂 OxygenOS 或所有第三方 ROM。BoxScreen 运行在连接了支持视频输出的外接显示器的手机上。
 
-> **提示 · 离线交互式操作图解：** 除了本页的矢量示意图外，BoxScreen 应用主界面右上角也内置了完整的「**操作图解**」（点击即可离线打开 18 步交互式分步图解，支持动态操作轨迹演示与逐页模式），也可在本地浏览器直接打开 [`docs/OPERATION_GUIDE_zh-CN.html`](OPERATION_GUIDE_zh-CN.html)。
+> **提示 · 离线交互式操作图解：** 除了本页的矢量示意图外，BoxScreen 应用主界面右上角也内置了完整的「**操作图解**」（点击即可离线打开 18 步交互式分步图解，支持动态操作轨迹演示与逐页模式），也可在本地浏览器直接打开 [`docs/guides/OPERATION_GUIDE_zh-CN.html`](OPERATION_GUIDE_zh-CN.html)。
 
 ![BoxScreen 双屏核心架构图解](images/overview-dual-screen.svg)
 

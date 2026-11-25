@@ -13,4 +13,4 @@
 - APK：`BoxScreen-v1.0.21.apk`
 - APK SHA-256：`255df5ff6d6534aadc81669083d8ffd926feebafda9a3d6fa82bb84af714d293`
 
-安装与操作见 [README](../README.md) 和[中文使用手册](USER_GUIDE_zh-CN.md)。
+安装与操作见 [README](../../README.md) 和[中文使用手册](../guides/USER_GUIDE_zh-CN.md)。

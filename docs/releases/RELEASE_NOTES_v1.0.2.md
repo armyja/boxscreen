@@ -15,6 +15,6 @@
 
 ## 使用说明
 
-请先阅读[README](../README.md)和[中文使用手册](USER_GUIDE_zh-CN.md)。
+请先阅读[README](../../README.md)和[中文使用手册](../guides/USER_GUIDE_zh-CN.md)。
 
 许可证：MIT。

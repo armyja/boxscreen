@@ -15,4 +15,4 @@
 - 版本：`versionName 1.0.15`，`versionCode 18`
 - SHA-256：`d9037c8efdbf8cf3c4d5e6a046edacfebfc7752392c1d6c5d7f8c3e65cc37eac`
 
-安装与操作见 [README](../README.md) 和[中文使用手册](USER_GUIDE_zh-CN.md)。
+安装与操作见 [README](../../README.md) 和[中文使用手册](../guides/USER_GUIDE_zh-CN.md)。

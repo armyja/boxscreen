@@ -32,7 +32,7 @@ abstract class CopyGuideAssetTask extends DefaultTask {
 }
 
 def syncGuideAsset = tasks.register('syncGuideAsset', CopyGuideAssetTask) {
-    sourceFile.set(rootProject.layout.projectDirectory.file('docs/OPERATION_GUIDE_zh-CN.html'))
+    sourceFile.set(rootProject.layout.projectDirectory.file('docs/guides/OPERATION_GUIDE_zh-CN.html'))
     outputDir.set(layout.buildDirectory.dir('generated/guideAssets'))
 }
 

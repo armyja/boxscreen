@@ -20,4 +20,4 @@ v1.0.8 起为修复外接手柄而加入的"手柄屏幕绑定清理"，在 v1.0
 - SHA-256：`fc4fdad9f9bd000debf697c1d5bc38097c27ed29a36ada5334b05ab216ae5c2a`
 - 许可证：MIT。
 
-完整操作和限制见 [README](../README.md) 与[中文使用手册](USER_GUIDE_zh-CN.md)。
+完整操作和限制见 [README](../../README.md) 与[中文使用手册](../guides/USER_GUIDE_zh-CN.md)。

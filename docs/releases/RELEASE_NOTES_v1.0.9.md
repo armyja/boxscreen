@@ -26,4 +26,4 @@
 - SHA-256：`c77a793926cf3188eb8c328ac2f37a83231e11c708d1da29498f1eab7ea5941b`
 - 许可证：MIT。
 
-完整操作和限制见 [README](../README.md) 与[中文使用手册](USER_GUIDE_zh-CN.md)。
+完整操作和限制见 [README](../../README.md) 与[中文使用手册](../guides/USER_GUIDE_zh-CN.md)。

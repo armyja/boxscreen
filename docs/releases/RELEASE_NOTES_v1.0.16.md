@@ -17,4 +17,4 @@
 - 版本：`versionName 1.0.16`，`versionCode 19`
 - SHA-256：`6ed8d1996da673f34b53e70fc2f3a5bb2a17e05e5499a2f0cef89984a9a2c96c`
 
-安装与操作见 [README](https://github.com/armyja/boxscreen/blob/main/README.md) 和[中文使用手册](https://github.com/armyja/boxscreen/blob/main/docs/USER_GUIDE_zh-CN.md)。
+安装与操作见 [README](https://github.com/armyja/boxscreen/blob/main/README.md) 和[中文使用手册](https://github.com/armyja/boxscreen/blob/main/docs/guides/USER_GUIDE_zh-CN.md)。
