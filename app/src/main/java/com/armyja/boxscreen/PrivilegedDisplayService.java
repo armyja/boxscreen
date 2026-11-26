@@ -25,6 +25,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
@@ -1438,7 +1439,8 @@ public final class PrivilegedDisplayService extends IDisplayService.Stub {
     @Override
     public synchronized String[] closeDisplayedApp(String packageName, String foregroundPackage) {
         if (virtualDisplay == null || virtualDisplay.getDisplay() == null) return null;
-        if (packageName == null || !packageName.matches("[A-Za-z0-9_]+(\\.[A-Za-z0-9_]+)+")) {
+        if (packageName == null || !packageName.matches("[A-Za-z0-9_]+(\\.[A-Za-z0-9_]+)+")
+                || "com.armyja.boxscreen".equals(packageName)) {
             throw new IllegalArgumentException("Invalid package name");
         }
         try {
@@ -1446,10 +1448,15 @@ public final class PrivilegedDisplayService extends IDisplayService.Stub {
                 String[] pair = splitSession.packages();
                 boolean firstSide = pair != null && packageName.equals(pair[0]);
                 boolean secondSide = pair != null && packageName.equals(pair[1]);
-                if (!firstSide && !secondSide) return null;
-                String killed = splitSession.killSide(firstSide);
-                if (!packageName.equals(killed)) return null;
-                return splitSession.packages();
+                if (firstSide || secondSide) {
+                    String killed = splitSession.killSide(firstSide);
+                    if (!packageName.equals(killed)) return null;
+                    return splitSession.packages();
+                }
+                if (!closeBackgroundApp(virtualDisplay.getDisplay().getDisplayId(), packageName)) {
+                    return null;
+                }
+                return new String[]{"background"};
             }
 
             int displayId = virtualDisplay.getDisplay().getDisplayId();
@@ -1458,24 +1465,65 @@ public final class PrivilegedDisplayService extends IDisplayService.Stub {
             SplitSession tasks = splitSession != null ? splitSession : new SplitSession(displayId);
             if (taskId < 0 && findTopTaskId(displayId, true) >= 0
                     && packageName.equals(foregroundPackage)) {
-                taskId = tasks.taskIdForPackage(packageName);
-                if (taskId > 0 && !tasks.isTaskVisible(taskId)) return null;
+                int candidateId = tasks.taskIdForPackage(packageName);
+                if (candidateId > 0 && tasks.isTaskVisible(candidateId)) {
+                    taskId = candidateId;
+                }
             }
-            if (taskId < 0 || !packageName.equals(tasks.packageForTaskId(taskId))) return null;
-            run(new String[]{"/system/bin/am", "force-stop", packageName});
-            if (!tasks.removeTaskById(taskId)) {
-                throw new IllegalStateException("系统未能移除虚拟屏任务");
+            if (taskId > 0 && packageName.equals(tasks.packageForTaskId(taskId))) {
+                run(new String[]{"/system/bin/am", "force-stop", packageName});
+                if (!tasks.removeTaskById(taskId)) {
+                    throw new IllegalStateException("系统未能移除虚拟屏任务");
+                }
+                removeStackEntry(taskId);
+                pendingLaunchPackage = null;
+                pendingLaunchUntilMs = 0;
+                String[] restoredPair = restoreTopAfterClose(displayId, tasks);
+                if (restoredPair != null) return restoredPair;
+                String nextPackage = getVirtualDisplayForegroundPackage();
+                return nextPackage == null ? new String[0] : new String[]{nextPackage};
             }
-            removeStackEntry(taskId);
-            pendingLaunchPackage = null;
-            pendingLaunchUntilMs = 0;
-            String[] restoredPair = restoreTopAfterClose(displayId, tasks);
-            if (restoredPair != null) return restoredPair;
-            String nextPackage = getVirtualDisplayForegroundPackage();
-            return nextPackage == null ? new String[0] : new String[]{nextPackage};
+            if (!closeBackgroundApp(displayId, packageName)) return null;
+            return new String[]{"background"};
         } catch (Exception e) {
             throw new IllegalStateException("无法关闭虚拟屏应用：" + describeFailure(e), e);
         }
+    }
+
+    private boolean closeBackgroundApp(int displayId, String packageName)
+            throws ReflectiveOperationException {
+        if (splitSession != null && !splitSession.isForeground()
+                && splitSession.containsPackage(packageName)) {
+            int[] oldIds = splitSession.stageTaskIds();
+            splitSession.dissolveToBackground();
+            splitSession = null;
+            replaceSplitInStackWithTasks(oldIds, false);
+        }
+        SplitSession tasks = splitSession != null ? splitSession : new SplitSession(displayId);
+        LinkedHashSet<Integer> targetIds = new LinkedHashSet<>();
+        int displayTaskId = tasks.taskIdForPackage(packageName);
+        if (displayTaskId > 0) targetIds.add(displayTaskId);
+        for (String row : RecentTaskReader.read(displayId)) {
+            if (row == null) continue;
+            int sep = row.indexOf('\t');
+            if (sep <= 0 || sep == row.length() - 1) continue;
+            if (!packageName.equals(row.substring(sep + 1))) continue;
+            try {
+                int id = Integer.parseInt(row.substring(0, sep));
+                if (id > 0) targetIds.add(id);
+            } catch (NumberFormatException ignored) { }
+        }
+        if (targetIds.isEmpty()) return false;
+        run(new String[]{"/system/bin/am", "force-stop", packageName});
+        for (int id : targetIds) {
+            try {
+                tasks.removeTaskById(id);
+            } catch (ReflectiveOperationException | RuntimeException error) {
+                Log.w("BoxScreenService", "removeTask failed for background task=" + id, error);
+            }
+            removeStackEntry(id);
+        }
+        return true;
     }
 
     @Override

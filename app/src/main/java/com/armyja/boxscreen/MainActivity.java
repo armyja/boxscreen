@@ -757,6 +757,7 @@ public final class MainActivity extends Activity {
             try { Shizuku.unbindUserService(shizukuServiceArgs, shizukuServiceConnection, outputOwner == null); }
             catch (RuntimeException ignored) { }
         }
+        if (outputOwner == null) KeepAliveService.stop(this);
         super.onDestroy();
     }
 
@@ -1146,6 +1147,7 @@ public final class MainActivity extends Activity {
             updateOutputLayout();
             presentation.show();
             outputOwner = this;
+            KeepAliveService.start(this);
             status("外接输出已启动：" + baseWidth + "×" + baseHeight + "，" + densityDpi + " dpi");
         } catch (RuntimeException e) {
             status("无法在外接显示器上显示：" + e.getMessage());
@@ -1918,6 +1920,7 @@ public final class MainActivity extends Activity {
         }
         outputSurface = previousOutputSurface = null;
         transitionFramesRemaining = 0;
+        KeepAliveService.stop(this);
         status("虚拟屏已停止");
     }
 
@@ -3619,8 +3622,14 @@ public final class MainActivity extends Activity {
                         quickPanelVisible = restorePanel;
                         statusBarVisible = true;
                         Log.e(TAG, "close displayed app failed package=" + packageName, resultError);
-                        status(resultError == null ? "该应用当前未显示在虚拟屏前台"
-                                : "关闭前台应用失败：" + resultError.getMessage());
+                        status(resultError == null ? "未找到可关闭的应用任务"
+                                : "关闭应用失败：" + resultError.getMessage());
+                        invalidate();
+                        return;
+                    }
+                    if (resultState.length == 1 && "background".equals(resultState[0])) {
+                        invalidateRecentTasks();
+                        status("已关闭后台应用");
                         invalidate();
                         return;
                     }

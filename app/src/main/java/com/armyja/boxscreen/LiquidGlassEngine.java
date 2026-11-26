@@ -154,7 +154,8 @@ final class LiquidGlassEngine {
     /** Multi-bloom gallery backdrop (Lens pastel cyan/blue/peach in Light; deep sapphire/teal/twilight in Dark). */
     static final class LiquidAuroraBackdropDrawable extends Drawable {
         private final boolean dark;
-        private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG | Paint.DITHER_FLAG);
+        private Object shaderHolder;
         private int cachedWidth = -1;
         private int cachedHeight = -1;
         private Shader baseShader;
@@ -172,32 +173,33 @@ final class LiquidGlassEngine {
             cachedWidth = w;
             cachedHeight = h;
             float maxDim = Math.max(w, h);
+            float[] bloomStops = new float[]{0f, 0.22f, 0.45f, 0.68f, 0.86f, 1f};
             if (dark) {
                 baseShader = new LinearGradient(0f, 0f, w, h,
                         new int[]{0xff0b0f17, 0xff090c12, 0xff0d121c},
                         new float[]{0f, 0.55f, 1f}, Shader.TileMode.CLAMP);
                 bloomA = new RadialGradient(w * 0.16f, h * 0.14f, maxDim * 0.58f,
-                        new int[]{0x582e6de0, 0x1e204da6, 0x00090c12},
-                        new float[]{0f, 0.55f, 1f}, Shader.TileMode.CLAMP);
+                        new int[]{0x582e6de0, 0x452a64ce, 0x2b2354b4, 0x141a3f88, 0x05102652, 0x00090c12},
+                        bloomStops, Shader.TileMode.CLAMP);
                 bloomB = new RadialGradient(w * 0.88f, h * 0.42f, maxDim * 0.54f,
-                        new int[]{0x4a1692ad, 0x180e6275, 0x00090c12},
-                        new float[]{0f, 0.55f, 1f}, Shader.TileMode.CLAMP);
+                        new int[]{0x4a1692ad, 0x3913849d, 0x22106e83, 0x100c5161, 0x04092f39, 0x00090c12},
+                        bloomStops, Shader.TileMode.CLAMP);
                 bloomC = new RadialGradient(w * 0.24f, h * 0.84f, maxDim * 0.52f,
-                        new int[]{0x425842c0, 0x163d2c8d, 0x00090c12},
-                        new float[]{0f, 0.58f, 1f}, Shader.TileMode.CLAMP);
+                        new int[]{0x425842c0, 0x334f3bb0, 0x1f413096, 0x0f312472, 0x041d1544, 0x00090c12},
+                        bloomStops, Shader.TileMode.CLAMP);
             } else {
                 baseShader = new LinearGradient(0f, 0f, w, h,
                         new int[]{0xfff7f9fc, 0xfff5f7fa, 0xffeef2f8},
                         new float[]{0f, 0.55f, 1f}, Shader.TileMode.CLAMP);
                 bloomA = new RadialGradient(w * 0.14f, h * 0.12f, maxDim * 0.58f,
-                        new int[]{0x4a64c8f5, 0x1c7cd3f8, 0x00f5f7fa},
-                        new float[]{0f, 0.55f, 1f}, Shader.TileMode.CLAMP);
+                        new int[]{0x4a64c8f5, 0x396dcbf6, 0x2477d0f7, 0x128bd9f9, 0x05b5e8fc, 0x00f5f7fa},
+                        bloomStops, Shader.TileMode.CLAMP);
                 bloomB = new RadialGradient(w * 0.88f, h * 0.44f, maxDim * 0.55f,
-                        new int[]{0x3e7ea8f8, 0x1896b8fa, 0x00f5f7fa},
-                        new float[]{0f, 0.55f, 1f}, Shader.TileMode.CLAMP);
+                        new int[]{0x3e7ea8f8, 0x3086aef9, 0x1e8fb4f9, 0x0fa4c2fb, 0x04c5d7fc, 0x00f5f7fa},
+                        bloomStops, Shader.TileMode.CLAMP);
                 bloomC = new RadialGradient(w * 0.22f, h * 0.84f, maxDim * 0.52f,
-                        new int[]{0x38f6b99e, 0x14f8ccb8, 0x00f5f7fa},
-                        new float[]{0f, 0.58f, 1f}, Shader.TileMode.CLAMP);
+                        new int[]{0x38f6b99e, 0x2cf7bf9f, 0x1bf7c8b2, 0x0ef9d5c4, 0x04fbe5da, 0x00f5f7fa},
+                        bloomStops, Shader.TileMode.CLAMP);
             }
         }
 
@@ -207,6 +209,13 @@ final class LiquidGlassEngine {
             int w = bounds.width();
             int h = bounds.height();
             if (w <= 0 || h <= 0) return;
+            if (isOpticalSupported() && canvas.isHardwareAccelerated()) {
+                if (shaderHolder == null) shaderHolder = Api33.createAuroraHolder();
+                if (Api33.drawAuroraBackdrop(shaderHolder, canvas, paint,
+                        bounds.left, bounds.top, w, h, dark)) {
+                    return;
+                }
+            }
             ensureShaders(w, h);
             canvas.save();
             canvas.translate(bounds.left, bounds.top);
@@ -236,8 +245,8 @@ final class LiquidGlassEngine {
         private final int outerStrokeColor;
         private final int specularColor;
         private final float strokeWidthPx;
-        private final Paint fillPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
-        private final Paint rimPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        private final Paint fillPaint = new Paint(Paint.ANTI_ALIAS_FLAG | Paint.DITHER_FLAG);
+        private final Paint rimPaint = new Paint(Paint.ANTI_ALIAS_FLAG | Paint.DITHER_FLAG);
         private final Paint specularPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
         private final RectF rect = new RectF();
         private final Path clipPath = new Path();
@@ -685,8 +694,8 @@ final class LiquidGlassEngine {
         private boolean darkMode;
         private float cornerRadiusDp = 15f;
         private Object specularState;
-        private final Paint fillPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
-        private final Paint sheenPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        private final Paint fillPaint = new Paint(Paint.ANTI_ALIAS_FLAG | Paint.DITHER_FLAG);
+        private final Paint sheenPaint = new Paint(Paint.ANTI_ALIAS_FLAG | Paint.DITHER_FLAG);
         private final Paint borderPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
         private final Paint specularPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
         private final Path outlinePath = new Path();
@@ -806,6 +815,7 @@ final class LiquidGlassEngine {
                 + "uniform float scale;\n"
                 + "uniform float refraction;\n"
                 + "uniform float dispersion;\n"
+                + "uniform float faceMagnify;\n"
                 + "uniform float darkMode;\n"
                 + "uniform float tintAlpha;\n"
                 + "uniform float2 pointerLocal;\n"
@@ -850,12 +860,12 @@ final class LiquidGlassEngine {
                 + "    float bevel = max(min(min(halfSize.x, halfSize.y) * 0.48, 19.0 * scale), 0.001);\n"
                 + "    float edge = clamp(1.0 + sd / bevel, 0.0, 1.0);\n"
                 + "    float slope = pow(edge, 1.65) * 0.94;\n"
-                + "    float2 faceNormal = clamp(centeredCoord / halfSize, float2(-1.0), float2(1.0)) * 0.045 * (1.0 - edge);\n"
+                + "    float2 faceNormal = clamp(centeredCoord / halfSize, float2(-1.0), float2(1.0)) * 0.045 * (1.0 - edge) * faceMagnify;\n"
                 + "    float2 normalXY = n2 * slope + faceNormal;\n"
                 + "    float3 normal = float3(normalXY, sqrt(max(1.0 - dot(normalXY, normalXY), 0.001)));\n"
                 + "    float3 ray = snellRefract(float3(0.0, 0.0, -1.0), normal, 1.0 / 1.45);\n"
                 + "    float thickness = (18.0 + refraction * 57.0) * scale;\n"
-                + "    float2 disp = ray.xy / max(-ray.z, 0.05) * thickness * refraction - centeredCoord * 0.016 * refraction;\n"
+                + "    float2 disp = ray.xy / max(-ray.z, 0.05) * thickness * refraction - centeredCoord * 0.016 * refraction * faceMagnify;\n"
                 + "    float2 maxUV = max(viewSize - float2(0.5), float2(1.0));\n"
                 + "    float2 at = clamp(coord + disp, float2(0.5), maxUV);\n"
                 + "    half3 c = content.eval(at).rgb;\n"
@@ -1031,6 +1041,54 @@ final class LiquidGlassEngine {
                 + "    return mix(shadowPremul, dropletPremul, half(insideAlpha));\n"
                 + "}\n";
 
+        /**
+         * Single-pass floating-point multi-bloom Aurora backdrop with smooth Gaussian falloff and
+         * triangular interleaved gradient noise (IGN) dithering to prevent 8-bit dark banding.
+         */
+        private static final String AURORA_BACKDROP_AGSL = ""
+                + "uniform float2 size;\n"
+                + "uniform float darkMode;\n"
+                + "float bloomWeight(float2 coord, float2 center, float radius) {\n"
+                + "    float d = length(coord - center) / max(radius, 1.0);\n"
+                + "    if (d >= 1.0) return 0.0;\n"
+                + "    float edge = 1.0 - smoothstep(0.42, 1.0, d);\n"
+                + "    return exp(-2.7 * d * d) * edge;\n"
+                + "}\n"
+                + "half4 main(float2 coord) {\n"
+                + "    float t = clamp(dot(coord, size) / max(dot(size, size), 1.0), 0.0, 1.0);\n"
+                + "    float maxDim = max(size.x, size.y);\n"
+                + "    float3 color;\n"
+                + "    if (darkMode > 0.5) {\n"
+                + "        float3 c0 = float3(0.0431, 0.0588, 0.0902);\n"
+                + "        float3 c1 = float3(0.0353, 0.0471, 0.0706);\n"
+                + "        float3 c2 = float3(0.0510, 0.0706, 0.1098);\n"
+                + "        color = (t < 0.55) ? mix(c0, c1, smoothstep(0.0, 0.55, t))\n"
+                + "                           : mix(c1, c2, smoothstep(0.55, 1.0, t));\n"
+                + "        float wA = bloomWeight(coord, float2(size.x * 0.16, size.y * 0.14), maxDim * 0.58);\n"
+                + "        color = mix(color, float3(0.1804, 0.4275, 0.8784), clamp(0.345 * wA, 0.0, 1.0));\n"
+                + "        float wB = bloomWeight(coord, float2(size.x * 0.88, size.y * 0.42), maxDim * 0.54);\n"
+                + "        color = mix(color, float3(0.0863, 0.5725, 0.6784), clamp(0.290 * wB, 0.0, 1.0));\n"
+                + "        float wC = bloomWeight(coord, float2(size.x * 0.24, size.y * 0.84), maxDim * 0.52);\n"
+                + "        color = mix(color, float3(0.3451, 0.2588, 0.7529), clamp(0.259 * wC, 0.0, 1.0));\n"
+                + "    } else {\n"
+                + "        float3 c0 = float3(0.9686, 0.9765, 0.9882);\n"
+                + "        float3 c1 = float3(0.9608, 0.9686, 0.9804);\n"
+                + "        float3 c2 = float3(0.9333, 0.9490, 0.9725);\n"
+                + "        color = (t < 0.55) ? mix(c0, c1, smoothstep(0.0, 0.55, t))\n"
+                + "                           : mix(c1, c2, smoothstep(0.55, 1.0, t));\n"
+                + "        float wA = bloomWeight(coord, float2(size.x * 0.14, size.y * 0.12), maxDim * 0.58);\n"
+                + "        color = mix(color, float3(0.3922, 0.7843, 0.9608), clamp(0.290 * wA, 0.0, 1.0));\n"
+                + "        float wB = bloomWeight(coord, float2(size.x * 0.88, size.y * 0.44), maxDim * 0.55);\n"
+                + "        color = mix(color, float3(0.4941, 0.6588, 0.9725), clamp(0.243 * wB, 0.0, 1.0));\n"
+                + "        float wC = bloomWeight(coord, float2(size.x * 0.22, size.y * 0.84), maxDim * 0.52);\n"
+                + "        color = mix(color, float3(0.9647, 0.7255, 0.6196), clamp(0.220 * wC, 0.0, 1.0));\n"
+                + "    }\n"
+                + "    float ign1 = fract(52.9829189 * fract(dot(coord, float2(0.06711056, 0.00583715))));\n"
+                + "    float ign2 = fract(52.9829189 * fract(dot(coord + float2(17.0, 31.0), float2(0.06711056, 0.00583715))));\n"
+                + "    float dither = (ign1 + ign2 - 1.0) / 255.0;\n"
+                + "    return half4(clamp(half3(color + float3(dither)), half3(0.0), half3(1.0)), 1.0);\n"
+                + "}\n";
+
         static final class GlassNodeState {
             final RenderNode node;
             RuntimeShader lensShader;
@@ -1060,6 +1118,38 @@ final class LiquidGlassEngine {
 
         static Object createDropletHolder() {
             return new RuntimeShader(DROPLET_THUMB_AGSL);
+        }
+
+        static Object createAuroraHolder() {
+            return new RuntimeShader(AURORA_BACKDROP_AGSL);
+        }
+
+        static boolean drawAuroraBackdrop(
+                Object shaderObj,
+                Canvas canvas,
+                Paint paint,
+                float left,
+                float top,
+                int w,
+                int h,
+                boolean darkMode) {
+            if (!(shaderObj instanceof RuntimeShader shader)) return false;
+            try {
+                shader.setFloatUniform("size", (float) w, (float) h);
+                shader.setFloatUniform("darkMode", darkMode ? 1.0f : 0.0f);
+                canvas.save();
+                canvas.translate(left, top);
+                paint.setStyle(Paint.Style.FILL);
+                paint.setColor(0xffffffff);
+                paint.setShader(shader);
+                canvas.drawRect(0f, 0f, w, h, paint);
+                paint.setShader(null);
+                canvas.restore();
+                return true;
+            } catch (RuntimeException e) {
+                Log.w("BoxScreenGlass", "drawAuroraBackdrop failed", e);
+                return false;
+            }
         }
 
         static boolean drawDropletThumb(
@@ -1146,6 +1236,9 @@ final class LiquidGlassEngine {
             lens.setFloatUniform("scale", Math.max(0.5f, densityScale));
             lens.setFloatUniform("refraction", params.refraction);
             lens.setFloatUniform("dispersion", params.dispersion);
+            // Full-width docked panels (left+right docked) must keep background columns aligned 1:1
+            // instead of magnifying outward from the horizontal center.
+            lens.setFloatUniform("faceMagnify", (params.dockLeft && params.dockRight) ? 0.0f : 1.0f);
             lens.setFloatUniform("darkMode", params.darkMode);
             lens.setFloatUniform("tintAlpha", params.tintAlpha);
             lens.setFloatUniform("pointerLocal", pointerLocalX, pointerLocalY);
